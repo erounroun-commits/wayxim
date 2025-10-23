@@ -3036,7 +3036,7 @@ ${r.optPlan}
     try {
       // Your web app's Firebase configuration
       const firebaseConfig = {
-        apiKey: "AIzaSyA8E0hlRUixkwuIIQwonyPr25cx8HBNeYI",
+        apiKey: "AIzaSyA8E0h1RUixkwuIIQwonyPr25cx8HBNeYI",
         authDomain: "wayxim.firebaseapp.com",
         projectId: "wayxim",
         storageBucket: "wayxim.firebasestorage.app",
@@ -3064,6 +3064,21 @@ ${r.optPlan}
       window.where = where;
       
       console.log('Firebase initialized successfully!', db);
+      
+      // Firebase 연결 테스트
+      console.log('Testing Firebase connection...');
+      try {
+        const testRef = collection(db, 'test');
+        addDoc(testRef, { message: 'Firebase connection test', timestamp: Date.now() })
+          .then(() => {
+            console.log('✅ Firebase write test successful!');
+          })
+          .catch((error) => {
+            console.error('❌ Firebase write test failed:', error);
+          });
+      } catch (error) {
+        console.error('❌ Firebase test setup failed:', error);
+      }
       
       // Firebase 초기화 완료 신호
       window.firebaseReady = true;
