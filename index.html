@@ -356,11 +356,11 @@
   <div id="adminWrap" class="admin-wrap">
     <div class="admin-shell" id="adminShell">
       <aside class="side" id="sidebar">
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="사이드바 토글">☰</button>
+        
+        <h3>관리자 메뉴</h3>
         <div class="nav-group">
-          <a class="nav-item" href="#" data-section="home">
-            <span>HOME</span>
-            <button class="sidebar-toggle" id="sidebarToggle" type="button">☰</button>
-          </a>
+          <a class="nav-item" href="#" data-section="home"><span>홈</span></a>
         </div>
 
         <div class="nav-group">
@@ -546,8 +546,8 @@
     function openDataModal(){ dataModal.style.display = "flex"; dataPwError.textContent = ""; dataPwInput.value = ""; setTimeout(()=> dataPwInput.focus(), 50); }
     function closeDataModal(){ dataModal.style.display = "none"; }
 
-    function showAdminHome(){
-      const rows = loadSubs();
+    async function showAdminHome(){
+      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
       // Calculate statistics
@@ -795,10 +795,10 @@
       container.innerHTML = chartHtml;
     }
 
-    function goAdmin(){
+    async function goAdmin(){
       publicLanding.classList.add("hidden");
       adminWrap.style.display = "block";
-      showAdminHome();
+      await showAdminHome();
       
       // 기본 탭 활성화 (홈 탭)
       document.querySelectorAll("[data-section]").forEach(tab => {
@@ -821,9 +821,9 @@
       window.scrollTo({top:0,behavior:"smooth"});
     }
 
-    function handleOK(){
+    async function handleOK(){
       const val = pwInput.value.trim();
-      if(val === ADMIN_PASS){ sessionStorage.setItem("wp_is_admin","1"); closeModal(); goAdmin(); }
+      if(val === ADMIN_PASS){ sessionStorage.setItem("wp_is_admin","1"); closeModal(); await goAdmin(); }
       else { pwError.textContent = "비밀번호가 올바르지 않습니다."; }
     }
 
@@ -1149,8 +1149,8 @@ ${r.optPlan}
 □ 상품금액 계산서: ${r.billProd}`;
     }
 
-    function showReqDashboard(){
-      const rows = loadSubs();
+    async function showReqDashboard(){
+      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
       // Calculate statistics
@@ -1307,8 +1307,8 @@ ${r.optPlan}
       main.innerHTML = html;
     }
 
-    function showAllReqList(){
-      const rows = loadSubs();
+    async function showAllReqList(){
+      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">전체요청건</h2>`;
       html += '<div class="scroll-x"><table class="admin-table">';
@@ -1349,8 +1349,8 @@ ${r.optPlan}
       main.innerHTML = html;
     }
 
-    function showVendorDashboard(){
-      const rows = loadSubs();
+    async function showVendorDashboard(){
+      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
       // Calculate vendor statistics
@@ -1516,8 +1516,8 @@ ${r.optPlan}
       drawNewVendorChart(chartData);
     }
 
-    function showVendorList(){
-      const rows = loadSubs();
+    async function showVendorList(){
+      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
       // Calculate vendor statistics
@@ -1852,8 +1852,8 @@ ${r.optPlan}
       return consecutiveMonths >= 2 ? '우수' : '일반';
     }
 
-    function showSettlementDashboard(){
-      const rows = loadSubs();
+    async function showSettlementDashboard(){
+      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
       // Calculate current month statistics
@@ -2995,9 +2995,9 @@ ${r.optPlan}
     const main = document.getElementById("adminMain");
     
     // 사이드바에 이벤트 위임 설정
-    const sidebar = document.querySelector('.side');
-    if (sidebar) {
-      sidebar.addEventListener("click", e=>{
+    const adminSidebar = document.querySelector('#sidebar');
+    if (adminSidebar) {
+      adminSidebar.addEventListener("click", async e=>{
         const target = e.target.closest('[data-section]');
         if (!target) return;
         
@@ -3014,15 +3014,15 @@ ${r.optPlan}
         const section = target.getAttribute("data-section");
         console.log('탭 클릭:', section); // 디버깅용
         
-        if(section === "home"){ showAdminHome(); return; }
-        if(section === "req"){ showReqDashboard(); return; }
-        if(section === "req-new"){ showReqList(false); return; }
-        if(section === "req-accepted"){ showReqList(true); return; }
-        if(section === "req-all"){ showAllReqList(); return; }
+        if(section === "home"){ await showAdminHome(); return; }
+        if(section === "req"){ await showReqDashboard(); return; }
+        if(section === "req-new"){ await showReqList(false); return; }
+        if(section === "req-accepted"){ await showReqList(true); return; }
+        if(section === "req-all"){ await showAllReqList(); return; }
         if(section === "data-management"){ openDataModal(); return; }
-        if(section === "vendor"){ showVendorDashboard(); return; }
-        if(section === "vendor-list"){ showVendorList(); return; }
-        if(section === "settle"){ showSettlementDashboard(); return; }
+        if(section === "vendor"){ await showVendorDashboard(); return; }
+        if(section === "vendor-list"){ await showVendorList(); return; }
+        if(section === "settle"){ await showSettlementDashboard(); return; }
         if(section === "settle-weekly"){ showWeeklySettlementList(); return; }
         if(section === "settle-monthly"){ showMonthlySettlementList(); return; }
         if(section === "rate"){ showRateInfo(); return; }
@@ -3085,19 +3085,42 @@ ${r.optPlan}
       }
     });
 
+    // 전문보기 버튼 이벤트 리스너 - 더 강력한 이벤트 위임
     document.addEventListener('click', async e=>{
-      const btn = e.target && e.target.closest && e.target.closest('.view-detail');
-      if(btn){
-        const no = parseInt(btn.getAttribute('data-no')||'0',10);
-        const rows = await loadSubs();
-        const rec = rows.find(r=> r.no===no);
-        if(rec){ openDetail(buildDetailText(rec)); }
+      // 전문보기 버튼 클릭 처리
+      if(e.target && e.target.classList && e.target.classList.contains('view-detail')){
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const no = parseInt(e.target.getAttribute('data-no')||'0',10);
+        console.log('전문보기 버튼 클릭:', no); // 디버깅용
+        
+        try {
+          const rows = await loadSubs();
+          const rec = rows.find(r=> r.no===no);
+          if(rec){ 
+            console.log('데이터 찾음:', rec); // 디버깅용
+            openDetail(buildDetailText(rec)); 
+          } else {
+            console.error('데이터를 찾을 수 없습니다:', no);
+            alert('데이터를 찾을 수 없습니다.');
+          }
+        } catch(error) {
+          console.error('전문보기 오류:', error);
+          alert('전문보기 중 오류가 발생했습니다.');
+        }
+        return;
       }
       
-      const vendorBtn = e.target && e.target.closest && e.target.closest('.view-vendor-detail');
-      if(vendorBtn){
-        const code = vendorBtn.getAttribute('data-code');
+      // VENDOR 상세보기 버튼 클릭 처리
+      if(e.target && e.target.classList && e.target.classList.contains('view-vendor-detail')){
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const code = e.target.getAttribute('data-code');
+        console.log('VENDOR 상세보기 버튼 클릭:', code); // 디버깅용
         openVendorModal(code);
+        return;
       }
     });
 
@@ -3148,7 +3171,7 @@ ${r.optPlan}
         const submissionsRef = collection(db, 'submissions');
         const q = query(submissionsRef, orderBy('submittedAt', 'desc'));
         
-        realtimeUnsubscribe = onSnapshot(q, (snapshot) => {
+        realtimeUnsubscribe = onSnapshot(q, async (snapshot) => {
           console.log('📡 실시간 데이터 업데이트:', snapshot.docs.length, '건');
           
           // localStorage 업데이트
@@ -3162,13 +3185,13 @@ ${r.optPlan}
           if (sessionStorage.getItem("wp_is_admin") === "1") {
             const currentSection = document.querySelector('[data-section].active')?.getAttribute('data-section');
             if (currentSection === 'req-new') {
-              showReqList(false);
+              await showReqList(false);
             } else if (currentSection === 'req-accepted') {
-              showReqList(true);
+              await showReqList(true);
             } else if (currentSection === 'req-all') {
-              showAllReqList();
+              await showAllReqList();
             } else if (currentSection === 'home') {
-              showAdminHome();
+              await showAdminHome();
             }
           }
         }, (error) => {
