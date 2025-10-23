@@ -3046,6 +3046,13 @@ ${r.optPlan}
       
       console.log('Firebase Config:', firebaseConfig);
       
+      // Firebase 프로젝트 ID 확인
+      console.log('Project ID from config:', firebaseConfig.projectId);
+      console.log('Expected project ID: wayxim');
+      if (firebaseConfig.projectId !== 'wayxim') {
+        console.error('🚨 PROJECT ID MISMATCH! Please check Firebase Console.');
+      }
+      
       // Initialize Firebase
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
