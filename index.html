@@ -2919,11 +2919,29 @@ ${r.optPlan}
     if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); }
   </script>
 
-  <!-- Firebase SDK -->
+  <!-- Firebase SDK - TEMPORARILY DISABLED -->
   <!-- Updated: JavaScript syntax error fixed -->
   <script type="module">
     console.log('Firebase script starting...');
     
+    // TEMPORARILY DISABLE FIREBASE TO FIX ERRORS
+    console.log('Firebase temporarily disabled to fix connection errors');
+    
+    // Mock Firebase functions for now
+    window.db = null;
+    window.collection = () => {};
+    window.doc = () => {};
+    window.getDocs = () => Promise.resolve({ forEach: () => {} });
+    window.addDoc = () => Promise.resolve();
+    window.updateDoc = () => Promise.resolve();
+    window.deleteDoc = () => Promise.resolve();
+    window.query = () => {};
+    window.orderBy = () => {};
+    window.onSnapshot = () => {};
+    
+    console.log('Mock Firebase functions loaded');
+    
+    /*
     // Import the functions you need from the SDKs you need
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -2966,6 +2984,7 @@ ${r.optPlan}
     } catch (error) {
       console.error('Firebase initialization error:', error);
     }
+    */
   </script>
 </body>
 </html>
