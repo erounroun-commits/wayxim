@@ -1358,7 +1358,7 @@ ${r.optPlan}
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
       
-      rows.forEach(r => {
+      for (const r of rows) {
         const submissionDate = new Date(r.submittedAt);
         const isCurrentMonth = submissionDate.getMonth() === currentMonth && submissionDate.getFullYear() === currentYear;
         
@@ -1367,7 +1367,7 @@ ${r.optPlan}
             companyName: r.companyName,
             monthlyCount: 0,
             totalCount: 0,
-            vendorType: getVendorType(r.companyCode)
+            vendorType: await getVendorType(r.companyCode)
           };
         }
         
@@ -1375,7 +1375,7 @@ ${r.optPlan}
         if (isCurrentMonth) {
           vendorStats[r.companyCode].monthlyCount += r.totalCnt;
         }
-      });
+      }
       
       // Count vendor types
       let totalVendors = 0;
@@ -1525,7 +1525,7 @@ ${r.optPlan}
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
       
-      rows.forEach(r => {
+      for (const r of rows) {
         const submissionDate = new Date(r.submittedAt);
         const isCurrentMonth = submissionDate.getMonth() === currentMonth && submissionDate.getFullYear() === currentYear;
         
@@ -1534,7 +1534,7 @@ ${r.optPlan}
             companyName: r.companyName,
             monthlyCount: 0,
             totalCount: 0,
-            vendorType: getVendorType(r.companyCode)
+            vendorType: await getVendorType(r.companyCode)
           };
         }
         
@@ -1542,7 +1542,7 @@ ${r.optPlan}
         if (isCurrentMonth) {
           vendorStats[r.companyCode].monthlyCount += r.totalCnt;
         }
-      });
+      }
       
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">VENDOR LIST</h2>`;
       html += `<div style="margin-bottom:8px;"><button class="btn ghost" id="vendorListExcel" type="button">엑셀 다운로드</button></div>`;
@@ -1581,25 +1581,31 @@ ${r.optPlan}
       html += '</tbody></table></div>';
       main.innerHTML = html;
 
-      // Excel download handler
-      document.getElementById('vendorListExcel')?.addEventListener('click', ()=>{
-        const data = vendorCodes.map((code, i)=>{
-          const s = vendorStats[code];
-          return {
-            'NO': i+1,
-            '업체코드': code,
-            '업체명': s.companyName,
-            'VENDOR 유형': s.vendorType,
-            '당월 진행건수': s.monthlyCount,
-            '누적 진행건수': s.totalCount
-          };
-        });
-        if(data.length===0){ alert('다운로드할 데이터가 없습니다.'); return; }
-        const headers = Object.keys(data[0]);
-        const csv = [headers.join(','), ...data.map(r=> headers.map(h=>`"${r[h]}"`).join(','))].join('\n');
-        const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-        const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='VENDOR_LIST.csv'; a.click();
-      });
+      // 이벤트 리스너를 즉시 바인딩
+      setTimeout(() => {
+        const excelBtn = document.getElementById('vendorListExcel');
+        if (excelBtn) {
+          excelBtn.addEventListener('click', ()=>{
+            const data = vendorCodes.map((code, i)=>{
+              const s = vendorStats[code];
+              return {
+                'NO': i+1,
+                '업체코드': code,
+                '업체명': s.companyName,
+                'VENDOR 유형': s.vendorType,
+                '당월 진행건수': s.monthlyCount,
+                '누적 진행건수': s.totalCount
+              };
+            });
+            if(data.length===0){ alert('다운로드할 데이터가 없습니다.'); return; }
+            const headers = Object.keys(data[0]);
+            const csv = [headers.join(','), ...data.map(r=> headers.map(h=>`"${r[h]}"`).join(','))].join('\n');
+            const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+            const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='VENDOR_LIST.csv'; a.click();
+          });
+          console.log('VENDOR LIST - 엑셀 다운로드 이벤트 리스너 바인딩 완료');
+        }
+      }, 100);
     }
 
     function drawNewVendorChart(data) {
@@ -1671,8 +1677,8 @@ ${r.optPlan}
     }
 
     // Vendor detail modal functions
-    function openVendorModal(vendorCode) {
-      const rows = loadSubs();
+    async function openVendorModal(vendorCode) {
+      const rows = await loadSubs();
       const vendorRows = rows.filter(r => r.companyCode === vendorCode);
       
       if (vendorRows.length === 0) return;
@@ -1700,7 +1706,7 @@ ${r.optPlan}
       });
       
       // Determine vendor type automatically
-      const vendorType = getVendorType(vendorCode);
+      const vendorType = await getVendorType(vendorCode);
       const remainingCount = Math.max(0, 200 - monthlyCount);
       
       // Update modal content
@@ -2036,8 +2042,8 @@ ${r.optPlan}
       main.innerHTML = html;
     }
 
-    function showMonthlySettlementList(){
-      const rows = loadSubs();
+    async function showMonthlySettlementList(){
+      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
       // Generate year/month options: only current and previous month (>= 2025-10)
@@ -2119,16 +2125,22 @@ ${r.optPlan}
       
       main.innerHTML = html;
       
-      // Add event listener for dropdown change
-      document.getElementById('yearMonthSelect').addEventListener('change', updateMonthlyData);
+      // 이벤트 리스너를 즉시 바인딩
+      setTimeout(() => {
+        const yearMonthSelect = document.getElementById('yearMonthSelect');
+        if (yearMonthSelect) {
+          yearMonthSelect.addEventListener('change', updateMonthlyData);
+          console.log('월별 정산 - 년도/월 선택 이벤트 리스너 바인딩 완료');
+        }
+      }, 100);
       
       // Initial load
       updateMonthlyData();
     }
     
     // Weekly settlement list (similar to monthly, with Y/M/Week selectors)
-    function showWeeklySettlementList(){
-      const rows = loadSubs();
+    async function showWeeklySettlementList(){
+      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       const base = new Date(Date.UTC(2025,9,1)); // 2025-10-01 UTC ~ KST base
       const now = new Date();
@@ -2237,29 +2249,54 @@ ${r.optPlan}
         if(fil.length>0){ foot.innerHTML = `<tr style="background:#f6f9fc;font-weight:800;"><td colspan="12" style="text-align:center;">SUM</td><td>${sumU.toLocaleString()}원</td><td>${sumC.toLocaleString()}원</td></tr>`; } else { foot.innerHTML=''; }
       }
 
-      document.getElementById('wlYear').addEventListener('change', refreshWeeks);
-      document.getElementById('wlMonth').addEventListener('change', refreshWeeks);
-      document.getElementById('wlWeek').addEventListener('change', updateWeekly);
-      document.getElementById('wExcel').addEventListener('click', ()=>{
-        const val = document.getElementById('wlWeek').value; const [s,e]=val.split('|');
-        const sDate = new Date(s+'T00:00:00'); const eDate = new Date(e+'T23:59:59');
-        const fil = rows.filter(r=>{ const d=new Date(r.submittedAt); return d>=sDate && d<=eDate; });
-        if(fil.length===0){ alert('다운로드할 데이터가 없습니다.'); return; }
-        const data = fil.map(r=>{ const vt=getVendorType(r.companyCode); const u=r.totalCnt*(vt==='우수'?2500:3000); const c=r.totalCnt*(vt==='우수'?1000:1500);
-          return { 'NO':r.no,'제출시간':formatDateTime(r.submittedAt),'업체코드':r.companyCode,'VENDOR 유형':vt,'업체명':r.companyName,'사업자번호':r.bizNo,'카톡/번호':r.contact,'구매 키워드':r.keywords,'총 진행건수':r.totalCnt,'접수 시간':r.acceptedAt?formatDateTime(r.acceptedAt):'','건당 이용 단가': vt==='우수'?'2,500원':'3,000원','건당 제휴 수수료': vt==='우수'?'1,000원':'1,500원','총 이용 단가':u,'총 제휴 수수료':c }; });
-        const headers = Object.keys(data[0]);
-        const csv = [headers.join(','), ...data.map(row=> headers.map(h=>`"${row[h]}"`).join(','))].join('\n');
-        const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-        const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='주별_정산_LIST.csv'; a.click();
-      });
+      // 이벤트 리스너를 즉시 바인딩
+      setTimeout(() => {
+        const yearSelect = document.getElementById('wlYear');
+        const monthSelect = document.getElementById('wlMonth');
+        const weekSelect = document.getElementById('wlWeek');
+        const excelBtn = document.getElementById('wExcel');
+        
+        if (yearSelect) {
+          yearSelect.addEventListener('change', refreshWeeks);
+          console.log('주별 정산 - 년도 선택 이벤트 리스너 바인딩 완료');
+        }
+        
+        if (monthSelect) {
+          monthSelect.addEventListener('change', refreshWeeks);
+          console.log('주별 정산 - 월 선택 이벤트 리스너 바인딩 완료');
+        }
+        
+        if (weekSelect) {
+          weekSelect.addEventListener('change', updateWeekly);
+          console.log('주별 정산 - 주 선택 이벤트 리스너 바인딩 완료');
+        }
+        
+        if (excelBtn) {
+          excelBtn.addEventListener('click', ()=>{
+            const val = document.getElementById('wlWeek').value; 
+            const [s,e]=val.split('|');
+            const sDate = new Date(s+'T00:00:00'); 
+            const eDate = new Date(e+'T23:59:59');
+            const fil = rows.filter(r=>{ const d=new Date(r.submittedAt); return d>=sDate && d<=eDate; });
+            if(fil.length===0){ alert('다운로드할 데이터가 없습니다.'); return; }
+            const data = fil.map(r=>{ const vt=getVendorType(r.companyCode); const u=r.totalCnt*(vt==='우수'?2500:3000); const c=r.totalCnt*(vt==='우수'?1000:1500);
+              return { 'NO':r.no,'제출시간':formatDateTime(r.submittedAt),'업체코드':r.companyCode,'VENDOR 유형':vt,'업체명':r.companyName,'사업자번호':r.bizNo,'카톡/번호':r.contact,'구매 키워드':r.keywords,'총 진행건수':r.totalCnt,'접수 시간':r.acceptedAt?formatDateTime(r.acceptedAt):'','건당 이용 단가': vt==='우수'?'2,500원':'3,000원','건당 제휴 수수료': vt==='우수'?'1,000원':'1,500원','총 이용 단가':u,'총 제휴 수수료':c }; });
+            const headers = Object.keys(data[0]);
+            const csv = [headers.join(','), ...data.map(row=> headers.map(h=>`"${row[h]}"`).join(','))].join('\n');
+            const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+            const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='주별_정산_LIST.csv'; a.click();
+          });
+          console.log('주별 정산 - 엑셀 다운로드 이벤트 리스너 바인딩 완료');
+        }
+      }, 100);
       refreshWeeks();
     }
     
-    function updateMonthlyData(){
+    async function updateMonthlyData(){
       const selectedValue = document.getElementById('yearMonthSelect').value;
       const [year, month] = selectedValue.split('-');
       
-      const rows = loadSubs();
+      const rows = await loadSubs();
       const selectedMonthRequests = rows.filter(r => {
         const submissionDate = new Date(r.submittedAt);
         return submissionDate.getFullYear() == year && (submissionDate.getMonth() + 1) == month;
@@ -3023,8 +3060,8 @@ ${r.optPlan}
         if(section === "vendor"){ await showVendorDashboard(); return; }
         if(section === "vendor-list"){ await showVendorList(); return; }
         if(section === "settle"){ await showSettlementDashboard(); return; }
-        if(section === "settle-weekly"){ showWeeklySettlementList(); return; }
-        if(section === "settle-monthly"){ showMonthlySettlementList(); return; }
+        if(section === "settle-weekly"){ await showWeeklySettlementList(); return; }
+        if(section === "settle-monthly"){ await showMonthlySettlementList(); return; }
         if(section === "rate"){ showRateInfo(); return; }
         
         const titles = {
@@ -3184,6 +3221,8 @@ ${r.optPlan}
           // 관리자 페이지가 열려있다면 실시간 업데이트
           if (sessionStorage.getItem("wp_is_admin") === "1") {
             const currentSection = document.querySelector('[data-section].active')?.getAttribute('data-section');
+            
+            // 현재 활성화된 탭 업데이트
             if (currentSection === 'req-new') {
               await showReqList(false);
             } else if (currentSection === 'req-accepted') {
@@ -3192,6 +3231,28 @@ ${r.optPlan}
               await showAllReqList();
             } else if (currentSection === 'home') {
               await showAdminHome();
+            } else if (currentSection === 'vendor') {
+              await showVendorDashboard();
+            } else if (currentSection === 'vendor-list') {
+              await showVendorList();
+            } else if (currentSection === 'settle') {
+              await showSettlementDashboard();
+            } else if (currentSection === 'settle-weekly') {
+              await showWeeklySettlementList();
+            } else if (currentSection === 'settle-monthly') {
+              await showMonthlySettlementList();
+            }
+            
+            // 홈 탭이 활성화되어 있지 않더라도 신규요청건 알림 업데이트
+            if (currentSection !== 'home') {
+              // 홈 탭의 신규요청건 섹션만 업데이트
+              const newRequests = submissions.filter(r => !r.accepted);
+              if (newRequests.length > 0) {
+                const homeTab = document.querySelector('[data-section="home"]');
+                if (homeTab && homeTab.classList.contains('active')) {
+                  await showAdminHome();
+                }
+              }
             }
           }
         }, (error) => {
