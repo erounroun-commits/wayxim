@@ -835,8 +835,9 @@
       if(!n) return null;
       
       try {
-        if (!window.db) {
-          console.warn('Firebase not initialized, using localStorage for ID mapping');
+        const firebaseReady = await waitForFirebase();
+        if (!firebaseReady || !window.db) {
+          console.warn('Firebase not ready, using localStorage for ID mapping');
           const mapNameToCode = JSON.parse(localStorage.getItem("wp_name_to_code")||"{}");
           const mapCodeToName = JSON.parse(localStorage.getItem("wp_code_to_name")||"{}");
           if(mapNameToCode[n]) return mapNameToCode[n];
@@ -959,11 +960,34 @@
       }
     });
 
+    // Firebase 준비 상태 확인
+    function waitForFirebase() {
+      return new Promise((resolve) => {
+        if (window.firebaseReady && window.db) {
+          resolve(true);
+        } else {
+          const checkInterval = setInterval(() => {
+            if (window.firebaseReady && window.db) {
+              clearInterval(checkInterval);
+              resolve(true);
+            }
+          }, 100);
+          
+          // 5초 후 타임아웃
+          setTimeout(() => {
+            clearInterval(checkInterval);
+            resolve(false);
+          }, 5000);
+        }
+      });
+    }
+
     // Submission storage and rendering helpers
     async function loadSubs(){
       try {
-        if (!window.db) {
-          console.warn('Firebase not initialized, falling back to localStorage');
+        const firebaseReady = await waitForFirebase();
+        if (!firebaseReady || !window.db) {
+          console.warn('Firebase not ready, falling back to localStorage');
           return JSON.parse(localStorage.getItem("wp_submissions")||"[]");
         }
         
@@ -3006,7 +3030,7 @@ ${r.optPlan}
     
     // Import the functions you need from the SDKs you need
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
     
     try {
@@ -3037,11 +3061,17 @@ ${r.optPlan}
       window.query = query;
       window.orderBy = orderBy;
       window.onSnapshot = onSnapshot;
+      window.where = where;
       
       console.log('Firebase initialized successfully!', db);
       
+      // Firebase 초기화 완료 신호
+      window.firebaseReady = true;
+      console.log('Firebase is ready for use!');
+      
     } catch (error) {
       console.error('Firebase initialization error:', error);
+      window.firebaseReady = false;
     }
   </script>
 </body>
