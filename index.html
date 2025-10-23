@@ -830,38 +830,63 @@
     rfBack?.addEventListener("click", ()=>{ goMain(); });
 
     // Deterministic ID generator AA00 with collision handling
-    function stableIdForName(name){
+    async function stableIdForName(name){
       const n = (name||"").trim().toUpperCase();
       if(!n) return null;
-      const mapNameToCode = JSON.parse(localStorage.getItem("wp_name_to_code")||"{}");
-      const mapCodeToName = JSON.parse(localStorage.getItem("wp_code_to_name")||"{}");
-      if(mapNameToCode[n]) return mapNameToCode[n];
-      // djb2 hash
-      let h=5381; for(let i=0;i<n.length;i++){ h=((h<<5)+h)+n.charCodeAt(i); h|=0; }
-      const A=26;
-      function codeFromSeed(seed){
-        const a = String.fromCharCode(65 + ((seed>>>0) % A));
-        const b = String.fromCharCode(65 + (Math.floor(seed/A) % A));
-        const d = (Math.floor(seed/(A*A)) % 100);
-        return a + b + ("0"+d).slice(-2);
+      
+      try {
+        // Firebase에서 기존 매핑 데이터 가져오기
+        const nameToCodeRef = collection(db, 'nameToCode');
+        const codeToNameRef = collection(db, 'codeToName');
+        
+        const nameToCodeSnapshot = await getDocs(nameToCodeRef);
+        const codeToNameSnapshot = await getDocs(codeToNameRef);
+        
+        let mapNameToCode = {};
+        let mapCodeToName = {};
+        
+        nameToCodeSnapshot.forEach(doc => {
+          mapNameToCode[doc.data().name] = doc.data().code;
+        });
+        
+        codeToNameSnapshot.forEach(doc => {
+          mapCodeToName[doc.data().code] = doc.data().name;
+        });
+        
+        if(mapNameToCode[n]) return mapNameToCode[n];
+        
+        // djb2 hash
+        let h=5381; for(let i=0;i<n.length;i++){ h=((h<<5)+h)+n.charCodeAt(i); h|=0; }
+        const A=26;
+        function codeFromSeed(seed){
+          const a = String.fromCharCode(65 + ((seed>>>0) % A));
+          const b = String.fromCharCode(65 + (Math.floor(seed/A) % A));
+          const d = (Math.floor(seed/(A*A)) % 100);
+          return a + b + ("0"+d).slice(-2);
+        }
+        let seed = Math.abs(h);
+        let code = codeFromSeed(seed);
+        while(mapCodeToName[code] && mapCodeToName[code]!==n){ seed++; code = codeFromSeed(seed); }
+        
+        // Firebase에 새 매핑 저장
+        await addDoc(nameToCodeRef, { name: n, code: code });
+        await addDoc(codeToNameRef, { code: code, name: n });
+        
+        return code;
+      } catch (error) {
+        console.error('Error in stableIdForName:', error);
+        return null;
       }
-      let seed = Math.abs(h);
-      let code = codeFromSeed(seed);
-      while(mapCodeToName[code] && mapCodeToName[code]!==n){ seed++; code = codeFromSeed(seed); }
-      mapNameToCode[n] = code; mapCodeToName[code] = n;
-      localStorage.setItem("wp_name_to_code", JSON.stringify(mapNameToCode));
-      localStorage.setItem("wp_code_to_name", JSON.stringify(mapCodeToName));
-      return code;
     }
 
-    idLookupBtn?.addEventListener("click", ()=>{
+    idLookupBtn?.addEventListener("click", async ()=>{
       const name = companyNameInput?.value||"";
-      const code = stableIdForName(name);
+      const code = await stableIdForName(name);
       idOutput.textContent = code ? code : "ID 미발급";
       rfIdVerified = !!code;
       // Auto-fill for returning vendors
       if(code){
-        const rows = loadSubs();
+        const rows = await loadSubs();
         const prev = rows.find(r=> r.companyCode===code);
         if(prev){
           const biz = document.getElementById("bizNo");
@@ -884,11 +909,60 @@
     });
 
     // Submission storage and rendering helpers
-    function loadSubs(){
-      try { return JSON.parse(localStorage.getItem("wp_submissions")||"[]"); } catch(e){ return []; }
+    async function loadSubs(){
+      try {
+        const submissionsRef = collection(db, 'submissions');
+        const q = query(submissionsRef, orderBy('no', 'asc'));
+        const snapshot = await getDocs(q);
+        const submissions = [];
+        snapshot.forEach(doc => {
+          submissions.push({ id: doc.id, ...doc.data() });
+        });
+        return submissions;
+      } catch(e){ 
+        console.error('Error loading submissions:', e);
+        return []; 
+      }
     }
-    function saveSubs(arr){ localStorage.setItem("wp_submissions", JSON.stringify(arr)); }
-    function getNextNo(){ const n = parseInt(localStorage.getItem("wp_next_no")||"1",10); localStorage.setItem("wp_next_no", String(n+1)); return n; }
+    
+    async function saveSubs(arr){ 
+      try {
+        // 기존 데이터 삭제 후 새로 저장
+        const submissionsRef = collection(db, 'submissions');
+        const snapshot = await getDocs(submissionsRef);
+        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(deletePromises);
+        
+        // 새 데이터 저장
+        const addPromises = arr.map(submission => addDoc(submissionsRef, submission));
+        await Promise.all(addPromises);
+      } catch(e) {
+        console.error('Error saving submissions:', e);
+      }
+    }
+    
+    async function getNextNo(){ 
+      try {
+        const countersRef = collection(db, 'counters');
+        const snapshot = await getDocs(countersRef);
+        
+        let currentNo = 1;
+        if (!snapshot.empty) {
+          const data = snapshot.docs[0].data();
+          currentNo = (data.nextNo || 1);
+          // 기존 문서 업데이트
+          await updateDoc(snapshot.docs[0].ref, { nextNo: currentNo + 1 });
+        } else {
+          // 새 문서 생성
+          await addDoc(countersRef, { nextNo: 2 });
+        }
+        
+        return currentNo;
+      } catch(e) {
+        console.error('Error getting next number:', e);
+        return 1;
+      }
+    }
     function pad(n){ return String(n).padStart(2,"0"); }
     function formatDateTime(ts){ const d=new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
     function formatCompactDateTime(ts){ 
@@ -2715,16 +2789,16 @@ ${r.optPlan}
 
     // Handle form submission (제출하기)
     const rfForm = document.getElementById("rfForm");
-    rfForm?.addEventListener("submit", (e)=>{
+    rfForm?.addEventListener("submit", async (e)=>{
       e.preventDefault();
       if(!(rfForm instanceof HTMLFormElement)) return;
       if(!rfForm.checkValidity()){ rfForm.reportValidity(); return; }
       const companyName = companyNameInput?.value.trim()||"";
-      const companyCode = stableIdForName(companyName)||"";
+      const companyCode = await stableIdForName(companyName)||"";
       if(idOutput) idOutput.textContent = companyCode || "ID 미발급";
 
       const rec = {
-        no: getNextNo(),
+        no: await getNextNo(),
         submittedAt: Date.now(),
         companyCode,
         companyName,
@@ -2743,13 +2817,13 @@ ${r.optPlan}
         accepted: false,
         acceptedAt: null
       };
-      const arr = loadSubs();
+      const arr = await loadSubs();
       arr.unshift(rec);
-      saveSubs(arr);
+      await saveSubs(arr);
       alert("제출되었습니다. 관리자 확인 후 회신드리겠습니다. 감사합니다.");
       rfForm.reset();
       if(idOutput) idOutput.textContent = "ID 미발급";
-      if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); showReqList(false); }
+      if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); await showReqList(false); }
     });
 
     // Detail modal interactions
@@ -2845,29 +2919,11 @@ ${r.optPlan}
     if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); }
   </script>
 
-  <!-- Firebase SDK - TEMPORARILY DISABLED -->
+  <!-- Firebase SDK -->
   <!-- Updated: JavaScript syntax error fixed -->
   <script type="module">
     console.log('Firebase script starting...');
     
-    // TEMPORARILY DISABLE FIREBASE TO FIX ERRORS
-    console.log('Firebase temporarily disabled to fix connection errors');
-    
-    // Mock Firebase functions for now
-    window.db = null;
-    window.collection = () => {};
-    window.doc = () => {};
-    window.getDocs = () => Promise.resolve({ forEach: () => {} });
-    window.addDoc = () => Promise.resolve();
-    window.updateDoc = () => Promise.resolve();
-    window.deleteDoc = () => Promise.resolve();
-    window.query = () => {};
-    window.orderBy = () => {};
-    window.onSnapshot = () => {};
-    
-    console.log('Mock Firebase functions loaded');
-    
-    /*
     // Import the functions you need from the SDKs you need
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -2904,13 +2960,9 @@ ${r.optPlan}
       
       console.log('Firebase initialized successfully!', db);
       
-      // Firebase 연결 테스트
-      console.log('Testing Firebase connection...');
-      
     } catch (error) {
       console.error('Firebase initialization error:', error);
     }
-    */
   </script>
 </body>
 </html>
