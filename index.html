@@ -274,14 +274,13 @@
       <div class="divider"></div>
 
       <form class="form" id="rfForm">
-        <!-- 업체명 + ID 조회 -->
+        <!-- 업체명 + ID 표시 -->
         <div class="row">
           <label class="q">■ 업체명</label>
           <div class="grid-2">
             <input id="companyName" class="input" type="text" placeholder="예: 웨이프로젝트" required>
             <div class="inline">
-              <button type="button" class="btn" id="idLookup">ID 조회</button>
-              <span class="kbd" id="idOutput">ID 미발급</span>
+              <span class="kbd" id="idOutput">ID: 미발급</span>
             </div>
           </div>
           <span class="hint">업체명을 입력하면 자동으로 ID가 조회됩니다.</span>
@@ -979,7 +978,7 @@
         clearTimeout(window.idLookupTimeout);
         window.idLookupTimeout = setTimeout(async () => {
           const code = await stableIdForName(name);
-          idOutput.textContent = code ? code : "ID 미발급";
+          idOutput.textContent = code ? `ID: ${code}` : "ID: 미발급";
           rfIdVerified = !!code;
           
           // Auto-fill for returning vendors
@@ -995,28 +994,12 @@
           }
         }, 500);
       } else {
-        idOutput.textContent = "ID 미발급";
+        idOutput.textContent = "ID: 미발급";
         rfIdVerified = false;
       }
     });
 
-    idLookupBtn?.addEventListener("click", async ()=>{
-      const name = companyNameInput?.value||"";
-      const code = await stableIdForName(name);
-      idOutput.textContent = code ? code : "ID 미발급";
-      rfIdVerified = !!code;
-      // Auto-fill for returning vendors
-      if(code){
-        const rows = await loadSubs();
-        const prev = rows.find(r=> r.companyCode===code);
-        if(prev){
-          const biz = document.getElementById("bizNo");
-          const contact = document.getElementById("contact");
-          if(biz && !biz.value) biz.value = prev.bizNo||"";
-          if(contact && !contact.value) contact.value = prev.contact||"";
-        }
-      }
-    });
+    // ID 조회 버튼은 제거되었으므로 이벤트 리스너도 제거
 
     // Gate: require ID lookup before editing other fields
     document.addEventListener('focusin', (e)=>{
@@ -1842,6 +1825,13 @@ ${r.optPlan}
     }
     
     async function getVendorType(vendorCode) {
+      // 먼저 데이터 관리탭에서 설정한 override 값 확인
+      const rows = await loadSubs();
+      const vendorRow = rows.find(r => r.companyCode === vendorCode);
+      if (vendorRow && vendorRow.vendorTypeOverride) {
+        return vendorRow.vendorTypeOverride;
+      }
+      
       // Override first if admin set vendor type explicitly
       try{
         const overridesRef = collection(db, 'vendorTypeOverrides');
@@ -1855,7 +1845,6 @@ ${r.optPlan}
         }
       }catch(e){}
       // Otherwise: Check if vendor is premium (200+ requests for 2 consecutive months)
-      const rows = await loadSubs();
       const vendorRows = rows.filter(r => r.companyCode === vendorCode);
       
       if (vendorRows.length === 0) return '일반';
@@ -2393,14 +2382,14 @@ ${r.optPlan}
       let totalUsageFee = 0;
       let totalCommissionFee = 0;
       
-      selectedMonthRequests.forEach(r => {
-        const vendorType = getVendorType(r.companyCode);
+      for (const r of selectedMonthRequests) {
+        const vendorType = await getVendorType(r.companyCode);
         const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000); // 우수 2,500 / 일반 3,000
         const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
         
         totalUsageFee += usageFee;
         totalCommissionFee += commissionFee;
-      });
+      }
       
       const monthlyAmount = totalUsageFee + totalCommissionFee;
       
@@ -2423,8 +2412,8 @@ ${r.optPlan}
         // Show only first 10 rows, rest scrollable
         const displayRequests = selectedMonthRequests.slice(0, 10);
         
-        displayRequests.forEach(r => {
-          const vendorType = getVendorType(r.companyCode);
+        for (const r of displayRequests) {
+          const vendorType = await getVendorType(r.companyCode);
           const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
           const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
           
@@ -2442,12 +2431,12 @@ ${r.optPlan}
             `<td>${escapeHtml(r.keywords)}</td>`+
             `<td>${r.totalCnt}</td>`+
             `<td>${r.acceptedAt ? formatCompactDateTime(r.acceptedAt) : ''}</td>`+
-            `<td>3,000원</td>`+
+            `<td>${vendorType === '우수' ? '2,500원' : '3,000원'}</td>`+
             `<td>${vendorType === '우수' ? '1,000원' : '1,500원'}</td>`+
             `<td>${usageFee.toLocaleString()}원</td>`+
             `<td>${commissionFee.toLocaleString()}원</td>`+
           `</tr>`;
-        });
+        }
         
         if (selectedMonthRequests.length > 10) {
           tableHtml += `<tr><td colspan="14" style="text-align:center;color:#6a7a89;font-style:italic;">
@@ -2769,16 +2758,21 @@ ${r.optPlan}
           html += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>
-              <input type="datetime-local" value="${new Date(r.submittedAt).toISOString().slice(0,16)}" 
-                     onchange="queueSubmittedAt(${r.no}, this.value)" 
-                     style="width:180px;padding:4px;border:1px solid var(--border);border-radius:4px;">
+              <div style="display:flex;gap:4px;align-items:center;">
+                <input type="date" value="${new Date(r.submittedAt).toISOString().slice(0,10)}" 
+                       onchange="queueSubmittedAtDate(${r.no}, this.value, '${new Date(r.submittedAt).toTimeString().slice(0,5)}')" 
+                       style="width:120px;padding:4px;border:1px solid var(--border);border-radius:4px;">
+                <input type="time" value="${new Date(r.submittedAt).toTimeString().slice(0,5)}" 
+                       onchange="queueSubmittedAtTime(${r.no}, '${new Date(r.submittedAt).toISOString().slice(0,10)}', this.value)" 
+                       style="width:80px;padding:4px;border:1px solid var(--border);border-radius:4px;">
+              </div>
             </td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
             `<td>${escapeHtml(r.companyName)}</td>`+
             `<td>
               <select onchange="queueVendorType(${r.no}, this.value)" style="padding:4px;border:1px solid var(--border);border-radius:4px;">
-                <option value="일반" ${getVendorType(r.companyCode)==='일반'?'selected':''}>일반</option>
-                <option value="우수" ${getVendorType(r.companyCode)==='우수'?'selected':''}>우수</option>
+                <option value="일반" ${r.vendorTypeOverride === '일반' ? 'selected' : (r.vendorTypeOverride === '우수' ? '' : 'selected')}>일반</option>
+                <option value="우수" ${r.vendorTypeOverride === '우수' ? 'selected' : ''}>우수</option>
               </select>
             </td>`+
             `<td>
@@ -2930,6 +2924,28 @@ ${r.optPlan}
       if(btn) btn.removeAttribute('disabled');
     }
 
+    function queueSubmittedAtDate(no, dateVal, timeVal){
+      const isoVal = `${dateVal}T${timeVal}`;
+      const ts = Date.parse(isoVal);
+      if(isNaN(ts)){ alert('제출시간 형식이 올바르지 않습니다.'); return; }
+      window.wp_pending_edits = window.wp_pending_edits || {};
+      window.wp_pending_edits[no] = window.wp_pending_edits[no] || {};
+      window.wp_pending_edits[no].submittedAt = ts;
+      const btn = document.getElementById('dmSaveBtn');
+      if(btn) btn.removeAttribute('disabled');
+    }
+
+    function queueSubmittedAtTime(no, dateVal, timeVal){
+      const isoVal = `${dateVal}T${timeVal}`;
+      const ts = Date.parse(isoVal);
+      if(isNaN(ts)){ alert('제출시간 형식이 올바르지 않습니다.'); return; }
+      window.wp_pending_edits = window.wp_pending_edits || {};
+      window.wp_pending_edits[no] = window.wp_pending_edits[no] || {};
+      window.wp_pending_edits[no].submittedAt = ts;
+      const btn = document.getElementById('dmSaveBtn');
+      if(btn) btn.removeAttribute('disabled');
+    }
+
     function queueSubmittedAt(no, isoVal){
       const ts = Date.parse(isoVal);
       if(isNaN(ts)){ alert('제출시간 형식이 올바르지 않습니다.'); return; }
@@ -3059,7 +3075,7 @@ ${r.optPlan}
       if(!rfForm.checkValidity()){ rfForm.reportValidity(); return; }
       const companyName = companyNameInput?.value.trim()||"";
       const companyCode = await stableIdForName(companyName)||"";
-      if(idOutput) idOutput.textContent = companyCode || "ID 미발급";
+      if(idOutput) idOutput.textContent = companyCode ? `ID: ${companyCode}` : "ID: 미발급";
 
       const rec = {
         no: await getNextNo(),
