@@ -3024,7 +3024,6 @@ ${r.optPlan}
   </script>
 
   <!-- Firebase SDK -->
-  <!-- Updated: JavaScript syntax error fixed -->
   <script type="module">
     console.log('Firebase script starting...');
     
@@ -3034,9 +3033,9 @@ ${r.optPlan}
     import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
     
     try {
-      // Your web app's Firebase configuration
+      // Your web app's Firebase configuration (CORRECTED API KEY)
       const firebaseConfig = {
-        apiKey: "AIzaSyA8E0h1RUixkwuIIQwonyPr25cx8HBNeYI",
+        apiKey: "AIzaSyA8E0hlRUixkwuIIQwonyPr25cx8HBNeYI",
         authDomain: "wayxim.firebaseapp.com",
         projectId: "wayxim",
         storageBucket: "wayxim.firebasestorage.app",
@@ -3048,7 +3047,7 @@ ${r.optPlan}
       // Initialize Firebase
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
-      // const analytics = getAnalytics(app); // 임시로 비활성화
+      const analytics = getAnalytics(app);
       
       // 전역 변수로 db 접근 가능하게 설정
       window.db = db;
