@@ -599,6 +599,32 @@
       
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">관리자 대시보드</h2>`;
       
+      // 신규요청건 목록 추가
+      const newRequests = rows.filter(r => !r.accepted);
+      if (newRequests.length > 0) {
+        html += `<div style="margin-bottom:20px;padding:16px;background:#fff3cd;border:1px solid #ffeaa7;border-radius:8px;">`;
+        html += `<h3 style="margin:0 0 12px;color:#856404;font-size:16px;">🔔 신규요청건 (${newRequests.length}건)</h3>`;
+        html += `<div style="max-height:200px;overflow-y:auto;">`;
+        html += `<table style="width:100%;border-collapse:collapse;font-size:13px;">`;
+        html += `<thead><tr style="background:#f8f9fa;"><th style="padding:8px;text-align:left;border-bottom:1px solid #dee2e6;">번호</th><th style="padding:8px;text-align:left;border-bottom:1px solid #dee2e6;">업체명</th><th style="padding:8px;text-align:left;border-bottom:1px solid #dee2e6;">제출시간</th><th style="padding:8px;text-align:left;border-bottom:1px solid #dee2e6;">액션</th></tr></thead>`;
+        html += `<tbody>`;
+        
+        newRequests.slice(0, 5).forEach(r => {
+          html += `<tr style="border-bottom:1px solid #f1f3f4;">`;
+          html += `<td style="padding:8px;">${r.no}</td>`;
+          html += `<td style="padding:8px;">${escapeHtml(r.companyName)}</td>`;
+          html += `<td style="padding:8px;">${formatCompactDateTime(r.submittedAt)}</td>`;
+          html += `<td style="padding:8px;"><button class="btn ghost" onclick="showReqList(false)" style="padding:4px 8px;font-size:12px;">상세보기</button></td>`;
+          html += `</tr>`;
+        });
+        
+        if (newRequests.length > 5) {
+          html += `<tr><td colspan="4" style="padding:8px;text-align:center;color:#6c757d;">외 ${newRequests.length - 5}건 더 보기</td></tr>`;
+        }
+        
+        html += `</tbody></table></div></div>`;
+      }
+      
       // 2x2 Grid layout
       html += `<div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:20px;">`;
       
@@ -2965,10 +2991,16 @@ ${r.optPlan}
     vendorClose?.addEventListener("click", closeVendorModal);
     vendorModal?.addEventListener('click', (e)=>{ if(e.target===vendorModal) closeVendorModal(); });
 
-    // Nav content placeholder
+    // Nav content placeholder - 이벤트 위임 방식으로 변경
     const main = document.getElementById("adminMain");
-    document.querySelectorAll("[data-section]").forEach(a=>{
-      a.addEventListener("click", e=>{
+    
+    // 사이드바에 이벤트 위임 설정
+    const sidebar = document.querySelector('.side');
+    if (sidebar) {
+      sidebar.addEventListener("click", e=>{
+        const target = e.target.closest('[data-section]');
+        if (!target) return;
+        
         e.preventDefault();
         
         // 모든 탭에서 active 클래스 제거
@@ -2977,21 +3009,24 @@ ${r.optPlan}
         });
         
         // 현재 클릭된 탭에 active 클래스 추가
-        e.currentTarget.classList.add('active');
+        target.classList.add('active');
         
-        const target = e.currentTarget.getAttribute("data-section");
-        if(target === "home"){ showAdminHome(); return; }
-        if(target === "req"){ showReqDashboard(); return; }
-        if(target === "req-new"){ showReqList(false); return; }
-        if(target === "req-accepted"){ showReqList(true); return; }
-        if(target === "req-all"){ showAllReqList(); return; }
-        if(target === "data-management"){ openDataModal(); return; }
-        if(target === "vendor"){ showVendorDashboard(); return; }
-        if(target === "vendor-list"){ showVendorList(); return; }
-        if(target === "settle"){ showSettlementDashboard(); return; }
-        if(target === "settle-weekly"){ showWeeklySettlementList(); return; }
-        if(target === "settle-monthly"){ showMonthlySettlementList(); return; }
-        if(target === "rate"){ showRateInfo(); return; }
+        const section = target.getAttribute("data-section");
+        console.log('탭 클릭:', section); // 디버깅용
+        
+        if(section === "home"){ showAdminHome(); return; }
+        if(section === "req"){ showReqDashboard(); return; }
+        if(section === "req-new"){ showReqList(false); return; }
+        if(section === "req-accepted"){ showReqList(true); return; }
+        if(section === "req-all"){ showAllReqList(); return; }
+        if(section === "data-management"){ openDataModal(); return; }
+        if(section === "vendor"){ showVendorDashboard(); return; }
+        if(section === "vendor-list"){ showVendorList(); return; }
+        if(section === "settle"){ showSettlementDashboard(); return; }
+        if(section === "settle-weekly"){ showWeeklySettlementList(); return; }
+        if(section === "settle-monthly"){ showMonthlySettlementList(); return; }
+        if(section === "rate"){ showRateInfo(); return; }
+        
         const titles = {
           "req":"작업요청서 관리",
           "req-new":"신규요청건",
@@ -3003,36 +3038,59 @@ ${r.optPlan}
           "rate":"적용단가",
           "settle-monthly":"월별 정산 LIST"
         };
-        main.innerHTML = `<h2 style="margin:0 0 8px;color:var(--brand)">${titles[target]||"관리자"}</h2>
+        main.innerHTML = `<h2 style="margin:0 0 8px;color:var(--brand)">${titles[section]||"관리자"}</h2>
           <p style="margin:0 0 16px;color:#4b5b6b">이 화면은 이후 단계에서 데이터와 연결됩니다.</p>
           <div class="empty-state"><div class="badge">플레이스홀더</div><p style="margin-top:10px">구조만 먼저 세팅했습니다.</p></div>`;
       });
-    });
+    }
 
     // Accept toggle + view detail (event delegation)
-    document.addEventListener('change', e=>{
+    document.addEventListener('change', async e=>{
       const t = e.target;
       if(t && t.classList && t.classList.contains('accept-toggle')){
         const no = parseInt(t.getAttribute('data-no')||'0',10);
-        const arr = loadSubs();
+        const arr = await loadSubs();
         const rec = arr.find(r=> r.no===no);
         if(rec){
           const checked = t.checked;
           rec.accepted = checked;
           rec.acceptedAt = checked ? Date.now() : null;
-          saveSubs(arr);
-          // Refresh current view
-          const isAcceptedView = document.querySelector('#adminMain thead th:nth-child(9)')?.textContent?.includes('접수 시간');
-          showReqList(!!isAcceptedView);
+          await saveSubs(arr);
+          
+          // 접수 완료로 변경된 경우 접수 완료건 탭으로 이동
+          if(checked) {
+            // 접수 완료건 탭 활성화
+            document.querySelectorAll("[data-section]").forEach(tab => {
+              tab.classList.remove('active');
+            });
+            const acceptedTab = document.querySelector('[data-section="req-accepted"]');
+            if (acceptedTab) {
+              acceptedTab.classList.add('active');
+            }
+            // 접수 완료건 화면 표시
+            await showReqList(true);
+          } else {
+            // 신규요청건 탭 활성화
+            document.querySelectorAll("[data-section]").forEach(tab => {
+              tab.classList.remove('active');
+            });
+            const newTab = document.querySelector('[data-section="req-new"]');
+            if (newTab) {
+              newTab.classList.add('active');
+            }
+            // 신규요청건 화면 표시
+            await showReqList(false);
+          }
         }
       }
     });
 
-    document.addEventListener('click', e=>{
+    document.addEventListener('click', async e=>{
       const btn = e.target && e.target.closest && e.target.closest('.view-detail');
       if(btn){
         const no = parseInt(btn.getAttribute('data-no')||'0',10);
-        const rec = loadSubs().find(r=> r.no===no);
+        const rows = await loadSubs();
+        const rec = rows.find(r=> r.no===no);
         if(rec){ openDetail(buildDetailText(rec)); }
       }
       
