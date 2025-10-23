@@ -3075,6 +3075,9 @@ ${r.optPlan}
           })
           .catch((error) => {
             console.error('❌ Firebase write test failed:', error);
+            if (error.code === 'not-found') {
+              console.error('🚨 Firestore database does not exist! Please create it in Firebase Console.');
+            }
           });
       } catch (error) {
         console.error('❌ Firebase test setup failed:', error);
