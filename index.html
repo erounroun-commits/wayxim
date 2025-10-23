@@ -835,6 +835,30 @@
       if(!n) return null;
       
       try {
+        if (!window.db) {
+          console.warn('Firebase not initialized, using localStorage for ID mapping');
+          const mapNameToCode = JSON.parse(localStorage.getItem("wp_name_to_code")||"{}");
+          const mapCodeToName = JSON.parse(localStorage.getItem("wp_code_to_name")||"{}");
+          if(mapNameToCode[n]) return mapNameToCode[n];
+          
+          // djb2 hash
+          let h=5381; for(let i=0;i<n.length;i++){ h=((h<<5)+h)+n.charCodeAt(i); h|=0; }
+          const A=26;
+          function codeFromSeed(seed){
+            const a = String.fromCharCode(65 + ((seed>>>0) % A));
+            const b = String.fromCharCode(65 + (Math.floor(seed/A) % A));
+            const d = (Math.floor(seed/(A*A)) % 100);
+            return a + b + ("0"+d).slice(-2);
+          }
+          let seed = Math.abs(h);
+          let code = codeFromSeed(seed);
+          while(mapCodeToName[code] && mapCodeToName[code]!==n){ seed++; code = codeFromSeed(seed); }
+          mapNameToCode[n] = code; mapCodeToName[code] = n;
+          localStorage.setItem("wp_name_to_code", JSON.stringify(mapNameToCode));
+          localStorage.setItem("wp_code_to_name", JSON.stringify(mapCodeToName));
+          return code;
+        }
+        
         // Firebase에서 기존 매핑 데이터 가져오기
         const nameToCodeRef = collection(db, 'nameToCode');
         const codeToNameRef = collection(db, 'codeToName');
@@ -872,10 +896,37 @@
         await addDoc(nameToCodeRef, { name: n, code: code });
         await addDoc(codeToNameRef, { code: code, name: n });
         
+        // localStorage에도 백업
+        const mapNameToCodeLocal = JSON.parse(localStorage.getItem("wp_name_to_code")||"{}");
+        const mapCodeToNameLocal = JSON.parse(localStorage.getItem("wp_code_to_name")||"{}");
+        mapNameToCodeLocal[n] = code; 
+        mapCodeToNameLocal[code] = n;
+        localStorage.setItem("wp_name_to_code", JSON.stringify(mapNameToCodeLocal));
+        localStorage.setItem("wp_code_to_name", JSON.stringify(mapCodeToNameLocal));
+        
         return code;
       } catch (error) {
-        console.error('Error in stableIdForName:', error);
-        return null;
+        console.error('Error in stableIdForName, using localStorage:', error);
+        const mapNameToCode = JSON.parse(localStorage.getItem("wp_name_to_code")||"{}");
+        const mapCodeToName = JSON.parse(localStorage.getItem("wp_code_to_name")||"{}");
+        if(mapNameToCode[n]) return mapNameToCode[n];
+        
+        // djb2 hash
+        let h=5381; for(let i=0;i<n.length;i++){ h=((h<<5)+h)+n.charCodeAt(i); h|=0; }
+        const A=26;
+        function codeFromSeed(seed){
+          const a = String.fromCharCode(65 + ((seed>>>0) % A));
+          const b = String.fromCharCode(65 + (Math.floor(seed/A) % A));
+          const d = (Math.floor(seed/(A*A)) % 100);
+          return a + b + ("0"+d).slice(-2);
+        }
+        let seed = Math.abs(h);
+        let code = codeFromSeed(seed);
+        while(mapCodeToName[code] && mapCodeToName[code]!==n){ seed++; code = codeFromSeed(seed); }
+        mapNameToCode[n] = code; mapCodeToName[code] = n;
+        localStorage.setItem("wp_name_to_code", JSON.stringify(mapNameToCode));
+        localStorage.setItem("wp_code_to_name", JSON.stringify(mapCodeToName));
+        return code;
       }
     }
 
@@ -911,6 +962,11 @@
     // Submission storage and rendering helpers
     async function loadSubs(){
       try {
+        if (!window.db) {
+          console.warn('Firebase not initialized, falling back to localStorage');
+          return JSON.parse(localStorage.getItem("wp_submissions")||"[]");
+        }
+        
         const submissionsRef = collection(db, 'submissions');
         const q = query(submissionsRef, orderBy('no', 'asc'));
         const snapshot = await getDocs(q);
@@ -918,15 +974,24 @@
         snapshot.forEach(doc => {
           submissions.push({ id: doc.id, ...doc.data() });
         });
+        
+        // localStorage에도 백업 저장
+        localStorage.setItem("wp_submissions", JSON.stringify(submissions));
         return submissions;
       } catch(e){ 
-        console.error('Error loading submissions:', e);
-        return []; 
+        console.error('Error loading submissions from Firebase, using localStorage:', e);
+        return JSON.parse(localStorage.getItem("wp_submissions")||"[]"); 
       }
     }
     
     async function saveSubs(arr){ 
       try {
+        if (!window.db) {
+          console.warn('Firebase not initialized, saving to localStorage only');
+          localStorage.setItem("wp_submissions", JSON.stringify(arr));
+          return;
+        }
+        
         // 기존 데이터 삭제 후 새로 저장
         const submissionsRef = collection(db, 'submissions');
         const snapshot = await getDocs(submissionsRef);
@@ -936,13 +1001,24 @@
         // 새 데이터 저장
         const addPromises = arr.map(submission => addDoc(submissionsRef, submission));
         await Promise.all(addPromises);
+        
+        // localStorage에도 백업 저장
+        localStorage.setItem("wp_submissions", JSON.stringify(arr));
       } catch(e) {
-        console.error('Error saving submissions:', e);
+        console.error('Error saving submissions to Firebase, saving to localStorage:', e);
+        localStorage.setItem("wp_submissions", JSON.stringify(arr));
       }
     }
     
     async function getNextNo(){ 
       try {
+        if (!window.db) {
+          console.warn('Firebase not initialized, using localStorage counter');
+          const n = parseInt(localStorage.getItem("wp_next_no")||"1",10);
+          localStorage.setItem("wp_next_no", String(n+1));
+          return n;
+        }
+        
         const countersRef = collection(db, 'counters');
         const snapshot = await getDocs(countersRef);
         
@@ -957,10 +1033,14 @@
           await addDoc(countersRef, { nextNo: 2 });
         }
         
+        // localStorage에도 백업
+        localStorage.setItem("wp_next_no", String(currentNo + 1));
         return currentNo;
       } catch(e) {
-        console.error('Error getting next number:', e);
-        return 1;
+        console.error('Error getting next number from Firebase, using localStorage:', e);
+        const n = parseInt(localStorage.getItem("wp_next_no")||"1",10);
+        localStorage.setItem("wp_next_no", String(n+1));
+        return n;
       }
     }
     function pad(n){ return String(n).padStart(2,"0"); }
