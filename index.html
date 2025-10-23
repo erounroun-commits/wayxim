@@ -3049,11 +3049,6 @@ ${r.optPlan}
       const db = getFirestore(app);
       // const analytics = getAnalytics(app); // 임시로 비활성화
       
-      // Firebase 오류 로깅 설정
-      db.settings({
-        ignoreUndefinedProperties: true
-      });
-      
       // 전역 변수로 db 접근 가능하게 설정
       window.db = db;
       window.collection = collection;
