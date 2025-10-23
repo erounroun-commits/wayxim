@@ -331,6 +331,81 @@
   color: #6a7a89;
   font-size: 14px;
 }
+
+/* 푸시 알림 스타일 */
+.push-notification {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 2000;
+  max-width: 350px;
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.push-notification.show {
+  transform: translateX(0);
+}
+
+.push-notification.hide {
+  animation: slideOut 0.3s ease-in forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.push-notification-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.push-notification-icon {
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+.push-notification-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.push-notification-content {
+  font-size: 13px;
+  opacity: 0.9;
+  line-height: 1.4;
+}
+
+.push-notification-time {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-top: 4px;
+}
   </style>
 </head>
 <body>
@@ -2147,8 +2222,8 @@ ${r.optPlan}
       } else {
         // Show only first 5 rows, rest scrollable
         const displayRequests = currentMonthRequests.slice(0, 5);
-        displayRequests.forEach(r => {
-          const vendorType = getVendorType(r.companyCode);
+        for (const r of displayRequests) {
+          const vendorType = await getVendorType(r.companyCode);
           const fee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
           html += `<tr>`+
             `<td>${r.no}</td>`+
@@ -2158,7 +2233,7 @@ ${r.optPlan}
             `<td>${vendorType}</td>`+
             `<td>${fee.toLocaleString()}원</td>`+
           `</tr>`;
-        });
+        }
         
         if (currentMonthRequests.length > 5) {
           html += `<tr><td colspan="6" style="text-align:center;color:#6a7a89;font-style:italic;">
@@ -2187,7 +2262,13 @@ ${r.optPlan}
       html += `<div class="vendor-lists-section" style="margin-top:20px;">`;
       
       // Premium vendors list
-      const premiumRequests = currentMonthRequests.filter(r => getVendorType(r.companyCode) === '우수');
+      const premiumRequests = [];
+      for (const r of currentMonthRequests) {
+        const vendorType = await getVendorType(r.companyCode);
+        if (vendorType === '우수') {
+          premiumRequests.push(r);
+        }
+      }
       html += `<div class="vendor-list-box">
         <div class="vendor-list-title">우수 VENDOR 진행 요청건수: ${monthlyPremiumRequests}</div>
         <div style="margin-bottom:8px;">
@@ -2221,7 +2302,13 @@ ${r.optPlan}
       html += '</tbody></table></div></div>';
       
       // Regular vendors list
-      const regularRequests = currentMonthRequests.filter(r => getVendorType(r.companyCode) === '일반');
+      const regularRequests = [];
+      for (const r of currentMonthRequests) {
+        const vendorType = await getVendorType(r.companyCode);
+        if (vendorType === '일반') {
+          regularRequests.push(r);
+        }
+      }
       html += `<div class="vendor-list-box">
         <div class="vendor-list-title">일반 VENDOR 진행 요청건수: ${monthlyRegularRequests}</div>
         <div style="margin-bottom:8px;">
@@ -2739,7 +2826,7 @@ ${r.optPlan}
     }
 
     // Excel download function
-    function downloadExcel(type) {
+    async function downloadExcel(type) {
       const rows = loadSubs();
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth();
@@ -2755,8 +2842,8 @@ ${r.optPlan}
       let filename = '';
       
       if (type === 'all') {
-        data = currentMonthRequests.map(r => {
-          const vendorType = getVendorType(r.companyCode);
+        const dataPromises = currentMonthRequests.map(async r => {
+          const vendorType = await getVendorType(r.companyCode);
           const fee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
           return {
             '번호': r.no,
@@ -2768,9 +2855,16 @@ ${r.optPlan}
             '제출일시': formatDateTime(r.submittedAt)
           };
         });
+        data = await Promise.all(dataPromises);
         filename = `당월_진행_요청_LIST_${currentYear}${pad(currentMonth + 1)}.csv`;
       } else if (type === 'premium') {
-        const premiumRequests = currentMonthRequests.filter(r => getVendorType(r.companyCode) === '우수');
+        const premiumRequests = [];
+        for (const r of currentMonthRequests) {
+          const vendorType = await getVendorType(r.companyCode);
+          if (vendorType === '우수') {
+            premiumRequests.push(r);
+          }
+        }
         data = premiumRequests.map(r => {
           const fee = r.totalCnt * 1000;
           return {
@@ -2784,7 +2878,13 @@ ${r.optPlan}
         });
         filename = `우수_VENDOR_진행_요청_LIST_${currentYear}${pad(currentMonth + 1)}.csv`;
       } else if (type === 'regular') {
-        const regularRequests = currentMonthRequests.filter(r => getVendorType(r.companyCode) === '일반');
+        const regularRequests = [];
+        for (const r of currentMonthRequests) {
+          const vendorType = await getVendorType(r.companyCode);
+          if (vendorType === '일반') {
+            regularRequests.push(r);
+          }
+        }
         data = regularRequests.map(r => {
           const fee = r.totalCnt * 1500;
           return {
@@ -2957,13 +3057,13 @@ ${r.optPlan}
           html += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>
-              <div style="display:flex;gap:4px;align-items:center;">
+              <div style="display:flex;flex-direction:column;gap:2px;">
                 <input type="date" value="${new Date(r.submittedAt).toISOString().slice(0,10)}" 
                        onchange="queueSubmittedAtDate(${r.no}, this.value, '${new Date(r.submittedAt).toTimeString().slice(0,5)}')" 
                        style="width:120px;padding:4px;border:1px solid var(--border);border-radius:4px;">
                 <input type="time" value="${new Date(r.submittedAt).toTimeString().slice(0,5)}" 
                        onchange="queueSubmittedAtTime(${r.no}, '${new Date(r.submittedAt).toISOString().slice(0,10)}', this.value)" 
-                       style="width:80px;padding:4px;border:1px solid var(--border);border-radius:4px;">
+                       style="width:120px;padding:4px;border:1px solid var(--border);border-radius:4px;">
               </div>
             </td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
@@ -3301,7 +3401,9 @@ ${r.optPlan}
       await saveSubs(arr);
       
       // 알림 추가
-      addSubmissionNotification(companyName, companyCode);
+      if (window.addSubmissionNotification) {
+        window.addSubmissionNotification(companyName, companyCode);
+      }
       
       alert("제출되었습니다. 관리자 확인 후 회신드리겠습니다. 감사합니다.");
       rfForm.reset();
@@ -3557,6 +3659,20 @@ ${r.optPlan}
             if (hasNewRequests) {
               console.log('🆕 신규 요청건 감지! 강제 업데이트 실행');
               
+              // 푸시 알림 표시
+              const latestRequest = newSubmissions.find(newSub => 
+                !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+              );
+              
+              if (latestRequest) {
+                if (window.showPushNotification) {
+                  window.showPushNotification(
+                    '신규 작업요청건이 있습니다',
+                    `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`
+                  );
+                }
+              }
+              
               // 현재 활성화된 탭에 따라 강제 업데이트
               if (currentSection === 'home') {
                 await showAdminHome();
@@ -3698,13 +3814,66 @@ ${r.optPlan}
       hideNotificationPopup();
     }
     
-    // 작업요청서 제출 시 알림 추가
+    // 푸시 알림 표시 함수
+    function showPushNotification(title, content) {
+      console.log('🔔 푸시 알림 표시 시작:', title);
+      
+      // 기존 푸시 알림이 있다면 제거
+      const existingNotification = document.querySelector('.push-notification');
+      if (existingNotification) {
+        existingNotification.remove();
+        console.log('🗑️ 기존 푸시 알림 제거');
+      }
+      
+      // 새 푸시 알림 생성
+      const notification = document.createElement('div');
+      notification.className = 'push-notification show';
+      notification.innerHTML = `
+        <div class="push-notification-header">
+          <span class="push-notification-icon">🔔</span>
+          <span class="push-notification-title">${title}</span>
+        </div>
+        <div class="push-notification-content">${content}</div>
+        <div class="push-notification-time">${formatDateTime(Date.now())}</div>
+      `;
+      
+      document.body.appendChild(notification);
+      console.log('✅ 푸시 알림 DOM에 추가 완료');
+      
+      // 5초 후 자동 제거
+      setTimeout(() => {
+        notification.classList.add('hide');
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.remove();
+            console.log('🗑️ 푸시 알림 자동 제거 완료');
+          }
+        }, 300);
+      }, 5000);
+    }
+    
+    // 작업요청서 제출 시 알림 추가 (푸시 알림 + 알림 목록)
     function addSubmissionNotification(companyName, companyCode) {
-      addNotification(
-        '새로운 작업요청서 접수',
-        `${companyName} (${companyCode})에서 새로운 작업요청서가 제출되었습니다.`,
-        'success'
-      );
+      console.log('🔔 알림 추가 시작:', companyName, companyCode);
+      const title = '새로운 작업요청서 접수';
+      const content = `${companyName} (${companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+      
+      // 알림 목록에 추가
+      addNotification(title, content, 'success');
+      console.log('📝 알림 목록에 추가 완료');
+      
+      // 관리자 화면이 열려있다면 푸시 알림 표시
+      if (sessionStorage.getItem("wp_is_admin") === "1") {
+        console.log('👨‍💼 관리자 화면 감지, 푸시 알림 표시 시도');
+        if (window.showPushNotification) {
+          showPushNotification('신규 작업요청건이 있습니다', content);
+          console.log('🔔 푸시 알림 표시 완료');
+        } else {
+          console.log('❌ showPushNotification 함수를 찾을 수 없음');
+        }
+      } else {
+        console.log('❌ 관리자 화면이 아님');
+      }
     }
     
     // 전역 함수로 등록
@@ -3715,6 +3884,7 @@ ${r.optPlan}
     window.markAsRead = markAsRead;
     window.clearAllNotifications = clearAllNotifications;
     window.addSubmissionNotification = addSubmissionNotification;
+    window.showPushNotification = showPushNotification;
       
       // Firebase 단계별 테스트
       console.log('Starting Firebase step-by-step test...');
