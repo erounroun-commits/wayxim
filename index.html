@@ -284,7 +284,7 @@
               <span class="kbd" id="idOutput">ID 미발급</span>
             </div>
           </div>
-          <span class="hint">업체명 입력 후 ID 조회를 필수로 눌러주세요.</span>
+          <span class="hint">업체명을 입력하면 자동으로 ID가 조회됩니다.</span>
         </div>
 
         <div class="row">
@@ -970,6 +970,35 @@
         return code;
       }
     }
+
+    // 업체명 변경 시 자동 ID 조회
+    companyNameInput?.addEventListener('input', async (e) => {
+      const name = e.target.value.trim();
+      if (name.length > 0) {
+        // 디바운싱을 위해 500ms 후에 실행
+        clearTimeout(window.idLookupTimeout);
+        window.idLookupTimeout = setTimeout(async () => {
+          const code = await stableIdForName(name);
+          idOutput.textContent = code ? code : "ID 미발급";
+          rfIdVerified = !!code;
+          
+          // Auto-fill for returning vendors
+          if(code){
+            const rows = await loadSubs();
+            const prev = rows.find(r=> r.companyCode===code);
+            if(prev){
+              const biz = document.getElementById("bizNo");
+              const contact = document.getElementById("contact");
+              if(biz && !biz.value) biz.value = prev.bizNo||"";
+              if(contact && !contact.value) contact.value = prev.contact||"";
+            }
+          }
+        }, 500);
+      } else {
+        idOutput.textContent = "ID 미발급";
+        rfIdVerified = false;
+      }
+    });
 
     idLookupBtn?.addEventListener("click", async ()=>{
       const name = companyNameInput?.value||"";
@@ -1880,8 +1909,8 @@ ${r.optPlan}
       });
       
       // Calculate statistics
-      currentMonthRequests.forEach(r => {
-        const vendorType = getVendorType(r.companyCode);
+      for (const r of currentMonthRequests) {
+        const vendorType = await getVendorType(r.companyCode);
         monthlyTotalRequests += r.totalCnt;
         
         if (vendorType === '우수') {
@@ -1891,7 +1920,7 @@ ${r.optPlan}
           monthlyRegularRequests += r.totalCnt;
           monthlyRegularFee += r.totalCnt * 1500; // 일반 VENDOR 제휴수수료: 1,500원
         }
-      });
+      }
       
       const totalMonthlyFee = monthlyPremiumFee + monthlyRegularFee;
       
@@ -2129,13 +2158,15 @@ ${r.optPlan}
       setTimeout(() => {
         const yearMonthSelect = document.getElementById('yearMonthSelect');
         if (yearMonthSelect) {
-          yearMonthSelect.addEventListener('change', updateMonthlyData);
+          yearMonthSelect.addEventListener('change', async () => {
+            await updateMonthlyData();
+          });
           console.log('월별 정산 - 년도/월 선택 이벤트 리스너 바인딩 완료');
         }
       }, 100);
       
       // Initial load
-      updateMonthlyData();
+      await updateMonthlyData();
     }
     
     // Weekly settlement list (similar to monthly, with Y/M/Week selectors)
@@ -2211,7 +2242,25 @@ ${r.optPlan}
         const m = parseInt(document.getElementById('wlMonth').value,10);
         const weeks = buildWeeks(y,m);
         const sel = document.getElementById('wlWeek');
-        sel.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===0?'selected':''}>${fmt(w.start)} ~ ${fmt(w.end)}</option>`).join('');
+        
+        // 현재 날짜에 해당하는 주 찾기
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth() + 1;
+        let selectedIndex = 0;
+        
+        if (y === currentYear && m === currentMonth) {
+          // 현재 월인 경우 현재 날짜가 포함된 주 찾기
+          for (let i = 0; i < weeks.length; i++) {
+            const week = weeks[i];
+            if (today >= week.start && today <= week.end) {
+              selectedIndex = i;
+              break;
+            }
+          }
+        }
+        
+        sel.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmt(w.start)} ~ ${fmt(w.end)}</option>`).join('');
         updateWeekly();
       }
 
@@ -2225,28 +2274,58 @@ ${r.optPlan}
         const vendorCount = vendorSet.size;
         const totalRequests = fil.reduce((a,b)=>a+b.totalCnt,0);
         let totalUsage=0,totalComm=0;
-        fil.forEach(r=>{ const vt=getVendorType(r.companyCode); totalUsage += r.totalCnt*(vt==='우수'?2500:3000); totalComm += r.totalCnt*(vt==='우수'?1000:1500); });
-        document.getElementById('wVendorCount').textContent = vendorCount;
-        document.getElementById('wTotalRequests').textContent = totalRequests;
-        document.getElementById('wAmount').textContent = (totalUsage+totalComm).toLocaleString()+"원";
-        const body = document.getElementById('wBody');
-        const foot = document.getElementById('wFoot');
-        let htmlRows=''; let sumU=0,sumC=0;
-        const display = fil.slice(0,10);
-        if(display.length===0){ htmlRows = '<tr><td colspan="14" style="text-align:center;color:#6a7a89">해당 기간 데이터가 없습니다.</td></tr>'; }
-        else {
-          display.forEach(r=>{ const vt=getVendorType(r.companyCode); const u=r.totalCnt*(vt==='우수'?2500:3000); const c=r.totalCnt*(vt==='우수'?1000:1500); sumU+=u; sumC+=c;
-            htmlRows += `<tr>`+
-              `<td>${r.no}</td><td>${formatCompactDateTime(r.submittedAt)}</td><td>${escapeHtml(r.companyCode)}</td>`+
-              `<td>${vt}</td><td>${escapeHtml(r.companyName)}</td><td>${escapeHtml(r.bizNo)}</td>`+
-              `<td>${escapeHtml(r.contact)}</td><td>${escapeHtml(r.keywords)}</td>`+
-              `<td>${r.totalCnt}</td><td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):''}</td>`+
-              `<td>${vt==='우수'?'2,500원':'3,000원'}</td><td>${vt==='우수'?'1,000원':'1,500원'}</td>`+
-              `<td>${u.toLocaleString()}원</td><td>${c.toLocaleString()}원</td>`+
-            `</tr>`; });
-        }
-        body.innerHTML = htmlRows;
-        if(fil.length>0){ foot.innerHTML = `<tr style="background:#f6f9fc;font-weight:800;"><td colspan="12" style="text-align:center;">SUM</td><td>${sumU.toLocaleString()}원</td><td>${sumC.toLocaleString()}원</td></tr>`; } else { foot.innerHTML=''; }
+        
+        // async 처리를 위해 Promise.all 사용
+        Promise.all(fil.map(async r => {
+          const vt = await getVendorType(r.companyCode);
+          const usage = r.totalCnt*(vt==='우수'?2500:3000);
+          const comm = r.totalCnt*(vt==='우수'?1000:1500);
+          return { r, vt, usage, comm };
+        })).then(results => {
+          results.forEach(({r, vt, usage, comm}) => {
+            totalUsage += usage;
+            totalComm += comm;
+          });
+          
+          document.getElementById('wVendorCount').textContent = vendorCount;
+          document.getElementById('wTotalRequests').textContent = totalRequests;
+          document.getElementById('wAmount').textContent = (totalUsage+totalComm).toLocaleString()+"원";
+          
+          const body = document.getElementById('wBody');
+          const foot = document.getElementById('wFoot');
+          let htmlRows=''; let sumU=0,sumC=0;
+          const display = fil.slice(0,10);
+          
+          if(display.length===0){ 
+            htmlRows = '<tr><td colspan="14" style="text-align:center;color:#6a7a89">해당 기간 데이터가 없습니다.</td></tr>'; 
+          } else {
+            Promise.all(display.map(async r => {
+              const vt = await getVendorType(r.companyCode);
+              const u = r.totalCnt*(vt==='우수'?2500:3000);
+              const c = r.totalCnt*(vt==='우수'?1000:1500);
+              sumU+=u; sumC+=c;
+              return { r, vt, u, c };
+            })).then(displayResults => {
+              displayResults.forEach(({r, vt, u, c}) => {
+                htmlRows += `<tr>`+
+                  `<td>${r.no}</td><td>${formatCompactDateTime(r.submittedAt)}</td><td>${escapeHtml(r.companyCode)}</td>`+
+                  `<td>${vt}</td><td>${escapeHtml(r.companyName)}</td><td>${escapeHtml(r.bizNo)}</td>`+
+                  `<td>${escapeHtml(r.contact)}</td><td>${escapeHtml(r.keywords)}</td>`+
+                  `<td>${r.totalCnt}</td><td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):''}</td>`+
+                  `<td>${vt==='우수'?'2,500원':'3,000원'}</td><td>${vt==='우수'?'1,000원':'1,500원'}</td>`+
+                  `<td>${u.toLocaleString()}원</td><td>${c.toLocaleString()}원</td>`+
+                `</tr>`;
+              });
+              
+              body.innerHTML = htmlRows;
+              if(fil.length>0){ 
+                foot.innerHTML = `<tr style="background:#f6f9fc;font-weight:800;"><td colspan="12" style="text-align:center;">SUM</td><td>${sumU.toLocaleString()}원</td><td>${sumC.toLocaleString()}원</td></tr>`; 
+              } else { 
+                foot.innerHTML=''; 
+              }
+            });
+          }
+        });
       }
 
       // 이벤트 리스너를 즉시 바인딩
@@ -2272,15 +2351,19 @@ ${r.optPlan}
         }
         
         if (excelBtn) {
-          excelBtn.addEventListener('click', ()=>{
+          excelBtn.addEventListener('click', async ()=>{
             const val = document.getElementById('wlWeek').value; 
             const [s,e]=val.split('|');
             const sDate = new Date(s+'T00:00:00'); 
             const eDate = new Date(e+'T23:59:59');
             const fil = rows.filter(r=>{ const d=new Date(r.submittedAt); return d>=sDate && d<=eDate; });
             if(fil.length===0){ alert('다운로드할 데이터가 없습니다.'); return; }
-            const data = fil.map(r=>{ const vt=getVendorType(r.companyCode); const u=r.totalCnt*(vt==='우수'?2500:3000); const c=r.totalCnt*(vt==='우수'?1000:1500);
-              return { 'NO':r.no,'제출시간':formatDateTime(r.submittedAt),'업체코드':r.companyCode,'VENDOR 유형':vt,'업체명':r.companyName,'사업자번호':r.bizNo,'카톡/번호':r.contact,'구매 키워드':r.keywords,'총 진행건수':r.totalCnt,'접수 시간':r.acceptedAt?formatDateTime(r.acceptedAt):'','건당 이용 단가': vt==='우수'?'2,500원':'3,000원','건당 제휴 수수료': vt==='우수'?'1,000원':'1,500원','총 이용 단가':u,'총 제휴 수수료':c }; });
+            const data = await Promise.all(fil.map(async r=>{ 
+              const vt = await getVendorType(r.companyCode); 
+              const u = r.totalCnt*(vt==='우수'?2500:3000); 
+              const c = r.totalCnt*(vt==='우수'?1000:1500);
+              return { 'NO':r.no,'제출시간':formatDateTime(r.submittedAt),'업체코드':r.companyCode,'VENDOR 유형':vt,'업체명':r.companyName,'사업자번호':r.bizNo,'카톡/번호':r.contact,'구매 키워드':r.keywords,'총 진행건수':r.totalCnt,'접수 시간':r.acceptedAt?formatDateTime(r.acceptedAt):'','건당 이용 단가': vt==='우수'?'2,500원':'3,000원','건당 제휴 수수료': vt==='우수'?'1,000원':'1,500원','총 이용 단가':u,'총 제휴 수수료':c }; 
+            }));
             const headers = Object.keys(data[0]);
             const csv = [headers.join(','), ...data.map(row=> headers.map(h=>`"${row[h]}"`).join(','))].join('\n');
             const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
@@ -2387,11 +2470,11 @@ ${r.optPlan}
       }
     }
     
-    function downloadMonthlyExcel(){
+    async function downloadMonthlyExcel(){
       const selectedValue = document.getElementById('yearMonthSelect').value;
       const [year, month] = selectedValue.split('-');
       
-      const rows = loadSubs();
+      const rows = await loadSubs();
       const selectedMonthRequests = rows.filter(r => {
         const submissionDate = new Date(r.submittedAt);
         return submissionDate.getFullYear() == year && (submissionDate.getMonth() + 1) == month;
@@ -2402,8 +2485,8 @@ ${r.optPlan}
         return;
       }
       
-      const data = selectedMonthRequests.map(r => {
-        const vendorType = getVendorType(r.companyCode);
+      const data = await Promise.all(selectedMonthRequests.map(async r => {
+        const vendorType = await getVendorType(r.companyCode);
         const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
         const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
         
@@ -2423,7 +2506,7 @@ ${r.optPlan}
           '총 이용 단가': usageFee,
           '총 제휴 수수료': commissionFee
         };
-      });
+      }));
       
       // Add SUM row
       const sumUsageFee = data.reduce((sum, row) => sum + row['총 이용 단가'], 0);
@@ -3211,12 +3294,20 @@ ${r.optPlan}
         realtimeUnsubscribe = onSnapshot(q, async (snapshot) => {
           console.log('📡 실시간 데이터 업데이트:', snapshot.docs.length, '건');
           
-          // localStorage 업데이트
-          const submissions = snapshot.docs.map(doc => ({
+          // 이전 데이터와 비교하여 신규 요청건 확인
+          const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
+          const newSubmissions = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           }));
-          localStorage.setItem("wp_submissions", JSON.stringify(submissions));
+          
+          // 신규 요청건이 있는지 확인
+          const hasNewRequests = newSubmissions.some(newSub => 
+            !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+          );
+          
+          // localStorage 업데이트
+          localStorage.setItem("wp_submissions", JSON.stringify(newSubmissions));
           
           // 관리자 페이지가 열려있다면 실시간 업데이트
           if (sessionStorage.getItem("wp_is_admin") === "1") {
@@ -3243,15 +3334,46 @@ ${r.optPlan}
               await showMonthlySettlementList();
             }
             
-            // 홈 탭이 활성화되어 있지 않더라도 신규요청건 알림 업데이트
-            if (currentSection !== 'home') {
-              // 홈 탭의 신규요청건 섹션만 업데이트
-              const newRequests = submissions.filter(r => !r.accepted);
-              if (newRequests.length > 0) {
-                const homeTab = document.querySelector('[data-section="home"]');
-                if (homeTab && homeTab.classList.contains('active')) {
-                  await showAdminHome();
-                }
+            // 신규 요청건이 추가된 경우 강제 업데이트
+            if (hasNewRequests) {
+              console.log('🆕 신규 요청건 감지! 강제 업데이트 실행');
+              
+              // 현재 활성화된 탭에 따라 강제 업데이트
+              if (currentSection === 'home') {
+                await showAdminHome();
+              } else if (currentSection === 'req-new') {
+                await showReqList(false);
+              } else if (currentSection === 'req-all') {
+                await showAllReqList();
+              } else if (currentSection === 'vendor') {
+                await showVendorDashboard();
+              } else if (currentSection === 'vendor-list') {
+                await showVendorList();
+              } else if (currentSection === 'settle') {
+                await showSettlementDashboard();
+              } else if (currentSection === 'settle-weekly') {
+                await showWeeklySettlementList();
+              } else if (currentSection === 'settle-monthly') {
+                await showMonthlySettlementList();
+              }
+            }
+            
+            // 신규요청건이 있는 경우 모든 탭에서 알림 업데이트
+            const newRequests = newSubmissions.filter(r => !r.accepted);
+            if (newRequests.length > 0) {
+              // 홈 탭이 활성화되어 있으면 홈 화면 업데이트
+              if (currentSection === 'home') {
+                await showAdminHome();
+              }
+              
+              // 신규요청건 탭이 활성화되어 있으면 신규요청건 화면 업데이트
+              if (currentSection === 'req-new') {
+                await showReqList(false);
+              }
+              
+              // 전체 요청건 탭이 활성화되어 있으면 전체 화면 업데이트
+              if (currentSection === 'req-all') {
+                await showAllReqList();
               }
             }
           }
