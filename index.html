@@ -44,6 +44,8 @@
     .nav-group{margin:8px 0;border-top:1px dashed var(--border);padding-top:8px}
     .nav-item{display:block;padding:10px 12px;border-radius:10px;color:#1f2d3d;text-decoration:none;font-weight:800;transition:all 0.3s ease;position:relative}
     .nav-item:hover{background:#f2f6fa}
+    .nav-item.active{background:var(--brand);color:#fff}
+    .nav-item.active:hover{background:var(--brand-accent)}
     .nav-item.collapsed{padding:10px 8px;text-align:center}
     .nav-item.collapsed span{display:none}
     .nav-item.collapsed::after{content:"📁";font-size:18px}
@@ -51,6 +53,8 @@
     .nav-sub.collapsed{margin-left:0}
     .nav-sub a{display:block;font-weight:700;padding:8px 12px;border-radius:8px;color:#3b4b5a;text-decoration:none;transition:all 0.3s ease}
     .nav-sub a:hover{background:#f6f9fc}
+    .nav-sub a.active{background:var(--brand);color:#fff}
+    .nav-sub a.active:hover{background:var(--brand-accent)}
     .nav-sub.collapsed a{padding:8px;text-align:center}
     .nav-sub.collapsed a span{display:none}
     .nav-sub.collapsed a::after{content:"📄";font-size:14px}
@@ -769,6 +773,16 @@
       publicLanding.classList.add("hidden");
       adminWrap.style.display = "block";
       showAdminHome();
+      
+      // 기본 탭 활성화 (홈 탭)
+      document.querySelectorAll("[data-section]").forEach(tab => {
+        tab.classList.remove('active');
+      });
+      const homeTab = document.querySelector('[data-section="home"]');
+      if (homeTab) {
+        homeTab.classList.add('active');
+      }
+      
       window.scrollTo({top:0,behavior:"smooth"});
     }
 
@@ -2956,6 +2970,15 @@ ${r.optPlan}
     document.querySelectorAll("[data-section]").forEach(a=>{
       a.addEventListener("click", e=>{
         e.preventDefault();
+        
+        // 모든 탭에서 active 클래스 제거
+        document.querySelectorAll("[data-section]").forEach(tab => {
+          tab.classList.remove('active');
+        });
+        
+        // 현재 클릭된 탭에 active 클래스 추가
+        e.currentTarget.classList.add('active');
+        
         const target = e.currentTarget.getAttribute("data-section");
         if(target === "home"){ showAdminHome(); return; }
         if(target === "req"){ showReqDashboard(); return; }
@@ -3052,10 +3075,56 @@ ${r.optPlan}
         console.error('🚨 PROJECT ID MISMATCH! Please check Firebase Console.');
       }
       
-      // Initialize Firebase
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
-      // const analytics = getAnalytics(app); // 임시로 비활성화
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    // const analytics = getAnalytics(app); // 임시로 비활성화
+    
+    // 실시간 리스너 설정
+    let realtimeUnsubscribe = null;
+    
+    function setupRealtimeListener() {
+      if (!window.db) return;
+      
+      try {
+        const submissionsRef = collection(db, 'submissions');
+        const q = query(submissionsRef, orderBy('submittedAt', 'desc'));
+        
+        realtimeUnsubscribe = onSnapshot(q, (snapshot) => {
+          console.log('📡 실시간 데이터 업데이트:', snapshot.docs.length, '건');
+          
+          // localStorage 업데이트
+          const submissions = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          localStorage.setItem("wp_submissions", JSON.stringify(submissions));
+          
+          // 관리자 페이지가 열려있다면 실시간 업데이트
+          if (sessionStorage.getItem("wp_is_admin") === "1") {
+            const currentSection = document.querySelector('[data-section].active')?.getAttribute('data-section');
+            if (currentSection === 'req-new') {
+              showReqList(false);
+            } else if (currentSection === 'req-accepted') {
+              showReqList(true);
+            } else if (currentSection === 'req-all') {
+              showAllReqList();
+            } else if (currentSection === 'home') {
+              showAdminHome();
+            }
+          }
+        }, (error) => {
+          console.error('실시간 리스너 오류:', error);
+        });
+        
+        console.log('✅ 실시간 리스너 설정 완료');
+      } catch (error) {
+        console.error('실시간 리스너 설정 오류:', error);
+      }
+    }
+    
+    // 실시간 리스너 시작
+    setupRealtimeListener();
       
       // 전역 변수로 db 접근 가능하게 설정
       window.db = db;
