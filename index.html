@@ -3368,12 +3368,15 @@ ${r.optPlan}
 
     // Handle form submission (제출하기)
     const rfForm = document.getElementById("rfForm");
+    console.log('📝 폼 이벤트 리스너 설정:', rfForm);
     rfForm?.addEventListener("submit", async (e)=>{
+      console.log('🚀 폼 제출 이벤트 발생!');
       e.preventDefault();
       if(!(rfForm instanceof HTMLFormElement)) return;
       if(!rfForm.checkValidity()){ rfForm.reportValidity(); return; }
       const companyName = companyNameInput?.value.trim()||"";
       const companyCode = await stableIdForName(companyName)||"";
+      console.log('📋 업체 정보:', companyName, companyCode);
       if(idOutput) idOutput.textContent = companyCode ? `ID: ${companyCode}` : "ID: 미발급";
 
       const rec = {
