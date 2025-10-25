@@ -3694,24 +3694,67 @@ ${r.optPlan}
     const db = getFirestore(app);
     // const analytics = getAnalytics(app); // 임시로 비활성화
     
-    // 실시간 리스너 설정 (중복 방지 강화)
+    // 실시간 리스너 설정 (조건부 비활성화)
     let realtimeUnsubscribe = null;
     let isFirstLoad = true;
-    let lastProcessedSubmissionId = null; // 마지막으로 처리한 제출 ID
+    let lastProcessedSubmissionId = null;
+    let isRealtimeListenerDisabled = true; // 실시간 리스너 비활성화 플래그
     
     function setupRealtimeListener() {
-      console.log('🚫 setupRealtimeListener 함수 비활성화 (중복 방지)');
-      console.log('⚠️ 실시간 리스너는 중복 알림 방지를 위해 비활성화됨');
-      return; // 함수 실행 중단
+      // 실시간 리스너 비활성화 플래그 확인
+      if (isRealtimeListenerDisabled) {
+        console.log('🚫 실시간 리스너 비활성화됨 (중복 방지)');
+        return;
+      }
+      
+      if (!window.db) return;
+      
+      try {
+        const submissionsRef = collection(db, 'submissions');
+        const q = query(submissionsRef, orderBy('submittedAt', 'desc'));
+        
+        realtimeUnsubscribe = onSnapshot(q, async (snapshot) => {
+          console.log('📡 실시간 데이터 업데이트:', snapshot.docs.length, '건');
+          
+          // 실시간 리스너 비활성화 플래그 재확인
+          if (isRealtimeListenerDisabled) {
+            console.log('🚫 실시간 리스너 실행 중 비활성화됨');
+            return;
+          }
+          
+          const allSubmissions = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          // 첫 로드인 경우
+          if (isFirstLoad) {
+            console.log('🔄 첫 로드 - 초기 데이터 설정');
+            if (allSubmissions.length > 0) {
+              lastProcessedSubmissionId = allSubmissions[0].id;
+              console.log('📊 마지막 처리 ID 설정:', lastProcessedSubmissionId);
+            }
+            localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
+            isFirstLoad = false;
+            console.log('📝 초기 데이터 저장 완료, 알림 생성 안함');
+            return;
+          }
+          
+          // 실시간 리스너가 비활성화되어 있으면 알림 생성 안함
+          console.log('📝 실시간 리스너 비활성화로 인해 알림 생성 안함');
+          localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
+        });
+        
+        console.log('✅ 실시간 리스너 설정 완료 (비활성화 상태)');
+      } catch (error) {
+        console.error('❌ 실시간 리스너 설정 실패:', error);
+      }
     }
-    // 실시간 리스너 코드 완전 제거됨 (중복 방지)
-    
     // Firebase 초기화 후 실시간 리스너 설정 (비활성화)
     if (window.db) {
       console.log('🚫 Firebase 초기화 완료 - 실시간 리스너 비활성화');
+      setupRealtimeListener(); // 비활성화된 상태로 실행
     }
-    // 실시간 리스너 코드 완전 제거됨 (중복 방지)
-    // 실시간 리스너 코드 완전 제거됨 (중복 방지)
                   
                   // 푸시알림 표시
                   showPushNotification(notificationTitle, notificationContent);
@@ -3771,54 +3814,35 @@ ${r.optPlan}
               } else if (currentSection === 'settle-monthly') {
                 await showMonthlySettlementList();
               }
-            }
-            
-            // 신규요청건이 있는 경우 모든 탭에서 알림 업데이트
-            const newRequests = newSubmissions.filter(r => !r.accepted);
-            if (newRequests.length > 0) {
-              // 홈 탭이 활성화되어 있으면 홈 화면 업데이트
-              if (currentSection === 'home') {
-                await showAdminHome();
-              }
-              
-              // 신규요청건 탭이 활성화되어 있으면 신규요청건 화면 업데이트
-              if (currentSection === 'req-new') {
-                await showReqList(false);
-              }
-              
-              // 전체 요청건 탭이 활성화되어 있으면 전체 화면 업데이트
-              if (currentSection === 'req-all') {
-                await showAllReqList();
-              }
-            }
-          }
-        }, (error) => {
-          console.error('실시간 리스너 오류:', error);
-        });
-        
-        console.log('✅ 실시간 리스너 설정 완료');
-      } catch (error) {
-        console.error('실시간 리스너 설정 오류:', error);
-      }
+    // 실시간 리스너 코드 정리 완료 (문법 오류 수정)
+    
+    // Firebase 초기화 후 실시간 리스너 설정 (비활성화)
+    if (window.db) {
+      console.log('🚫 Firebase 초기화 완료 - 실시간 리스너 비활성화');
+      setupRealtimeListener(); // 비활성화된 상태로 실행
+    }
+    // 실시간 리스너 코드 정리 완료 (문법 오류 수정)
+    
+    // Firebase 초기화 후 실시간 리스너 설정 (비활성화)
+    if (window.db) {
+      console.log('🚫 Firebase 초기화 완료 - 실시간 리스너 비활성화');
+      setupRealtimeListener(); // 비활성화된 상태로 실행
     }
     
-    // 실시간 리스너 시작
-    setupRealtimeListener();
-      
-      // 전역 변수로 db 접근 가능하게 설정
-      window.db = db;
-      window.collection = collection;
-      window.doc = doc;
-      window.getDocs = getDocs;
-      window.addDoc = addDoc;
-      window.updateDoc = updateDoc;
-      window.deleteDoc = deleteDoc;
-      window.query = query;
-      window.orderBy = orderBy;
-      window.onSnapshot = onSnapshot;
-      window.where = where;
-      
-      console.log('Firebase initialized successfully!', db);
+    // 전역 변수로 db 접근 가능하게 설정
+    window.db = db;
+    window.collection = collection;
+    window.doc = doc;
+    window.getDocs = getDocs;
+    window.addDoc = addDoc;
+    window.updateDoc = updateDoc;
+    window.deleteDoc = deleteDoc;
+    window.query = query;
+    window.orderBy = orderBy;
+    window.onSnapshot = onSnapshot;
+    window.where = where;
+    
+    console.log('Firebase initialized successfully!', db);
     
     // 알림 시스템 초기화
     let notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
