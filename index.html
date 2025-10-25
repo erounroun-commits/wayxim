@@ -2212,8 +2212,7 @@ ${r.optPlan}
       if(vendorCodes.length===0){
         html += '<tr><td colspan="6" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
       } else {
-        const displayCodes = vendorCodes.slice(0,10);
-        displayCodes.forEach((code, idx)=>{
+        vendorCodes.forEach((code, idx)=>{
           const stats = vendorStats[code];
           html += `<tr>`+
             `<td>${idx+1}</td>`+
@@ -2225,9 +2224,6 @@ ${r.optPlan}
             `<td><button class="btn ghost view-vendor-detail" data-code="${code}" type="button">상세보기</button></td>`+
           `</tr>`;
         });
-        if(vendorCodes.length>10){
-          html += `<tr><td colspan="7" style="text-align:center;color:#6a7a89;font-style:italic;">... 외 ${vendorCodes.length-10}건 더 있음 (스크롤하여 확인)</td></tr>`;
-        }
       }
       html += '</tbody></table></div>';
       main.innerHTML = html;
@@ -2590,9 +2586,7 @@ ${r.optPlan}
       if(currentMonthRequests.length === 0){
         html += '<tr><td colspan="6" style="text-align:center;color:#6a7a89">당월 진행 요청이 없습니다.</td></tr>';
       } else {
-        // Show only first 5 rows, rest scrollable
-        const displayRequests = currentMonthRequests.slice(0, 5);
-        for (const r of displayRequests) {
+        for (const r of currentMonthRequests) {
           const vendorType = await getVendorType(r.companyCode);
           const fee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
           html += `<tr>`+
@@ -2603,12 +2597,6 @@ ${r.optPlan}
             `<td>${vendorType}</td>`+
             `<td>${fee.toLocaleString()}원</td>`+
           `</tr>`;
-        }
-        
-        if (currentMonthRequests.length > 5) {
-          html += `<tr><td colspan="6" style="text-align:center;color:#6a7a89;font-style:italic;">
-            ... 외 ${currentMonthRequests.length - 5}건 더 있음 (스크롤하여 확인)
-          </td></tr>`;
         }
       }
       html += '</tbody></table></div></div>';
@@ -2651,8 +2639,7 @@ ${r.optPlan}
       if(premiumRequests.length === 0){
         html += '<tr><td colspan="5" style="text-align:center;color:#6a7a89">우수 VENDOR 진행 요청이 없습니다.</td></tr>';
       } else {
-        const displayPremiumRequests = premiumRequests.slice(0, 5);
-        displayPremiumRequests.forEach(r => {
+        premiumRequests.forEach(r => {
           const fee = r.totalCnt * 1000;
           html += `<tr>`+
             `<td>${r.no}</td>`+
@@ -2662,12 +2649,6 @@ ${r.optPlan}
             `<td>${fee.toLocaleString()}원</td>`+
           `</tr>`;
         });
-        
-        if (premiumRequests.length > 5) {
-          html += `<tr><td colspan="5" style="text-align:center;color:#6a7a89;font-style:italic;">
-            ... 외 ${premiumRequests.length - 5}건 더 있음 (스크롤하여 확인)
-          </td></tr>`;
-        }
       }
       html += '</tbody></table></div></div>';
       
@@ -2691,8 +2672,7 @@ ${r.optPlan}
       if(regularRequests.length === 0){
         html += '<tr><td colspan="5" style="text-align:center;color:#6a7a89">일반 VENDOR 진행 요청이 없습니다.</td></tr>';
       } else {
-        const displayRegularRequests = regularRequests.slice(0, 5);
-        displayRegularRequests.forEach(r => {
+        regularRequests.forEach(r => {
           const fee = r.totalCnt * 1500;
           html += `<tr>`+
             `<td>${r.no}</td>`+
@@ -2702,12 +2682,6 @@ ${r.optPlan}
             `<td>${fee.toLocaleString()}원</td>`+
           `</tr>`;
         });
-        
-        if (regularRequests.length > 5) {
-          html += `<tr><td colspan="5" style="text-align:center;color:#6a7a89;font-style:italic;">
-            ... 외 ${regularRequests.length - 5}건 더 있음 (스크롤하여 확인)
-          </td></tr>`;
-        }
       }
       html += '</tbody></table></div></div>';
       
@@ -2949,12 +2923,11 @@ ${r.optPlan}
           const body = document.getElementById('wBody');
           const foot = document.getElementById('wFoot');
           let htmlRows=''; let sumU=0,sumC=0;
-          const display = fil.slice(0,10);
           
-          if(display.length===0){ 
+          if(fil.length===0){ 
             htmlRows = '<tr><td colspan="14" style="text-align:center;color:#6a7a89">해당 기간 데이터가 없습니다.</td></tr>'; 
           } else {
-            Promise.all(display.map(async r => {
+            Promise.all(fil.map(async r => {
               const vt = await getVendorType(r.companyCode);
               const u = r.totalCnt*(vt==='우수'?2500:3000);
               const c = r.totalCnt*(vt==='우수'?1000:1500);
@@ -3078,10 +3051,7 @@ ${r.optPlan}
       if(selectedMonthRequests.length === 0){
         tableHtml = '<tr><td colspan="14" style="text-align:center;color:#6a7a89">해당 월의 데이터가 없습니다.</td></tr>';
       } else {
-        // Show only first 10 rows, rest scrollable
-        const displayRequests = selectedMonthRequests.slice(0, 10);
-        
-        for (const r of displayRequests) {
+        for (const r of selectedMonthRequests) {
           const vendorType = await getVendorType(r.companyCode);
           const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
           const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
@@ -3105,12 +3075,6 @@ ${r.optPlan}
             `<td>${usageFee.toLocaleString()}원</td>`+
             `<td>${commissionFee.toLocaleString()}원</td>`+
           `</tr>`;
-        }
-        
-        if (selectedMonthRequests.length > 10) {
-          tableHtml += `<tr><td colspan="14" style="text-align:center;color:#6a7a89;font-style:italic;">
-            ... 외 ${selectedMonthRequests.length - 10}건 더 있음 (스크롤하여 확인)
-          </td></tr>`;
         }
       }
       
