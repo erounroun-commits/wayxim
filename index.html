@@ -3535,20 +3535,20 @@ ${r.optPlan}
         console.log('❌ addSubmissionNotification 함수를 찾을 수 없음');
       }
       
-      // 강제 푸시알림 표시 (백업)
+      // 강제 푸시알림 표시 (폼 제출 시에만)
       if (sessionStorage.getItem("wp_is_admin") === "1") {
-        console.log('🔔 폼 제출 시 강제 푸시알림 표시 시도');
+        console.log('🔔 폼 제출 시 푸시알림 표시 시도');
         try {
           const notificationTitle = '신규 작업요청건이 있습니다';
           const notificationContent = `${companyName} (${companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
           
-          // 푸시알림 표시
+          // 푸시알림 표시 (1개만)
           showPushNotification(notificationTitle, notificationContent);
           
-          // 상단 알림 아이콘에도 알림 추가
+          // 상단 알림 아이콘에도 알림 추가 (1개만)
           if (window.addNotification) {
             window.addNotification(notificationTitle, notificationContent, 'success');
-            console.log('📝 폼 제출 시 상단 알림 아이콘에도 알림 추가 완료');
+            console.log('📝 폼 제출 시 상단 알림 아이콘에 알림 추가 완료');
           }
           
           console.log('🔔 폼 제출 시 푸시알림 표시 완료');
@@ -3754,13 +3754,10 @@ ${r.optPlan}
     const db = getFirestore(app);
     // const analytics = getAnalytics(app); // 임시로 비활성화
     
-    // 실시간 리스너 설정
+    // 실시간 리스너 설정 (중복 방지 강화)
     let realtimeUnsubscribe = null;
-    let isFirstLoad = true; // 첫 로드 여부 추적
-    let initialSubmissionIds = new Set(); // 초기 데이터 ID 저장
-    
-    // 전역으로 초기 데이터 ID 저장
-    window.initialSubmissionIds = initialSubmissionIds;
+    let isFirstLoad = true;
+    let lastProcessedSubmissionId = null; // 마지막으로 처리한 제출 ID
     
     function setupRealtimeListener() {
       if (!window.db) return;
@@ -3772,22 +3769,21 @@ ${r.optPlan}
         realtimeUnsubscribe = onSnapshot(q, async (snapshot) => {
           console.log('📡 실시간 데이터 업데이트:', snapshot.docs.length, '건');
           
-          const newSubmissions = snapshot.docs.map(doc => ({
+          const allSubmissions = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           }));
           
-          // 첫 로드인 경우 초기 데이터 ID 저장
+          // 첫 로드인 경우
           if (isFirstLoad) {
-            console.log('🔄 첫 로드 - 초기 데이터 ID 저장');
-            initialSubmissionIds = new Set(newSubmissions.map(sub => sub.id));
-            window.initialSubmissionIds = initialSubmissionIds; // 전역 업데이트
+            console.log('🔄 첫 로드 - 초기 데이터 설정');
+            if (allSubmissions.length > 0) {
+              lastProcessedSubmissionId = allSubmissions[0].id; // 가장 최신 ID 저장
+              console.log('📊 마지막 처리 ID 설정:', lastProcessedSubmissionId);
+            }
+            localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
             isFirstLoad = false;
-            
-            // localStorage 업데이트 (알림 생성 없이)
-            localStorage.setItem("wp_submissions", JSON.stringify(newSubmissions));
             console.log('📝 초기 데이터 저장 완료, 알림 생성 안함');
-            console.log('📊 초기 데이터 ID 수:', initialSubmissionIds.size);
             return;
           }
           
@@ -3987,6 +3983,18 @@ ${r.optPlan}
       console.log('🔔 관리자 로그인 감지 - 기존 알림 삭제');
       clearAllExistingNotifications();
     }
+    
+    // 실시간 리스너 완전 비활성화 (중복 방지)
+    function disableRealtimeListener() {
+      if (realtimeUnsubscribe) {
+        realtimeUnsubscribe();
+        realtimeUnsubscribe = null;
+        console.log('🚫 실시간 리스너 비활성화');
+      }
+    }
+    
+    // 실시간 리스너 비활성화
+    disableRealtimeListener();
     
     function addNotification(title, content, type = 'info') {
       console.log('📝 새 알림 추가:', title, content, type);
