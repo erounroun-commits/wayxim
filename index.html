@@ -3459,10 +3459,18 @@ ${r.optPlan}
               if (latestRequest) {
                 console.log('🔔 강제 재설정된 리스너에서 푸시알림 표시');
                 try {
-                  showPushNotification(
-                    '신규 작업요청건이 있습니다',
-                    `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`
-                  );
+                  const notificationTitle = '신규 작업요청건이 있습니다';
+                  const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+                  
+                  // 푸시알림 표시
+                  showPushNotification(notificationTitle, notificationContent);
+                  
+                  // 상단 알림 아이콘에도 알림 추가
+                  if (window.addNotification) {
+                    window.addNotification(notificationTitle, notificationContent, 'success');
+                    console.log('📝 상단 알림 아이콘에도 알림 추가 완료');
+                  }
+                  
                   console.log('🔔 강제 재설정된 리스너 푸시알림 표시 완료');
                 } catch (error) {
                   console.error('❌ 강제 재설정된 리스너 푸시알림 오류:', error);
@@ -3528,10 +3536,18 @@ ${r.optPlan}
       if (sessionStorage.getItem("wp_is_admin") === "1") {
         console.log('🔔 폼 제출 시 강제 푸시알림 표시 시도');
         try {
-          showPushNotification(
-            '신규 작업요청건이 있습니다',
-            `${companyName} (${companyCode})에서 새로운 작업요청서가 제출되었습니다.`
-          );
+          const notificationTitle = '신규 작업요청건이 있습니다';
+          const notificationContent = `${companyName} (${companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+          
+          // 푸시알림 표시
+          showPushNotification(notificationTitle, notificationContent);
+          
+          // 상단 알림 아이콘에도 알림 추가
+          if (window.addNotification) {
+            window.addNotification(notificationTitle, notificationContent, 'success');
+            console.log('📝 폼 제출 시 상단 알림 아이콘에도 알림 추가 완료');
+          }
+          
           console.log('🔔 폼 제출 시 푸시알림 표시 완료');
         } catch (error) {
           console.error('❌ 폼 제출 시 푸시알림 표시 중 오류:', error);
@@ -3815,7 +3831,18 @@ ${r.optPlan}
                 
                 // 방법 1: 직접 함수 호출
                 try {
+                  const notificationTitle = '신규 작업요청건이 있습니다';
+                  const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+                  
+                  // 푸시알림 표시
                   showPushNotification(notificationTitle, notificationContent);
+                  
+                  // 상단 알림 아이콘에도 알림 추가
+                  if (window.addNotification) {
+                    window.addNotification(notificationTitle, notificationContent, 'success');
+                    console.log('📝 상단 알림 아이콘에도 알림 추가 완료');
+                  }
+                  
                   console.log('🔔 실시간 리스너 푸시 알림 표시 완료 (방법 1)');
                 } catch (error) {
                   console.error('❌ 방법 1 실패:', error);
@@ -3823,7 +3850,17 @@ ${r.optPlan}
                   // 방법 2: window를 통한 호출
                   try {
                     if (window.showPushNotification) {
+                      const notificationTitle = '신규 작업요청건이 있습니다';
+                      const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+                      
                       window.showPushNotification(notificationTitle, notificationContent);
+                      
+                      // 상단 알림 아이콘에도 알림 추가
+                      if (window.addNotification) {
+                        window.addNotification(notificationTitle, notificationContent, 'success');
+                        console.log('📝 상단 알림 아이콘에도 알림 추가 완료 (방법 2)');
+                      }
+                      
                       console.log('🔔 실시간 리스너 푸시 알림 표시 완료 (방법 2)');
                     } else {
                       console.error('❌ window.showPushNotification 함수를 찾을 수 없음');
