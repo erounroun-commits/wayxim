@@ -1119,7 +1119,11 @@
     
     clearAllNotifications?.addEventListener('click', (e) => {
       e.preventDefault();
-      clearAllNotifications();
+      if (window.clearAllNotifications) {
+        window.clearAllNotifications();
+      } else {
+        console.error('clearAllNotifications 함수를 찾을 수 없음');
+      }
     });
     
     // 팝업 외부 클릭 시 닫기
@@ -1281,7 +1285,7 @@
       if(t && t.classList && t.classList.contains('rf-guard')){
         if(!rfIdVerified){
           e.target.blur();
-          alert('id 조회 탭을 먼저 눌러주세요.');
+          alert('ID가 발급될때까지 잠시만 기다려주세요.');
         }
       }
     });
@@ -3722,6 +3726,7 @@ ${r.optPlan}
               if (latestRequest) {
                 console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
                 console.log('📋 알림 내용:', `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`);
+                console.log('👨‍💼 관리자 상태 재확인:', sessionStorage.getItem("wp_is_admin"));
                 
                 // 직접 함수 호출 (window를 통하지 않고)
                 try {
@@ -3890,16 +3895,19 @@ ${r.optPlan}
         });
         console.log('🗑️ 기존 푸시 알림 제거:', existingNotifications.length, '개');
         
-        // 중복 방지를 위한 플래그
-        if (window.pushNotificationShowing) {
-          console.log('⚠️ 이미 푸시알림이 표시 중이므로 스킵');
+        // 중복 방지를 위한 플래그 (더 유연하게)
+        const now = Date.now();
+        if (window.pushNotificationShowing && (now - window.lastPushNotificationTime) < 2000) {
+          console.log('⚠️ 최근에 푸시알림이 표시되었으므로 스킵 (2초 내)');
           return;
         }
         window.pushNotificationShowing = true;
+        window.lastPushNotificationTime = now;
         
         // 새 푸시 알림 생성
         const notification = document.createElement('div');
         notification.className = 'push-notification show';
+        notification.style.cursor = 'pointer'; // 클릭 가능하도록 커서 변경
         notification.innerHTML = `
           <div class="push-notification-header">
             <span class="push-notification-icon">🔔</span>
@@ -3908,6 +3916,34 @@ ${r.optPlan}
           <div class="push-notification-content">${content}</div>
           <div class="push-notification-time">${formatDateTime(Date.now())}</div>
         `;
+        
+        // 푸시알림 클릭 시 신규요청건 탭으로 이동
+        notification.addEventListener('click', () => {
+          console.log('🔔 푸시알림 클릭 - 신규요청건 탭으로 이동');
+          // 관리자 화면이 활성화되어 있는지 확인
+          if (sessionStorage.getItem("wp_is_admin") === "1") {
+            // 신규요청건 탭 활성화
+            const newReqTab = document.querySelector('[data-section="req-new"]');
+            if (newReqTab) {
+              // 모든 탭 비활성화
+              document.querySelectorAll('[data-section]').forEach(tab => {
+                tab.classList.remove('active');
+              });
+              // 신규요청건 탭 활성화
+              newReqTab.classList.add('active');
+              // 신규요청건 화면 표시
+              showReqList(false);
+              console.log('✅ 신규요청건 탭으로 이동 완료');
+            } else {
+              console.log('❌ 신규요청건 탭을 찾을 수 없음');
+            }
+          } else {
+            console.log('❌ 관리자 화면이 아님 - 이동 불가');
+          }
+          // 푸시알림 제거
+          notification.remove();
+          window.pushNotificationShowing = false;
+        });
         
         document.body.appendChild(notification);
         console.log('✅ 푸시 알림 DOM에 추가 완료');
