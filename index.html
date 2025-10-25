@@ -1070,14 +1070,14 @@
                 
                 if (latestNewRequest && window.showPushNotification) {
                   const notificationTitle = '신규 작업요청건이 있습니다';
-                  const notificationContent = `${latestNewRequest.companyName} (${latestNewRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+                  const notificationContent = '신규 작업요청서가 접수되었습니다';
                   
                   console.log('🔔 관리자 로그인 후 푸시 알림:', notificationContent);
                   console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
                   window.showPushNotification(notificationTitle, notificationContent);
                   
                   if (window.addNotification) {
-                    window.addNotification(notificationTitle, notificationContent, 'success');
+                    window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
                   }
                 }
               } else {
@@ -3547,9 +3547,9 @@ ${r.optPlan}
           // 푸시알림 표시 (1개만)
           showPushNotification(notificationTitle, notificationContent);
           
-          // 상단 알림 아이콘에도 알림 추가 (1개만)
+          // 상단 알림 아이콘에도 알림 추가 (1개만 - 현재 시간 사용)
           if (window.addNotification) {
-            window.addNotification(notificationTitle, notificationContent, 'success');
+            window.addNotification(notificationTitle, notificationContent, 'success', Date.now());
             console.log('📝 폼 제출 시 상단 알림 아이콘에 알림 추가 완료');
           }
           
@@ -3831,7 +3831,7 @@ ${r.optPlan}
             
             if (latestNewRequest) {
               const notificationTitle = '신규 작업요청건이 있습니다';
-              const notificationContent = `${latestNewRequest.companyName} (${latestNewRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+              const notificationContent = '신규 작업요청서가 접수되었습니다';
               
               console.log('📝 실시간 리스너 알림 내용:', notificationContent);
               console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
@@ -3839,9 +3839,9 @@ ${r.optPlan}
               // 푸시 알림 표시
               showPushNotification(notificationTitle, notificationContent);
               
-              // 상단 알림 아이콘에도 알림 추가
+              // 상단 알림 아이콘에도 알림 추가 (실제 제출 시간 사용)
               if (window.addNotification) {
-                window.addNotification(notificationTitle, notificationContent, 'success');
+                window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
                 console.log('📝 실시간 리스너 상단 알림 아이콘에 알림 추가 완료');
               }
               
@@ -3920,15 +3920,18 @@ ${r.optPlan}
     // 실시간 리스너 비활성화
     disableRealtimeListener();
     
-    function addNotification(title, content, type = 'info') {
+    function addNotification(title, content, type = 'info', actualTimestamp = null) {
       console.log('📝 새 알림 추가:', title, content, type);
+      
+      // 실제 제출 시간이 있으면 사용, 없으면 현재 시간 사용
+      const notificationTimestamp = actualTimestamp || Date.now();
       
       const notification = {
         id: ++notificationId,
         title,
         content,
         type,
-        timestamp: Date.now(),
+        timestamp: notificationTimestamp,
         read: false
       };
       
@@ -3937,6 +3940,7 @@ ${r.optPlan}
       localStorage.setItem('wp_notification_id', notificationId.toString());
       
       console.log('📝 알림 저장 완료, 총 알림 수:', notifications.length);
+      console.log('📅 알림 시간:', new Date(notificationTimestamp).toLocaleString());
       
       // UI 업데이트 강제 실행
       updateNotificationUI();
