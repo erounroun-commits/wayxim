@@ -537,6 +537,143 @@
   opacity: 0.7;
   margin-top: 4px;
 }
+
+/* 제품별 탭 스타일 */
+.product-tabs-container {
+  margin: 20px 0;
+}
+
+.product-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.product-tab {
+  padding: 8px 16px;
+  background: #f8f9fa;
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  font-weight: 600;
+  color: #6c757d;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.product-tab:hover {
+  background: #e9ecef;
+  color: var(--brand);
+}
+
+.product-tab.active {
+  background: var(--brand);
+  color: white;
+  border-color: var(--brand);
+}
+
+.product-tab .remove-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #dc3545;
+  color: white;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.product-tab:hover .remove-btn {
+  opacity: 1;
+}
+
+.add-product-btn {
+  background: var(--accent);
+  color: #073b2f;
+  border: 2px dashed var(--accent);
+  font-weight: 600;
+}
+
+.add-product-btn:hover {
+  background: #16c085;
+  color: white;
+  border-color: #16c085;
+}
+
+.product-form {
+  display: none;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.product-form.active {
+  display: block;
+}
+
+.product-form h3 {
+  margin: 0 0 16px;
+  color: var(--brand);
+  font-size: 18px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.form-section {
+  margin-bottom: 20px;
+}
+
+.form-section h4 {
+  margin: 0 0 12px;
+  color: var(--brand);
+  font-size: 16px;
+}
+
+.company-info-section {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.company-info-section h4 {
+  margin: 0 0 12px;
+  color: var(--brand);
+  font-size: 16px;
+}
+
+.company-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .company-info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .product-tabs {
+    flex-direction: column;
+  }
+  
+  .product-tab {
+    text-align: center;
+  }
+}
   </style>
 </head>
 <body>
@@ -578,6 +715,28 @@
         <span class="pipe">|</span>
         <a class="btn inquiry-btn" href="http://pf.kakao.com/_qqhUn/chat" target="_blank" rel="noopener">1:1 문의하기</a>
       </div>
+      
+      <!-- 제품별 탭 안내 -->
+      <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 16px; margin: 20px 0;">
+        <p style="margin: 0; color: #856404; font-weight: 600; font-size: 16px;">
+          📋 제품별로 탭을 분류하여 작성해주세요
+        </p>
+        <p style="margin: 8px 0 0; color: #856404; font-size: 14px;">
+          하나의 업체에서 여러 제품에 대한 작업요청서를 제출할 수 있습니다. 각 제품별로 탭을 추가하여 작성해주세요.
+        </p>
+      </div>
+      
+      <!-- 제품별 탭 구조 -->
+      <div class="product-tabs-container">
+        <div class="product-tabs" id="productTabs">
+          <!-- 제품 탭들이 여기에 동적으로 추가됩니다 -->
+        </div>
+        
+        <!-- 제품 추가 버튼 -->
+        <button type="button" class="btn secondary add-product-btn" id="addProductBtn">
+          + 제품 추가하기
+        </button>
+      </div>
     </section>
 
     <!-- Request Form (SPA) -->
@@ -602,82 +761,37 @@
 
       <div class="divider"></div>
 
-      <form class="form" id="rfForm">
-        <!-- 업체명 + ID 표시 -->
-        <div class="row">
-          <label class="q">■ 업체명</label>
-          <div class="grid-2">
-            <input id="companyName" class="input" type="text" placeholder="예: 웨이프로젝트" required>
-            <div class="inline">
-              <span class="kbd" id="idOutput">ID: 미발급</span>
-            </div>
-          </div>
-          <span class="hint">업체명을 입력하면 자동으로 ID가 조회됩니다.</span>
+      <!-- 제품별 탭 안내 -->
+      <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 16px; margin: 20px 0;">
+        <p style="margin: 0; color: #856404; font-weight: 600; font-size: 16px;">
+          📋 제품별로 탭을 분류하여 작성해주세요
+        </p>
+        <p style="margin: 8px 0 0; color: #856404; font-size: 14px;">
+          하나의 업체에서 여러 제품에 대한 작업요청서를 제출할 수 있습니다. 각 제품별로 탭을 추가하여 작성해주세요.
+        </p>
+      </div>
+      
+      <!-- 제품별 탭 구조 -->
+      <div class="product-tabs-container">
+        <div class="product-tabs" id="productTabsForm">
+          <!-- 제품 탭들이 여기에 동적으로 추가됩니다 -->
         </div>
+        
+        <!-- 제품 추가 버튼 -->
+        <button type="button" class="btn secondary add-product-btn" id="addProductBtnForm">
+          + 제품 추가하기
+        </button>
+      </div>
 
-        <div class="row">
-          <label class="q">■ 사업자 번호</label>
-          <input id="bizNo" class="input rf-guard" type="text" placeholder="예: 123-45-67890" required>
-        </div>
-
-        <div class="row">
-          <label class="q">■ 카톡 or 번호</label>
-          <span class="hint">카카오톡 아이디, 혹은 전화번호로 카카오톡 친구 추가를 위해 꼭 카카오톡 설정을 변경해주세요!</span>
-          <input id="contact" class="input rf-guard" type="text" placeholder="예: @wayproject 또는 010-1234-5678" required>
-        </div>
-
-        <div class="row">
-          <label class="q">■ 진행할 제품 URL</label>
-          <input id="productUrl" class="input rf-guard" type="url" placeholder="상품 상세 페이지 주소" required>
-        </div>
-
-        <div class="row">
-          <label class="q">■ 구매 검색 할 키워드</label>
-          <input id="keywords" class="input rf-guard" type="text" placeholder="예: 재생크림, 저자극 크림, ..." required>
-        </div>
-
-        <div class="row">
-          <label class="q">■ 총 진행건수 / 일 진행건수</label>
-          <span class="hint">[작성 예시] 총 50 / 일 5 → 하루 5건씩 10일 진행. 택배 수령 후 10일 이내 리뷰 작성. 플랫폼별 일정은 상단 안내 참고.</span>
-          <span class="hint" style="color: #e74c3c; font-weight: 600;">※ 일 최소 진행건수 : 상품당 최소 일 2건 이상 구매 진행 가능하십니다</span>
-          <div class="grid-2">
-            <input id="totalCnt" class="input rf-guard" type="number" min="2" placeholder="총 진행건수 (최소 2)" required>
-            <input id="dailyCnt" class="input rf-guard" type="number" min="2" placeholder="일 진행건수 (최소 2)" required>
-          </div>
-        </div>
-
-        <div class="row">
-          <label class="q">■ 옵션별 리뷰 종류</label>
-          <span class="hint">[예시] 옵션: 그레이 / 별점 5건, 텍스트 3건, 포토 10건 — 리뷰종류: 별점(구매확정) / 텍스트(별점+텍스트) / 포토(별점+텍스트+포토)</span>
-          <textarea class="input" id="optPlan" placeholder="옵션별로 수량과 리뷰종류를 적어주세요" required></textarea>
-        </div>
-
-        <div class="row">
-          <label class="q">■ 기타 사항</label>
-          <span class="hint">* 상품값 입금 대행이란? 작업자가 제품 선결제 후 제품값을 저희에게 주시면 저희가 작업자들에게 전달하는 방식입니다.</span>
-          <div class="table-like">
-            <header><div>항목</div><div>신청(Y)</div><div>미신청(N)</div></header>
-            <div class="row"><div>제품 실제 배송 여부</div><div><label class="inline"><input type="radio" name="ship" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="ship" value="N"> N</label></div></div>
-            <div class="row"><div>상품값 입금 대행</div><div><label class="inline"><input type="radio" name="prepay" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="prepay" value="N"> N</label></div></div>
-            <div class="row"><div>택배 대행 여부(+2,500)</div><div><label class="inline"><input type="radio" name="courier" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="courier" value="N"> N</label></div></div>
-          </div>
-        </div>
-
-        <div class="row">
-          <label class="q">■ 계산서 발행</label>
-          <span class="hint">세금계산서 및 현금영수증 발행 안내 — 진행비·택배비·상품값 모두 세금계산서 발행 가능(부가세 10% 추가). 상품값 계산서: {상품값 + (상품값 × 수수료 10%)} + 부가세 10%.</span>
-          <div class="table-like">
-            <header><div>항목</div><div>신청(Y)</div><div>미신청(N)</div></header>
-            <div class="row"><div>작업비/택배비</div><div><label class="inline"><input type="radio" name="billWork" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="billWork" value="N"> N</label></div></div>
-            <div class="row"><div>상품금액 <span class="hint">(수수료 10% 추가 발생)</span></div><div><label class="inline"><input type="radio" name="billProd" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="billProd" value="N"> N</label></div></div>
-          </div>
-        </div>
-
-
-        <div class="right">
-          <button type="submit" class="btn" id="rfSubmit">제출하기</button>
-        </div>
-      </form>
+      <!-- 제품별 폼 컨테이너 -->
+      <div id="productFormsContainer">
+        <!-- 제품별 폼들이 여기에 동적으로 추가됩니다 -->
+      </div>
+      
+      <!-- 전체 제출 버튼 -->
+      <div class="right" style="margin-top: 20px;">
+        <button type="button" class="btn" id="submitAllProducts">모든 제품 제출하기</button>
+      </div>
     </section>
   </main>
 
@@ -881,6 +995,416 @@
     const idOutput = document.getElementById("idOutput");
     const companyNameInput = document.getElementById("companyName");
     let rfIdVerified = false;
+
+    // 제품별 탭 관리
+    let productCount = 0;
+    let currentProductId = null;
+    let companyInfo = {
+      companyName: '',
+      companyCode: '',
+      bizNo: '',
+      contact: ''
+    };
+
+    // 제품 탭 초기화
+    function initializeProductTabs() {
+      const productTabs = document.getElementById('productTabsForm');
+      const productFormsContainer = document.getElementById('productFormsContainer');
+      const addProductBtn = document.getElementById('addProductBtnForm');
+      const submitAllBtn = document.getElementById('submitAllProducts');
+
+      if (!productTabs || !productFormsContainer || !addProductBtn) {
+        console.error('제품 탭 요소를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 첫 번째 제품 추가
+      addProduct();
+
+      // 제품 추가 버튼 이벤트
+      addProductBtn.addEventListener('click', addProduct);
+
+      // 전체 제출 버튼 이벤트
+      if (submitAllBtn) {
+        submitAllBtn.addEventListener('click', submitAllProducts);
+      }
+    }
+
+    // 제품 추가
+    function addProduct() {
+      productCount++;
+      const productId = `product_${productCount}`;
+      const productName = `제품${productCount}`;
+
+      // 탭 추가
+      addProductTab(productId, productName);
+
+      // 폼 추가
+      addProductForm(productId, productName);
+
+      // 첫 번째 제품인 경우 활성화
+      if (productCount === 1) {
+        switchToProduct(productId);
+      }
+    }
+
+    // 제품 탭 추가
+    function addProductTab(productId, productName) {
+      const productTabs = document.getElementById('productTabsForm');
+      const tab = document.createElement('div');
+      tab.className = 'product-tab';
+      tab.id = `tab_${productId}`;
+      tab.innerHTML = `
+        ${productName}
+        <button class="remove-btn" onclick="removeProduct('${productId}')" title="제품 삭제">×</button>
+      `;
+      
+      tab.addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-btn')) return;
+        switchToProduct(productId);
+      });
+
+      productTabs.appendChild(tab);
+    }
+
+    // 제품 폼 추가
+    function addProductForm(productId, productName) {
+      const productFormsContainer = document.getElementById('productFormsContainer');
+      const form = document.createElement('div');
+      form.className = 'product-form';
+      form.id = `form_${productId}`;
+      
+      form.innerHTML = `
+        <h3>${productName} 작업요청서</h3>
+        
+        <div class="company-info-section">
+          <h4>📋 업체 기본 정보</h4>
+          <div class="company-info-grid">
+            <div class="form-section">
+              <label class="q">■ 업체명</label>
+              <div class="grid-2">
+                <input class="input company-name" type="text" placeholder="예: 웨이프로젝트" required>
+                <div class="inline">
+                  <span class="kbd company-id">ID: 미발급</span>
+                </div>
+              </div>
+              <span class="hint">업체명을 입력하면 자동으로 ID가 조회됩니다.</span>
+            </div>
+            
+            <div class="form-section">
+              <label class="q">■ 사업자 번호</label>
+              <input class="input biz-no" type="text" placeholder="예: 123-45-67890" required>
+            </div>
+            
+            <div class="form-section">
+              <label class="q">■ 카톡 or 번호</label>
+              <span class="hint">카카오톡 아이디, 혹은 전화번호로 카카오톡 친구 추가를 위해 꼭 카카오톡 설정을 변경해주세요!</span>
+              <input class="input contact" type="text" placeholder="예: @wayproject 또는 010-1234-5678" required>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h4>🛍️ 제품 정보</h4>
+          <div class="row">
+            <label class="q">■ 진행할 제품 URL</label>
+            <input class="input product-url" type="url" placeholder="상품 상세 페이지 주소" required>
+          </div>
+
+          <div class="row">
+            <label class="q">■ 구매 검색 할 키워드</label>
+            <input class="input keywords" type="text" placeholder="예: 재생크림, 저자극 크림, ..." required>
+          </div>
+
+          <div class="row">
+            <label class="q">■ 총 진행건수 / 일 진행건수</label>
+            <span class="hint">[작성 예시] 총 50 / 일 5 → 하루 5건씩 10일 진행. 택배 수령 후 10일 이내 리뷰 작성. 플랫폼별 일정은 상단 안내 참고.</span>
+            <span class="hint" style="color: #e74c3c; font-weight: 600;">※ 일 최소 진행건수 : 상품당 최소 일 2건 이상 구매 진행 가능하십니다</span>
+            <div class="grid-2">
+              <input class="input total-cnt" type="number" min="2" placeholder="총 진행건수 (최소 2)" required>
+              <input class="input daily-cnt" type="number" min="2" placeholder="일 진행건수 (최소 2)" required>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="q">■ 옵션별 리뷰 종류</label>
+            <span class="hint">[예시] 옵션: 그레이 / 별점 5건, 텍스트 3건, 포토 10건 — 리뷰종류: 별점(구매확정) / 텍스트(별점+텍스트) / 포토(별점+텍스트+포토)</span>
+            <textarea class="input opt-plan" placeholder="옵션별로 수량과 리뷰종류를 적어주세요" required></textarea>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h4>📋 기타 사항</h4>
+          <span class="hint">* 상품값 입금 대행이란? 작업자가 제품 선결제 후 제품값을 저희에게 주시면 저희가 작업자들에게 전달하는 방식입니다.</span>
+          <div class="table-like">
+            <header><div>항목</div><div>신청(Y)</div><div>미신청(N)</div></header>
+            <div class="row"><div>제품 실제 배송 여부</div><div><label class="inline"><input type="radio" name="ship_${productId}" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="ship_${productId}" value="N"> N</label></div></div>
+            <div class="row"><div>상품값 입금 대행</div><div><label class="inline"><input type="radio" name="prepay_${productId}" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="prepay_${productId}" value="N"> N</label></div></div>
+            <div class="row"><div>택배 대행 여부(+2,500)</div><div><label class="inline"><input type="radio" name="courier_${productId}" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="courier_${productId}" value="N"> N</label></div></div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h4>🧾 계산서 발행</h4>
+          <span class="hint">세금계산서 및 현금영수증 발행 안내 — 진행비·택배비·상품값 모두 세금계산서 발행 가능(부가세 10% 추가). 상품값 계산서: {상품값 + (상품값 × 수수료 10%)} + 부가세 10%.</span>
+          <div class="table-like">
+            <header><div>항목</div><div>신청(Y)</div><div>미신청(N)</div></header>
+            <div class="row"><div>작업비/택배비</div><div><label class="inline"><input type="radio" name="billWork_${productId}" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="billWork_${productId}" value="N"> N</label></div></div>
+            <div class="row"><div>상품금액 <span class="hint">(수수료 10% 추가 발생)</span></div><div><label class="inline"><input type="radio" name="billProd_${productId}" value="Y" required> Y</label></div><div><label class="inline"><input type="radio" name="billProd_${productId}" value="N"> N</label></div></div>
+          </div>
+        </div>
+      `;
+
+      productFormsContainer.appendChild(form);
+
+      // 업체명 입력 이벤트 리스너 추가
+      const companyNameInput = form.querySelector('.company-name');
+      if (companyNameInput) {
+        companyNameInput.addEventListener('input', async (e) => {
+          await handleCompanyNameChange(e, productId);
+        });
+      }
+    }
+
+    // 제품 전환
+    function switchToProduct(productId) {
+      // 모든 탭 비활성화
+      document.querySelectorAll('.product-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+
+      // 모든 폼 숨기기
+      document.querySelectorAll('.product-form').forEach(form => {
+        form.classList.remove('active');
+      });
+
+      // 선택된 탭 활성화
+      const tab = document.getElementById(`tab_${productId}`);
+      if (tab) {
+        tab.classList.add('active');
+      }
+
+      // 선택된 폼 표시
+      const form = document.getElementById(`form_${productId}`);
+      if (form) {
+        form.classList.add('active');
+      }
+
+      currentProductId = productId;
+    }
+
+    // 제품 삭제
+    function removeProduct(productId) {
+      if (productCount <= 1) {
+        alert('최소 하나의 제품은 필요합니다.');
+        return;
+      }
+
+      if (confirm('이 제품을 삭제하시겠습니까?')) {
+        // 탭 제거
+        const tab = document.getElementById(`tab_${productId}`);
+        if (tab) {
+          tab.remove();
+        }
+
+        // 폼 제거
+        const form = document.getElementById(`form_${productId}`);
+        if (form) {
+          form.remove();
+        }
+
+        // 첫 번째 제품으로 전환
+        const firstTab = document.querySelector('.product-tab');
+        if (firstTab) {
+          const firstProductId = firstTab.id.replace('tab_', '');
+          switchToProduct(firstProductId);
+        }
+      }
+    }
+
+    // 업체명 변경 처리
+    async function handleCompanyNameChange(e, productId) {
+      const name = e.target.value.trim();
+      const form = document.getElementById(`form_${productId}`);
+      const idOutput = form.querySelector('.company-id');
+      const bizNoInput = form.querySelector('.biz-no');
+      const contactInput = form.querySelector('.contact');
+
+      if (name.length > 0) {
+        // 디바운싱을 위해 500ms 후에 실행
+        clearTimeout(window.idLookupTimeout);
+        window.idLookupTimeout = setTimeout(async () => {
+          const code = await stableIdForName(name);
+          if (idOutput) idOutput.textContent = code ? `ID: ${code}` : "ID: 미발급";
+          
+          // 업체 정보 업데이트
+          companyInfo.companyName = name;
+          companyInfo.companyCode = code || '';
+          
+          // 기존 업체인 경우 정보 자동 채우기
+          if (code) {
+            const rows = await loadSubs();
+            const prev = rows.find(r => r.companyCode === code);
+            if (prev) {
+              if (bizNoInput && !bizNoInput.value) bizNoInput.value = prev.bizNo || "";
+              if (contactInput && !contactInput.value) contactInput.value = prev.contact || "";
+              
+              // 업체 정보 업데이트
+              companyInfo.bizNo = prev.bizNo || "";
+              companyInfo.contact = prev.contact || "";
+            }
+          }
+        }, 500);
+      } else {
+        if (idOutput) idOutput.textContent = "ID: 미발급";
+        companyInfo.companyName = '';
+        companyInfo.companyCode = '';
+      }
+    }
+
+    // 모든 제품 제출
+    async function submitAllProducts() {
+      const productForms = document.querySelectorAll('.product-form');
+      const products = [];
+
+      // 각 제품 폼에서 데이터 수집
+      for (const form of productForms) {
+        const productData = collectProductData(form);
+        if (productData) {
+          products.push(productData);
+        }
+      }
+
+      if (products.length === 0) {
+        alert('제출할 제품이 없습니다.');
+        return;
+      }
+
+      // 모든 제품 제출
+      try {
+        showLoading();
+        
+        for (const product of products) {
+          await submitProduct(product);
+        }
+
+        hideLoading();
+        alert(`${products.length}개의 제품이 성공적으로 제출되었습니다. 관리자 확인 후 회신드리겠습니다. 감사합니다.`);
+        
+        // 폼 초기화
+        resetAllForms();
+        
+        if (sessionStorage.getItem("wp_is_admin") === "1") {
+          goAdmin();
+          await showReqList(false);
+        }
+      } catch (error) {
+        hideLoading();
+        console.error('제품 제출 실패:', error);
+        alert('제품 제출 중 오류가 발생했습니다: ' + error.message);
+      }
+    }
+
+    // 제품 데이터 수집
+    function collectProductData(form) {
+      const companyName = form.querySelector('.company-name')?.value.trim();
+      const bizNo = form.querySelector('.biz-no')?.value.trim();
+      const contact = form.querySelector('.contact')?.value.trim();
+      const productUrl = form.querySelector('.product-url')?.value.trim();
+      const keywords = form.querySelector('.keywords')?.value.trim();
+      const totalCnt = parseInt(form.querySelector('.total-cnt')?.value || "0", 10);
+      const dailyCnt = parseInt(form.querySelector('.daily-cnt')?.value || "0", 10);
+      const optPlan = form.querySelector('.opt-plan')?.value.trim();
+
+      // 필수 필드 검증
+      if (!companyName || !bizNo || !contact || !productUrl || !keywords || totalCnt < 2 || dailyCnt < 2) {
+        return null;
+      }
+
+      // 라디오 버튼 값 수집
+      const ship = form.querySelector('input[name^="ship_"]:checked')?.value || "";
+      const prepay = form.querySelector('input[name^="prepay_"]:checked')?.value || "";
+      const courier = form.querySelector('input[name^="courier_"]:checked')?.value || "";
+      const billWork = form.querySelector('input[name^="billWork_"]:checked')?.value || "";
+      const billProd = form.querySelector('input[name^="billProd_"]:checked')?.value || "";
+
+      return {
+        companyName,
+        bizNo,
+        contact,
+        productUrl,
+        keywords,
+        totalCnt,
+        dailyCnt,
+        optPlan,
+        ship,
+        prepay,
+        courier,
+        billWork,
+        billProd
+      };
+    }
+
+    // 제품 제출
+    async function submitProduct(productData) {
+      const companyCode = await stableIdForName(productData.companyName);
+      
+      // 고유 ID 생성
+      const uniqueId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const displayNo = await getNextNo();
+
+      const rec = {
+        id: uniqueId,
+        no: displayNo,
+        submittedAt: Date.now(),
+        companyCode,
+        companyName: productData.companyName,
+        bizNo: productData.bizNo,
+        contact: productData.contact,
+        productUrl: productData.productUrl,
+        keywords: productData.keywords,
+        totalCnt: productData.totalCnt,
+        dailyCnt: productData.dailyCnt,
+        optPlan: productData.optPlan,
+        ship: productData.ship,
+        prepay: productData.prepay,
+        courier: productData.courier,
+        billWork: productData.billWork,
+        billProd: productData.billProd,
+        accepted: false,
+        acceptedAt: null
+      };
+
+      // Firebase에 직접 저장
+      if (window.db) {
+        try {
+          const docRef = doc(db, 'submissions', uniqueId);
+          await setDoc(docRef, rec);
+          console.log('✅ 제품 제출 완료:', uniqueId);
+        } catch (error) {
+          console.error('❌ 제품 제출 실패:', error);
+          throw error;
+        }
+      } else {
+        // Firebase 없을 때 기존 방식
+        const arr = await loadSubs();
+        arr.unshift(rec);
+        await saveSubs(arr);
+      }
+    }
+
+    // 모든 폼 초기화
+    function resetAllForms() {
+      // 모든 제품 폼 제거
+      document.querySelectorAll('.product-form').forEach(form => form.remove());
+      document.querySelectorAll('.product-tab').forEach(tab => tab.remove());
+      
+      // 제품 카운터 리셋
+      productCount = 0;
+      
+      // 첫 번째 제품 추가
+      addProduct();
+    }
 
     const modal = document.getElementById("pwModal");
     const pwInput = document.getElementById("pwInput");
@@ -1465,7 +1989,16 @@
     dataPwInput.addEventListener("keydown", e=>{ if(e.key==="Enter") handleDataOK(); });
 
     // SPA: Request Form navigation
-    function goRequestForm(){ publicLandingCard?.classList.add("hidden"); requestForm.classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); }
+    function goRequestForm(){ 
+      publicLandingCard?.classList.add("hidden"); 
+      requestForm.classList.remove("hidden"); 
+      window.scrollTo({top:0,behavior:"smooth"}); 
+      
+      // 제품 탭 초기화
+      setTimeout(() => {
+        initializeProductTabs();
+      }, 100);
+    }
     openRequestFormBtn?.addEventListener("click", e=>{ e.preventDefault(); goRequestForm(); });
     rfBack?.addEventListener("click", ()=>{ goMain(); });
 
@@ -2070,7 +2603,20 @@ ${r.optPlan}
               const failedRequests = [];
               
               for (const request of newRequests) {
+                // 문서 ID 확인
+                if (!request.id) {
+                  console.error(`❌ 요청건 ${request.no}에 문서 ID가 없음:`, request);
+                  failCount++;
+                  failedRequests.push({
+                    no: request.no,
+                    companyName: request.companyName,
+                    error: '문서 ID가 없음'
+                  });
+                  continue;
+                }
+                
                 const result = await safeFirebaseOperation(async () => {
+                  console.log(`📝 요청건 ${request.no} 접수처리 시도 (ID: ${request.id})`);
                   const docRef = doc(window.db, 'submissions', request.id);
                   await updateDoc(docRef, {
                     accepted: true,
@@ -2080,7 +2626,7 @@ ${r.optPlan}
                 }, `요청건 ${request.no} 접수처리`);
                 
                 if (result) {
-                  console.log(`📝 요청건 ${request.no} 접수처리 성공:`, request.companyName);
+                  console.log(`✅ 요청건 ${request.no} 접수처리 성공:`, request.companyName);
                   successCount++;
                 } else {
                   failCount++;
@@ -4265,21 +4811,40 @@ ${r.optPlan}
       if(confirm('정말로 모든 데이터를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')){
         if(confirm('마지막 확인: 모든 데이터를 삭제하시겠습니까?')){
           try {
-            // 모든 컬렉션 삭제
-            const collections = ['submissions', 'nameToCode', 'codeToName', 'vendorTypeOverrides', 'counters'];
+            showLoading();
             
-            for (const collectionName of collections) {
-              const collectionRef = collection(db, collectionName);
-              const snapshot = await getDocs(collectionRef);
-              const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-              await Promise.all(deletePromises);
+            if (window.db) {
+              // Firebase에서 직접 모든 컬렉션 삭제
+              const collections = ['submissions', 'nameToCode', 'codeToName', 'vendorTypeOverrides', 'counters'];
+              
+              for (const collectionName of collections) {
+                console.log(`🗑️ ${collectionName} 컬렉션 삭제 시작`);
+                const collectionRef = collection(db, collectionName);
+                const snapshot = await getDocs(collectionRef);
+                
+                if (snapshot.docs.length > 0) {
+                  const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+                  await Promise.all(deletePromises);
+                  console.log(`✅ ${collectionName} 컬렉션 삭제 완료: ${snapshot.docs.length}개 문서`);
+                } else {
+                  console.log(`📝 ${collectionName} 컬렉션은 비어있음`);
+                }
+              }
             }
             
+            // localStorage도 정리
+            localStorage.removeItem("wp_submissions");
+            localStorage.removeItem("wp_name_to_code");
+            localStorage.removeItem("wp_code_to_name");
+            localStorage.removeItem("wp_next_no");
+            
+            hideLoading();
             alert('모든 데이터가 삭제되었습니다.');
             showDataManagement();
           } catch (error) {
-            console.error('Error deleting all data:', error);
-            alert('데이터 삭제 중 오류가 발생했습니다.');
+            hideLoading();
+            console.error('❌ 전체 데이터 삭제 실패:', error);
+            alert('데이터 삭제 중 오류가 발생했습니다: ' + error.message);
           }
         }
       }
@@ -4295,10 +4860,25 @@ ${r.optPlan}
       }
       
       if(confirm(`다음 데이터를 삭제하시겠습니까?\n\n번호: ${targetRow.no}\n업체명: ${targetRow.companyName}\n진행건수: ${targetRow.totalCnt}\n\n이 작업은 되돌릴 수 없습니다.`)){
-        const filteredRows = rows.filter(r => r.no !== no);
-        await saveSubs(filteredRows);
-        alert('데이터가 삭제되었습니다.');
-        showDataManagement();
+        try {
+          // Firebase에서 직접 삭제 (문서 ID가 있는 경우)
+          if (window.db && targetRow.id) {
+            console.log('🔥 Firebase에서 직접 삭제 시도:', targetRow.id);
+            const docRef = doc(db, 'submissions', targetRow.id);
+            await deleteDoc(docRef);
+            console.log('✅ Firebase 직접 삭제 완료');
+          } else {
+            console.log('📝 Firebase 직접 삭제 불가, 전체 데이터 재저장 방식 사용');
+            const filteredRows = rows.filter(r => r.no !== no);
+            await saveSubs(filteredRows);
+          }
+          
+          alert('데이터가 삭제되었습니다.');
+          showDataManagement();
+        } catch (error) {
+          console.error('❌ 데이터 삭제 실패:', error);
+          alert('데이터 삭제 중 오류가 발생했습니다: ' + error.message);
+        }
       }
     }
     
@@ -4985,8 +5565,14 @@ ${r.optPlan}
       setTimeout(setupFormListeners, 1000);
     }
     
-    // 실시간 리스너 강제 재설정 비활성화 (중복 방지)
-    console.log('🚫 실시간 리스너 강제 재설정 비활성화 (중복 방지)');
+    // 실시간 리스너 활성화 (Firebase 준비 후)
+    console.log('🔄 실시간 리스너 활성화 시도');
+    if (window.firebaseReady && window.setupRealtimeListener) {
+      console.log('✅ Firebase 준비 완료 - 실시간 리스너 활성화');
+      window.setupRealtimeListener();
+    } else {
+      console.log('⏳ Firebase 준비 중 - 실시간 리스너는 자동으로 활성화됩니다');
+    }
     
     // 실제 폼 처리 함수
     let isSubmitting = false; // 제출 중복 방지 플래그
@@ -5220,9 +5806,17 @@ ${r.optPlan}
           console.log(`🔄 요청건 ${no} 접수 상태 변경:`, checked ? '접수' : '미접수');
           
           try {
+            // 문서 ID 확인
+            if (!rec.id) {
+              console.error(`❌ 요청건 ${no}에 문서 ID가 없음:`, rec);
+              alert(`요청건 ${no}에 문서 ID가 없습니다. 데이터 관리에서 해당 데이터를 확인해주세요.`);
+              t.checked = !checked;
+              return;
+            }
+            
             // Firebase 업데이트 시도
             const firebaseReady = await waitForFirebase();
-            if (firebaseReady && window.db && rec.id) {
+            if (firebaseReady && window.db) {
               console.log(`📝 Firebase 업데이트 시도 - 요청건 ${no} (ID: ${rec.id})`);
               
               const docRef = doc(window.db, 'submissions', rec.id);
@@ -5581,6 +6175,11 @@ ${r.optPlan}
         return false;
       }
       
+      if (!window.firebaseReady) {
+        console.error('❌ Firebase가 아직 준비되지 않음');
+        return false;
+      }
+      
       if (firebaseErrorCount >= MAX_FIREBASE_ERRORS) {
         console.error('❌ Firebase 오류가 너무 많음');
         return false;
@@ -5643,13 +6242,16 @@ ${r.optPlan}
     window.safeFirebaseOperation = safeFirebaseOperation;
     window.checkFirebaseConnection = checkFirebaseConnection;
     window.disableRealtimeListener = disableRealtimeListener;
+    window.setupRealtimeListener = setupRealtimeListener;
     
     // Firebase 초기화 후 실시간 리스너 설정 (활성화)
     if (window.db) {
       console.log('✅ Firebase 초기화 완료 - 실시간 리스너 활성화');
+      window.firebaseReady = true; // Firebase 준비 상태 플래그 설정
       setupRealtimeListener(); // 활성화된 상태로 실행
     } else {
       console.log('❌ Firebase DB 초기화 실패');
+      window.firebaseReady = false;
     }
       window.getDocs = getDocs;
       window.addDoc = addDoc;
