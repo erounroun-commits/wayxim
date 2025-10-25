@@ -66,16 +66,18 @@
     
     /* 로딩 팝업 스타일 */
     .loading-popup {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      background: rgba(0, 0, 0, 0.5) !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      z-index: 99999 !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
     
     .loading-content {
@@ -85,6 +87,8 @@
       text-align: center;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
       min-width: 200px;
+      position: relative;
+      transform: translate(0, 0);
     }
     
     .loading-spinner {
@@ -639,14 +643,14 @@
           <p style="margin-top:10px">신규요청건, VENDOR LIST, 월별 정산 등 세부 화면은 이후 단계에서 연결합니다.</p>
         </div>
       </main>
-      
-      <!-- 로딩 팝업 -->
-      <div id="loadingPopup" class="loading-popup" style="display: none;">
-        <div class="loading-content">
-          <div class="loading-spinner"></div>
-          <div class="loading-text">로딩중입니다</div>
-        </div>
-      </div>
+    </div>
+  </div>
+
+  <!-- 로딩 팝업 -->
+  <div id="loadingPopup" class="loading-popup" style="display: none;">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">로딩중입니다</div>
     </div>
   </div>
 
@@ -813,13 +817,22 @@
     function showLoading() {
       const loadingPopup = document.getElementById('loadingPopup');
       if (loadingPopup) {
+        console.log('🔄 로딩 팝업 표시');
         loadingPopup.style.display = 'flex';
+        // 강제로 중앙 정렬 확인
+        loadingPopup.style.position = 'fixed';
+        loadingPopup.style.top = '0';
+        loadingPopup.style.left = '0';
+        loadingPopup.style.width = '100vw';
+        loadingPopup.style.height = '100vh';
+        loadingPopup.style.zIndex = '99999';
       }
     }
     
     function hideLoading() {
       const loadingPopup = document.getElementById('loadingPopup');
       if (loadingPopup) {
+        console.log('✅ 로딩 팝업 숨김');
         loadingPopup.style.display = 'none';
       }
     }
