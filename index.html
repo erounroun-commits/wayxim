@@ -3369,23 +3369,22 @@ ${r.optPlan}
     // Handle form submission (제출하기)
     console.log('🔍 폼 요소 검색 시작...');
     
-    // DOM이 완전히 로드될 때까지 기다림
-    setTimeout(() => {
+    // 즉시 실행 (DOM 로딩 완료 후)
+    function setupFormListeners() {
       const rfForm = document.getElementById("rfForm");
       const rfSubmit = document.getElementById("rfSubmit");
       
       console.log('📝 폼 요소:', rfForm);
       console.log('📝 제출 버튼:', rfSubmit);
-      console.log('📝 폼이 화면에 보이는가:', rfForm?.style.display !== 'none' && rfForm?.offsetParent !== null);
       
       if (!rfForm) {
         console.error('❌ rfForm을 찾을 수 없음!');
-        return;
+        return false;
       }
       
       if (!rfSubmit) {
         console.error('❌ rfSubmit을 찾을 수 없음!');
-        return;
+        return false;
       }
     
       // 폼 제출 이벤트 리스너
@@ -3403,7 +3402,14 @@ ${r.optPlan}
       });
       
       console.log('✅ 이벤트 리스너 등록 완료');
-    }, 1000); // 1초 후 실행
+      return true;
+    }
+    
+    // 즉시 시도
+    if (!setupFormListeners()) {
+      // 실패하면 1초 후 재시도
+      setTimeout(setupFormListeners, 1000);
+    }
     
     // 실제 폼 처리 함수
     async function handleFormSubmission() {
