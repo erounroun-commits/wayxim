@@ -63,6 +63,50 @@
     .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#eef6fb;color:#2f5369;font-size:12px;font-weight:800}
     .badge.note{background:#fff6e6;color:#8a5a00}
     .hidden{display:none !important}
+    
+    /* 로딩 팝업 스타일 */
+    .loading-popup {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    
+    .loading-content {
+      background: white;
+      padding: 30px 40px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      min-width: 200px;
+    }
+    
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--brand);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    
+    .loading-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
 
     /* Dashboard */
     .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
@@ -595,6 +639,14 @@
           <p style="margin-top:10px">신규요청건, VENDOR LIST, 월별 정산 등 세부 화면은 이후 단계에서 연결합니다.</p>
         </div>
       </main>
+      
+      <!-- 로딩 팝업 -->
+      <div id="loadingPopup" class="loading-popup" style="display: none;">
+        <div class="loading-content">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">로딩중입니다</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -756,10 +808,27 @@
 
     function openDataModal(){ dataModal.style.display = "flex"; dataPwError.textContent = ""; dataPwInput.value = ""; setTimeout(()=> dataPwInput.focus(), 50); }
     function closeDataModal(){ dataModal.style.display = "none"; }
+    
+    // 로딩 팝업 제어 함수
+    function showLoading() {
+      const loadingPopup = document.getElementById('loadingPopup');
+      if (loadingPopup) {
+        loadingPopup.style.display = 'flex';
+      }
+    }
+    
+    function hideLoading() {
+      const loadingPopup = document.getElementById('loadingPopup');
+      if (loadingPopup) {
+        loadingPopup.style.display = 'none';
+      }
+    }
 
     async function showAdminHome(){
-      const rows = await loadSubs();
-      const main = document.getElementById("adminMain");
+      showLoading();
+      try {
+        const rows = await loadSubs();
+        const main = document.getElementById("adminMain");
       
       // Calculate statistics
       const today = new Date();
@@ -868,6 +937,9 @@
       // Draw separate charts
       drawRequestsChart(chartData);
       drawVendorsChart(chartData);
+      } finally {
+        hideLoading();
+      }
     }
     
     function drawRequestsChart(data) {
@@ -1699,9 +1771,11 @@ ${r.optPlan}
     }
 
     async function showReqList(isAccepted){
-      const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
-      const title = isAccepted ? "접수 완료건" : "신규요청건";
-      const main = document.getElementById("adminMain");
+      showLoading();
+      try {
+        const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
+        const title = isAccepted ? "접수 완료건" : "신규요청건";
+        const main = document.getElementById("adminMain");
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">${title}`;
       
       // 신규요청건에만 모든 요청건 접수처리 버튼 추가
@@ -1818,11 +1892,16 @@ ${r.optPlan}
           }
         });
       }
+      } finally {
+        hideLoading();
+      }
     }
 
     async function showAllReqList(){
-      const rows = await loadSubs();
-      const main = document.getElementById("adminMain");
+      showLoading();
+      try {
+        const rows = await loadSubs();
+        const main = document.getElementById("adminMain");
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">전체요청건</h2>`;
       html += '<div class="scroll-x"><table class="admin-table">';
       html += '<thead><tr>'+
@@ -1860,6 +1939,9 @@ ${r.optPlan}
       }
       html += '</tbody></table></div>';
       main.innerHTML = html;
+      } finally {
+        hideLoading();
+      }
     }
 
     async function showVendorDashboard(){
@@ -3208,8 +3290,10 @@ ${r.optPlan}
     }
 
     async function showDataManagement(){
-      const rows = await loadSubs();
-      const main = document.getElementById("adminMain");
+      showLoading();
+      try {
+        const rows = await loadSubs();
+        const main = document.getElementById("adminMain");
       // pending edits bucket kept in memory until user clicks save
       window.wp_pending_edits = {};
       
@@ -3322,6 +3406,9 @@ ${r.optPlan}
       `;
       const saveBtn = document.getElementById('dmSaveBtn');
       saveBtn?.addEventListener('click', ()=>{ applyPendingEdits(); });
+      } finally {
+        hideLoading();
+      }
     }
     
     async function exportAllData(){
