@@ -2589,7 +2589,42 @@ ${r.optPlan}
           listCsv = ['','의뢰 리스트','','', '', '', '', '', '', '', '', ''].slice(0,1).join('') + '\n' + headers.join(',') + '\n' + rowsCsv;
         }
 
-        const csv = summaryCsv + (listCsv? ('\n\n' + listCsv) : '');
+        // 월별 진행현황 데이터 추가
+        let monthlyProgressCsv = '';
+        if(vendorRows.length > 0) {
+          // 월별 진행건수 계산
+          const monthlyData = {};
+          vendorRows.forEach(row => {
+            const submissionDate = new Date(row.submittedAt);
+            const year = submissionDate.getFullYear();
+            const month = submissionDate.getMonth() + 1;
+            const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
+            
+            if (!monthlyData[monthKey]) {
+              monthlyData[monthKey] = 0;
+            }
+            monthlyData[monthKey] += row.totalCnt;
+          });
+          
+          const sortedMonths = Object.keys(monthlyData).sort();
+          
+          if (sortedMonths.length > 0) {
+            // 월별 진행현황 헤더
+            const monthlyHeaders = ['월별', ...sortedMonths.map(monthKey => {
+              const [year, month] = monthKey.split('-');
+              return `${year}년 ${month}월`;
+            })];
+            
+            // 월별 진행현황 데이터
+            const monthlyDataRow = ['진행건수', ...sortedMonths.map(monthKey => `${monthlyData[monthKey]}건`)];
+            
+            monthlyProgressCsv = '\n\n월별 진행현황\n' + 
+              monthlyHeaders.map(v => `"${v}"`).join(',') + '\n' + 
+              monthlyDataRow.map(v => `"${v}"`).join(',');
+          }
+        }
+
+        const csv = summaryCsv + (listCsv? ('\n\n' + listCsv) : '') + monthlyProgressCsv;
         const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
         const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${vendorCode}_상세정보_및_의뢰리스트.csv`; a.click();
       }, { once:true });
