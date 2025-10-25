@@ -570,9 +570,10 @@
         <div class="row">
           <label class="q">■ 총 진행건수 / 일 진행건수</label>
           <span class="hint">[작성 예시] 총 50 / 일 5 → 하루 5건씩 10일 진행. 택배 수령 후 10일 이내 리뷰 작성. 플랫폼별 일정은 상단 안내 참고.</span>
+          <span class="hint" style="color: #e74c3c; font-weight: 600;">※ 일 최소 진행건수 : 상품당 최소 일 2건 이상 구매 진행 가능하십니다</span>
           <div class="grid-2">
             <input id="totalCnt" class="input rf-guard" type="number" min="2" placeholder="총 진행건수 (최소 2)" required>
-            <input id="dailyCnt" class="input rf-guard" type="number" min="1" placeholder="일 진행건수" required>
+            <input id="dailyCnt" class="input rf-guard" type="number" min="2" placeholder="일 진행건수 (최소 2)" required>
           </div>
         </div>
 
@@ -4694,6 +4695,25 @@ ${r.optPlan}
       console.log('📋 업체 정보:', companyName, companyCode);
       if(idOutput) idOutput.textContent = companyCode ? `ID: ${companyCode}` : "ID: 미발급";
 
+      const totalCnt = parseInt(document.getElementById("totalCnt")?.value||"0",10);
+      const dailyCnt = parseInt(document.getElementById("dailyCnt")?.value||"0",10);
+      
+      // 일 진행건수 검증 (최소 2건 이상)
+      if (dailyCnt < 2) {
+        alert("일 진행건수는 최소 2건 이상이어야 합니다.");
+        document.getElementById("dailyCnt").focus();
+        return;
+      }
+      
+      // 총 진행건수와 일 진행건수 관계 검증
+      if (totalCnt < dailyCnt) {
+        alert("총 진행건수는 일 진행건수보다 크거나 같아야 합니다.");
+        document.getElementById("totalCnt").focus();
+        return;
+      }
+      
+      console.log('✅ 진행건수 검증 통과:', { totalCnt, dailyCnt });
+
       const rec = {
         no: await getNextNo(),
         submittedAt: Date.now(),
@@ -4703,8 +4723,8 @@ ${r.optPlan}
         contact: document.getElementById("contact")?.value.trim()||"",
         productUrl: document.getElementById("productUrl")?.value.trim()||"",
         keywords: document.getElementById("keywords")?.value.trim()||"",
-        totalCnt: parseInt(document.getElementById("totalCnt")?.value||"0",10),
-        dailyCnt: parseInt(document.getElementById("dailyCnt")?.value||"0",10),
+        totalCnt: totalCnt,
+        dailyCnt: dailyCnt,
         optPlan: document.getElementById("optPlan")?.value.trim()||"",
         ship: (document.querySelector('input[name="ship"]:checked')?.value||""),
         prepay: (document.querySelector('input[name="prepay"]:checked')?.value||""),
@@ -5221,7 +5241,7 @@ ${r.optPlan}
         list.innerHTML = '<div class="notification-empty">읽지 않은 알림이 없습니다.</div>';
       } else {
         list.innerHTML = unreadNotifications.map(notification => `
-          <div class="notification-item unread" onclick="markAsRead(${notification.id})">
+          <div class="notification-item unread" onclick="handleNotificationClick(${notification.id})">
             <div class="notification-title">${notification.title}</div>
             <div class="notification-content">${notification.content}</div>
             <div class="notification-time">${formatDateTime(notification.timestamp)}</div>
@@ -5234,6 +5254,43 @@ ${r.optPlan}
     
     function hideNotificationPopup() {
       document.getElementById('notificationPopup').style.display = 'none';
+    }
+    
+    function handleNotificationClick(id) {
+      console.log('🔔 알림 클릭 - ID:', id);
+      
+      // 알림을 읽음으로 표시
+      markAsRead(id);
+      
+      // 신규요청건 관련 알림인지 확인
+      const notification = notifications.find(n => n.id === id);
+      if (notification && notification.title.includes('신규') && notification.title.includes('요청건')) {
+        console.log('🔔 신규요청건 알림 클릭 - 신규요청건 탭으로 이동');
+        
+        // 관리자 화면이 활성화되어 있는지 확인
+        if (sessionStorage.getItem("wp_is_admin") === "1") {
+          // 신규요청건 탭 활성화
+          const newReqTab = document.querySelector('[data-section="req-new"]');
+          if (newReqTab) {
+            // 모든 탭 비활성화
+            document.querySelectorAll('[data-section]').forEach(tab => {
+              tab.classList.remove('active');
+            });
+            // 신규요청건 탭 활성화
+            newReqTab.classList.add('active');
+            // 신규요청건 화면 표시
+            showReqList(false);
+            console.log('✅ 신규요청건 탭으로 이동 완료');
+          } else {
+            console.log('❌ 신규요청건 탭을 찾을 수 없음');
+          }
+        } else {
+          console.log('❌ 관리자 화면이 아님 - 이동 불가');
+        }
+      }
+      
+      // 알림 팝업 숨김
+      hideNotificationPopup();
     }
     
     function markAsRead(id) {
@@ -5352,6 +5409,7 @@ ${r.optPlan}
     window.updateNotificationUI = updateNotificationUI;
     window.showNotificationPopup = showNotificationPopup;
     window.hideNotificationPopup = hideNotificationPopup;
+    window.handleNotificationClick = handleNotificationClick;
     window.markAsRead = markAsRead;
     window.clearAllNotifications = clearAllNotifications;
     window.addSubmissionNotification = addSubmissionNotification;
