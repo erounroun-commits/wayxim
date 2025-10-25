@@ -1520,16 +1520,10 @@
           const data = snapshot.docs[0].data();
           currentNo = (data.nextNo || 1);
           
-          // 기존 submissions가 없으면 번호를 1로 초기화
-          if (submissionsSnapshot.empty && currentNo > 1) {
-            console.log('🔢 기존 submissions 없음 - 번호를 1로 초기화');
-            currentNo = 1;
-            await updateDoc(snapshot.docs[0].ref, { nextNo: 2 });
-          } else {
-            console.log('🔢 Firebase 기존 번호:', currentNo);
-            // 기존 문서 업데이트
-            await updateDoc(snapshot.docs[0].ref, { nextNo: currentNo + 1 });
-          }
+          // 기존 submissions가 없어도 번호를 계속 증가시키도록 수정
+          console.log('🔢 Firebase 기존 번호:', currentNo);
+          // 기존 문서 업데이트
+          await updateDoc(snapshot.docs[0].ref, { nextNo: currentNo + 1 });
         } else {
           console.log('🔢 Firebase 새 문서 생성');
           // 새 문서 생성
@@ -3486,11 +3480,76 @@ ${r.optPlan}
         
         console.log(`🔍 행 ${index + 2} 원본 데이터:`, cols);
         
-        // 모든 헤더를 그대로 매핑 (복합 헤더 분리 없이)
+        // 깨진 헤더를 올바른 필드명으로 매핑
         headers.forEach((h,i) => { 
           const value = (cols[i] || '').replace(/^"|"$/g, '').trim();
-          obj[h] = value;
-          console.log(`📝 ${h}: "${value}"`);
+          
+          // 깨진 헤더 매핑
+          let mappedKey = h;
+          if (h.includes('ȣ') && h.length <= 3) {
+            mappedKey = '번호';
+          } else if (h.includes('ð') && h.length <= 5) {
+            mappedKey = '제출시간';
+          } else if (h.includes('ü') && h.includes('ڵ') && h.length <= 5) {
+            mappedKey = '업체코드';
+          } else if (h.includes('ü') && h.length <= 3) {
+            mappedKey = '업체명';
+          } else if (h.includes('ڹ') && h.includes('ȣ') && h.length <= 6) {
+            mappedKey = '사업자번호';
+          } else if (h.includes('ī') && h.includes('/') && h.includes('ȣ')) {
+            mappedKey = '카톡/번호';
+          } else if (h.includes('ǰ') && h.includes('URL')) {
+            mappedKey = '제품URL';
+          } else if (h.includes('Ű') && h.includes('Ǽ')) {
+            mappedKey = '구매키워드총진행건수';
+          } else if (h.includes('Ǽ') && h.includes('ɼ')) {
+            mappedKey = '일진행건수옵션계획';
+          } else if (h.includes('ǰ') && h.includes('���')) {
+            mappedKey = '제품배송';
+          } else if (h.includes('Ա') && h.includes('ݴ')) {
+            mappedKey = '입금대행';
+          } else if (h.includes('ù') && h.includes('����')) {
+            mappedKey = '택배대행';
+          } else if (h.includes('۾') && h.includes('꼭')) {
+            mappedKey = '작업비계산서';
+          } else if (h.includes('ǰ') && h.includes('ݾ') && h.includes('꼭')) {
+            mappedKey = '상품금액계산서';
+          } else if (h.includes('��') && h.includes('��')) {
+            mappedKey = '접수상태';
+          } else if (h.includes('ð') && h.length <= 5 && h !== '제출시간') {
+            mappedKey = '접수시간';
+          }
+          
+          // 복합 헤더 분리 처리
+          if (mappedKey === '사업자번호카톡/번호') {
+            // 사업자번호카톡/번호 → 사업자번호와 카톡/번호로 분리
+            const parts = value.split(/(?=[가-힣])/);
+            obj['사업자번호'] = parts[0] || '';
+            obj['카톡/번호'] = parts[1] || '';
+            console.log(`🔀 ${mappedKey} 분리: "${value}" → 사업자번호:"${obj['사업자번호']}", 카톡/번호:"${obj['카톡/번호']}"`);
+          } else if (mappedKey === '구매키워드총진행건수') {
+            // 구매키워드총진행건수 → 구매키워드와 총진행건수로 분리
+            const parts = value.split(/(?=\d)/);
+            obj['구매키워드'] = parts[0] || '';
+            obj['총진행건수'] = parts[1] || '';
+            console.log(`🔀 ${mappedKey} 분리: "${value}" → 구매키워드:"${obj['구매키워드']}", 총진행건수:"${obj['총진행건수']}"`);
+          } else if (mappedKey === '일진행건수옵션계획') {
+            // 일진행건수옵션계획 → 일진행건수와 옵션계획으로 분리
+            const parts = value.split(/(?=[가-힣])/);
+            obj['일진행건수'] = parts[0] || '';
+            obj['옵션계획'] = parts[1] || '';
+            console.log(`🔀 ${mappedKey} 분리: "${value}" → 일진행건수:"${obj['일진행건수']}", 옵션계획:"${obj['옵션계획']}"`);
+          } else if (mappedKey === '작업비계신상품금액겨접수상태') {
+            // 작업비계신상품금액겨접수상태 → 작업비계산서, 상품금액계산서, 접수상태로 분리
+            const parts = value.split(/(?=[가-힣])/);
+            obj['작업비계산서'] = parts[0] || '';
+            obj['상품금액계산서'] = parts[1] || '';
+            obj['접수상태'] = parts[2] || '';
+            console.log(`🔀 ${mappedKey} 분리: "${value}" → 작업비계산서:"${obj['작업비계산서']}", 상품금액계산서:"${obj['상품금액계산서']}", 접수상태:"${obj['접수상태']}"`);
+          } else {
+            // 일반 헤더
+            obj[mappedKey] = value;
+          }
         });
         
         console.log(`📝 행 ${index + 2} 파싱 결과:`, obj);
@@ -3613,9 +3672,16 @@ ${r.optPlan}
             newNo = rec.no;
             console.log('📝 기존 데이터 업데이트, 번호:', newNo);
           } else {
-            console.log('🆕 새 데이터 생성, 번호 생성 중...');
-            newNo = await getNextNo();
-            console.log('✅ 새 번호 생성 완료:', newNo, typeof newNo);
+            // CSV에 번호가 있으면 사용, 없으면 새로 생성
+            const csvNo = obj['번호'];
+            if (csvNo && csvNo.trim() && !isNaN(parseInt(csvNo))) {
+              newNo = parseInt(csvNo);
+              console.log('📝 CSV 번호 사용:', newNo);
+            } else {
+              console.log('🆕 새 데이터 생성, 번호 생성 중...');
+              newNo = await getNextNo();
+              console.log('✅ 새 번호 생성 완료:', newNo, typeof newNo);
+            }
           }
           
           const newRec = {
@@ -4481,29 +4547,30 @@ ${r.optPlan}
       console.log('💡 이제 다른 탭을 클릭하면 최신 데이터가 로드됩니다');
     };
     
-    // CSV 파일 생성 가이드 함수 (디버깅용)
-    window.createSampleCSV = function() {
-      console.log('📄 샘플 CSV 파일 생성 가이드');
+    // CSV 헤더 매핑 테스트 함수 (디버깅용)
+    window.testCSVHeaderMapping = function() {
+      console.log('🧪 CSV 헤더 매핑 테스트');
       
-      const sampleData = [
-        ['번호', '제출시간', '업체코드', '업체명', '사업자번호', '카톡/번호', '제품URL', '구매키워드', '총진행건수', '일진행건수', '옵션계획', '제품배송', '입금대행', '택배대행', '작업비계산서', '상품금액계산서', '접수상태', '접수시간'],
-        ['1', '2025-10-26 01:45', 'WI01', '안뇽', '우', '어', 'https://nid.터', '39', '39', '투', 'Y', 'Y', 'N', 'N', 'N', 'N', ''],
-        ['2', '2025-10-26 01:48', 'CV31', '안녕1247', '아', '터', 'https://nid.o', '38', '28', 'ㄷ', 'Y', 'Y', 'N', 'N', 'N', 'N', '']
-      ];
+      const testHeaders = ['��ȣ', '����ð�', '��ü�ڵ�', '��ü��', '����ڹ�ȣ', 'ī��/��ȣ'];
       
-      const csvContent = sampleData.map(row => row.join(',')).join('\n');
-      
-      // UTF-8 BOM과 함께 CSV 파일 생성
-      const BOM = '\uFEFF';
-      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-      
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'sample_data_utf8.csv';
-      link.click();
-      
-      console.log('✅ 샘플 CSV 파일 다운로드 완료 (UTF-8 인코딩)');
-      console.log('💡 이 파일을 사용하여 테스트해보세요');
+      testHeaders.forEach(header => {
+        let mappedKey = header;
+        if (header.includes('ȣ') && header.length <= 3) {
+          mappedKey = '번호';
+        } else if (header.includes('ð') && header.length <= 5) {
+          mappedKey = '제출시간';
+        } else if (header.includes('ü') && header.includes('ڵ') && header.length <= 5) {
+          mappedKey = '업체코드';
+        } else if (header.includes('ü') && header.length <= 3) {
+          mappedKey = '업체명';
+        } else if (header.includes('ڹ') && header.includes('ȣ') && header.length <= 6) {
+          mappedKey = '사업자번호';
+        } else if (header.includes('ī') && header.includes('/') && header.includes('ȣ')) {
+          mappedKey = '카톡/번호';
+        }
+        
+        console.log(`📝 ${header} → ${mappedKey}`);
+      });
     };
       
       // Firebase 단계별 테스트
