@@ -1702,7 +1702,14 @@ ${r.optPlan}
       const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
       const title = isAccepted ? "접수 완료건" : "신규요청건";
       const main = document.getElementById("adminMain");
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">${title}</h2>`;
+      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">${title}`;
+      
+      // 신규요청건에만 모든 요청건 접수처리 버튼 추가
+      if (!isAccepted && rows.length > 0) {
+        html += ` <button class="btn" id="bulkAcceptAll" style="margin-left:12px;padding:4px 12px;font-size:14px;background:var(--brand);color:white;border:none;border-radius:4px;">[모든 요청건 접수처리]</button>`;
+      }
+      
+      html += `</h2>`;
       html += '<div class="scroll-x"><table class="admin-table">';
       html += '<thead><tr>'+
         '<th rowspan="2">no.</th>'+
@@ -1742,6 +1749,72 @@ ${r.optPlan}
       }
       html += '</tbody></table></div>';
       main.innerHTML = html;
+      
+      // 모든 요청건 접수처리 버튼 이벤트 리스너 추가
+      const bulkAcceptBtn = document.getElementById('bulkAcceptAll');
+      if (bulkAcceptBtn) {
+        bulkAcceptBtn.addEventListener('click', async () => {
+          console.log('🚀 모든 요청건 접수처리 시작');
+          
+          // 확인 대화상자
+          if (!confirm('모든 신규요청건을 접수처리하시겠습니까?')) {
+            console.log('❌ 사용자가 취소함');
+            return;
+          }
+          
+          try {
+            // 신규요청건만 필터링
+            const newRequests = rows.filter(r => !r.accepted);
+            console.log('📊 접수처리할 요청건 수:', newRequests.length);
+            
+            if (newRequests.length === 0) {
+              alert('접수처리할 요청건이 없습니다.');
+              return;
+            }
+            
+            // Firebase 업데이트
+            const firebaseReady = await waitForFirebase();
+            if (firebaseReady && window.db) {
+              const batch = writeBatch(window.db);
+              const currentTime = Date.now();
+              
+              for (const request of newRequests) {
+                const docRef = doc(window.db, 'submissions', request.id);
+                batch.update(docRef, {
+                  accepted: true,
+                  acceptedAt: currentTime
+                });
+                console.log(`📝 요청건 ${request.no} 접수처리:`, request.companyName);
+              }
+              
+              await batch.commit();
+              console.log('✅ 모든 요청건 접수처리 완료');
+              
+              // 화면 새로고침
+              await showReqList(false);
+              alert(`${newRequests.length}건의 요청이 접수처리되었습니다.`);
+            } else {
+              console.warn('Firebase not ready, using localStorage');
+              // localStorage 업데이트
+              const allSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
+              const updatedSubmissions = allSubmissions.map(sub => {
+                if (newRequests.some(req => req.id === sub.id)) {
+                  return { ...sub, accepted: true, acceptedAt: Date.now() };
+                }
+                return sub;
+              });
+              localStorage.setItem("wp_submissions", JSON.stringify(updatedSubmissions));
+              
+              // 화면 새로고침
+              await showReqList(false);
+              alert(`${newRequests.length}건의 요청이 접수처리되었습니다.`);
+            }
+          } catch (error) {
+            console.error('❌ 모든 요청건 접수처리 중 오류:', error);
+            alert('접수처리 중 오류가 발생했습니다: ' + error.message);
+          }
+        });
+      }
     }
 
     async function showAllReqList(){
@@ -3535,6 +3608,14 @@ ${r.optPlan}
               });
               console.log(`📝 Excel 행 ${index + 2} 파싱 결과:`, obj);
               return obj;
+            }).filter(obj => {
+              // 빈 행 필터링 - 중요한 필드들이 모두 비어있으면 제외
+              const hasContent = obj['업체명'] || obj['업체코드'] || obj['사업자번호'] || obj['카톡/번호'];
+              if (!hasContent) {
+                console.log('🚫 빈 행 제외:', obj);
+                return false;
+              }
+              return true;
             });
             
             console.log('✅ Excel 파싱 완료, 총 행 수:', result.length);
@@ -3681,16 +3762,10 @@ ${r.optPlan}
             newNo = rec.no;
             console.log('📝 기존 데이터 업데이트, 번호:', newNo);
           } else {
-            // CSV에 번호가 있으면 사용, 없으면 새로 생성
-            const csvNo = obj['번호'];
-            if (csvNo && csvNo.trim() && !isNaN(parseInt(csvNo))) {
-              newNo = parseInt(csvNo);
-              console.log('📝 CSV 번호 사용:', newNo);
-            } else {
-              console.log('🆕 새 데이터 생성, 번호 생성 중...');
-              newNo = await getNextNo();
-              console.log('✅ 새 번호 생성 완료:', newNo, typeof newNo);
-            }
+            // 항상 새로운 번호 생성 (CSV 번호 무시)
+            console.log('🆕 새 데이터 생성, 번호 생성 중...');
+            newNo = await getNextNo();
+            console.log('✅ 새 번호 생성 완료:', newNo, typeof newNo);
           }
           
           const newRec = {
@@ -4134,7 +4209,7 @@ ${r.optPlan}
     
     // Import the functions you need from the SDKs you need
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot, where } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot, where, writeBatch } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
     import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics.js";
     
     // Excel 파일 읽기 라이브러리 추가
