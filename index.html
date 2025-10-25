@@ -212,7 +212,37 @@
 }
 
 /* Vendor detail modal */
-.vendor-modal { max-width: 1000px; }
+.vendor-modal { 
+  max-width: 1000px; 
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.vendor-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px;
+  margin-right: -8px;
+}
+
+.vendor-modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.vendor-modal-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.vendor-modal-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.vendor-modal-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
 .vendor-info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 .vendor-stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 .vendor-pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
@@ -736,59 +766,61 @@
     <div class="modal vendor-modal">
       <h2 id="vendorTitle">VENDOR 상세정보</h2>
       
-      <div class="vendor-info-grid">
+      <div class="vendor-modal-content">
+        <div class="vendor-info-grid">
+          <div class="vendor-info-box">
+            <div class="vendor-info-title">업체코드</div>
+            <div class="vendor-info-value" id="vendorCode">-</div>
+          </div>
+          <div class="vendor-info-box">
+            <div class="vendor-info-title">업체명</div>
+            <div class="vendor-info-value" id="vendorName">-</div>
+          </div>
+          <div class="vendor-info-box">
+            <div class="vendor-info-title">연락처</div>
+            <div class="vendor-info-value" id="vendorContact">-</div>
+          </div>
+        </div>
+
+        <div class="vendor-stats-grid">
+          <div class="vendor-stat-box">
+            <div class="vendor-stat-title">금일 의뢰건수</div>
+            <div class="vendor-stat-value" id="vendorDailyCount">0</div>
+          </div>
+          <div class="vendor-stat-box">
+            <div class="vendor-stat-title">당월 의뢰건수</div>
+            <div class="vendor-stat-value" id="vendorMonthlyCount">0</div>
+          </div>
+          <div class="vendor-stat-box">
+            <div class="vendor-stat-title">누적 의뢰건수</div>
+            <div class="vendor-stat-value" id="vendorTotalCount">0</div>
+          </div>
+        </div>
+
+        <div class="vendor-pricing-grid">
+          <div class="vendor-pricing-box">
+            <div class="vendor-pricing-title">VENDOR 유형</div>
+            <div class="vendor-info-value" id="vendorTypeDisplay">-</div>
+            <div class="vendor-type-hint" id="vendorTypeHint">우수까지 당월 200건 남았습니다.</div>
+          </div>
+          <div class="vendor-pricing-box">
+            <div class="vendor-pricing-title">실행단가 / 제휴수수료</div>
+            <div class="vendor-pricing-value" id="vendorPricing">3,000원 / 1,500원</div>
+          </div>
+        </div>
+
         <div class="vendor-info-box">
-          <div class="vendor-info-title">업체코드</div>
-          <div class="vendor-info-value" id="vendorCode">-</div>
+          <div class="vendor-info-title">월별 진행현황</div>
+          <div class="vendor-monthly-progress" id="vendorMonthlyProgress">
+            <div style="text-align:center;color:#6a7a89;padding:20px;">월별 진행현황이 없습니다.</div>
+          </div>
         </div>
+
         <div class="vendor-info-box">
-          <div class="vendor-info-title">업체명</div>
-          <div class="vendor-info-value" id="vendorName">-</div>
-        </div>
-        <div class="vendor-info-box">
-          <div class="vendor-info-title">연락처</div>
-          <div class="vendor-info-value" id="vendorContact">-</div>
-        </div>
-      </div>
-
-      <div class="vendor-stats-grid">
-        <div class="vendor-stat-box">
-          <div class="vendor-stat-title">금일 의뢰건수</div>
-          <div class="vendor-stat-value" id="vendorDailyCount">0</div>
-        </div>
-        <div class="vendor-stat-box">
-          <div class="vendor-stat-title">당월 의뢰건수</div>
-          <div class="vendor-stat-value" id="vendorMonthlyCount">0</div>
-        </div>
-        <div class="vendor-stat-box">
-          <div class="vendor-stat-title">누적 의뢰건수</div>
-          <div class="vendor-stat-value" id="vendorTotalCount">0</div>
-        </div>
-      </div>
-
-      <div class="vendor-pricing-grid">
-        <div class="vendor-pricing-box">
-          <div class="vendor-pricing-title">VENDOR 유형</div>
-          <div class="vendor-info-value" id="vendorTypeDisplay">-</div>
-          <div class="vendor-type-hint" id="vendorTypeHint">우수까지 당월 200건 남았습니다.</div>
-        </div>
-        <div class="vendor-pricing-box">
-          <div class="vendor-pricing-title">실행단가 / 제휴수수료</div>
-          <div class="vendor-pricing-value" id="vendorPricing">3,000원 / 1,500원</div>
-        </div>
-      </div>
-
-      <div class="vendor-info-box">
-        <div class="vendor-info-title">월별 진행현황</div>
-        <div class="vendor-monthly-progress" id="vendorMonthlyProgress">
-          <div style="text-align:center;color:#6a7a89;padding:20px;">월별 진행현황이 없습니다.</div>
-        </div>
-      </div>
-
-      <div class="vendor-info-box">
-        <div class="vendor-info-title">의뢰리스트</div>
-        <div class="vendor-requests-list" id="vendorRequestsList">
-          <div style="text-align:center;color:#6a7a89;padding:20px;">의뢰 내역이 없습니다.</div>
+          <div class="vendor-info-title">의뢰리스트</div>
+          <div class="vendor-requests-list" id="vendorRequestsList">
+            <div style="text-align:center;color:#6a7a89;padding:20px;">의뢰 내역이 없습니다.</div>
+          </div>
         </div>
       </div>
 
