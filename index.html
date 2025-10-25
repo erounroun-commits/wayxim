@@ -1775,19 +1775,22 @@ ${r.optPlan}
             // Firebase 업데이트
             const firebaseReady = await waitForFirebase();
             if (firebaseReady && window.db) {
-              const batch = writeBatch(window.db);
+              // 개별 업데이트로 변경 (writeBatch 대신)
               const currentTime = Date.now();
               
               for (const request of newRequests) {
-                const docRef = doc(window.db, 'submissions', request.id);
-                batch.update(docRef, {
-                  accepted: true,
-                  acceptedAt: currentTime
-                });
-                console.log(`📝 요청건 ${request.no} 접수처리:`, request.companyName);
+                try {
+                  const docRef = doc(window.db, 'submissions', request.id);
+                  await updateDoc(docRef, {
+                    accepted: true,
+                    acceptedAt: currentTime
+                  });
+                  console.log(`📝 요청건 ${request.no} 접수처리:`, request.companyName);
+                } catch (error) {
+                  console.error(`❌ 요청건 ${request.no} 접수처리 실패:`, error);
+                }
               }
               
-              await batch.commit();
               console.log('✅ 모든 요청건 접수처리 완료');
               
               // 화면 새로고침
@@ -3747,6 +3750,8 @@ ${r.optPlan}
         const byNo = new Map(rows.map(r=> [String(r.no), r]));
         const incoming = window.wp_upload_rows||[];
         let updated=0;
+        let duplicateCount=0;
+        let newCount=0;
         for (const obj of incoming) {
           console.log('🔄 데이터 처리 중:', obj['업체명'] || '이름없음');
           
@@ -3755,6 +3760,57 @@ ${r.optPlan}
           const parseBool = v=> String(v||'').toUpperCase()==='Y';
           const parseTs = v=> v? Date.parse(v): null;
           const toInt = v=> { const n=parseInt(String(v||'0'),10); return isNaN(n)?0:n; };
+          
+          // 중복 데이터 감지 (업체명, 업체코드, 키워드 기준)
+          const companyName = (obj['업체명'] || '').trim();
+          const companyCode = (obj['업체코드'] || '').trim();
+          const keywords = (obj['구매키워드'] || '').trim();
+          
+          console.log('🔍 중복 감지 대상:', {
+            업체명: companyName,
+            업체코드: companyCode,
+            키워드: keywords
+          });
+          
+          // 기존 데이터에서 중복 확인 (업체명, 업체코드, 키워드가 모두 동일한 경우)
+          const existingDuplicate = rows.find(existing => {
+            const isDuplicate = existing.companyName === companyName && 
+                               existing.companyCode === companyCode && 
+                               existing.keywords === keywords &&
+                               companyName !== '' && companyCode !== '' && keywords !== '';
+            
+            if (isDuplicate) {
+              console.log('🎯 중복 매칭 발견:', {
+                기존번호: existing.no,
+                기존업체명: existing.companyName,
+                기존업체코드: existing.companyCode,
+                기존키워드: existing.keywords,
+                새업체명: companyName,
+                새업체코드: companyCode,
+                새키워드: keywords
+              });
+            }
+            
+            return isDuplicate;
+          });
+          
+          if (existingDuplicate) {
+            console.log('🔄 중복 데이터 감지 - 기존 데이터 업데이트 (신규건 생성 안함):', {
+              기존번호: existingDuplicate.no,
+              업체명: companyName,
+              업체코드: companyCode,
+              키워드: keywords
+            });
+            rec = existingDuplicate;
+            duplicateCount++;
+          } else {
+            console.log('✅ 신규 데이터 - 새로 생성:', {
+              업체명: companyName,
+              업체코드: companyCode,
+              키워드: keywords
+            });
+            newCount++;
+          }
           
           // 번호 생성 (상세 로깅)
           let newNo;
@@ -3895,6 +3951,14 @@ ${r.optPlan}
         const savedData = await loadSubs();
         console.log('🔍 저장 후 데이터 검증, 건수:', savedData.length);
         
+        // 처리 결과 요약
+        console.log('📊 처리 결과 요약:', {
+          총처리건수: incoming.length,
+          중복건수: duplicateCount,
+          신규건수: newCount,
+          업데이트건수: updated
+        });
+        
         // 신규요청건 탭 즉시 새로고침
         console.log('🔄 신규요청건 탭 새로고침');
         await showReqList(false);
@@ -3903,7 +3967,14 @@ ${r.optPlan}
         console.log('🔄 모든 관리자 탭 데이터 캐시 초기화');
         window.wp_data_cache_cleared = true;
         
-        alert(`${updated}건이 업데이트 되었습니다`);
+        // 상세한 처리 결과 알림
+        let resultMessage = `📊 데이터 업로드 완료!\n\n`;
+        resultMessage += `📋 총 처리 건수: ${incoming.length}건\n`;
+        resultMessage += `🔄 중복 데이터 (업데이트): ${duplicateCount}건\n`;
+        resultMessage += `✅ 신규 데이터 (추가): ${newCount}건\n`;
+        resultMessage += `💾 총 업데이트: ${updated}건`;
+        
+        alert(resultMessage);
         
         console.log('🔄 데이터 관리 화면 새로고침');
         await showDataManagement();
