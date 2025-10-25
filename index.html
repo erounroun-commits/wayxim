@@ -3471,49 +3471,26 @@ ${r.optPlan}
       
       const headers = lines[0].split(',').map(h=>h.trim());
       console.log('📋 원본 CSV 헤더:', headers);
+      console.log('📋 헤더 개수:', headers.length);
+      
+      // 첫 번째 데이터 행도 확인
+      if (lines.length > 1) {
+        const firstDataLine = lines[1].split(',');
+        console.log('📋 첫 번째 데이터 행:', firstDataLine);
+        console.log('📋 데이터 개수:', firstDataLine.length);
+      }
       
       const result = lines.slice(1).map((line, index) => {
         const cols = line.split(',');
         const obj = {}; 
         
-        // 복합 헤더 분리 처리
+        console.log(`🔍 행 ${index + 2} 원본 데이터:`, cols);
+        
+        // 모든 헤더를 그대로 매핑 (복합 헤더 분리 없이)
         headers.forEach((h,i) => { 
           const value = (cols[i] || '').replace(/^"|"$/g, '').trim();
-          
-          // 복합 헤더 분리 (더 정확한 패턴 매칭)
-          if (h === '사업자번호카톡/번호') {
-            // 사업자번호카톡/번호 → 사업자번호와 카톡/번호로 분리
-            // 예: "우어" → 사업자번호: "우", 카톡/번호: "어"
-            const parts = value.split(/(?=[가-힣])/); // 한글이 시작되는 지점에서 분리
-            obj['사업자번호'] = parts[0] || '';
-            obj['카톡/번호'] = parts[1] || '';
-            console.log(`🔀 ${h} 분리: "${value}" → 사업자번호:"${obj['사업자번호']}", 카톡/번호:"${obj['카톡/번호']}"`);
-          } else if (h === '구매키워드총진행건수') {
-            // 구매키워드총진행건수 → 구매키워드와 총진행건수로 분리
-            // 예: "39" → 구매키워드: "", 총진행건수: "39"
-            const parts = value.split(/(?=\d)/); // 숫자가 시작되는 지점에서 분리
-            obj['구매키워드'] = parts[0] || '';
-            obj['총진행건수'] = parts[1] || '';
-            console.log(`🔀 ${h} 분리: "${value}" → 구매키워드:"${obj['구매키워드']}", 총진행건수:"${obj['총진행건수']}"`);
-          } else if (h === '일진행건수옵션계획') {
-            // 일진행건수옵션계획 → 일진행건수와 옵션계획으로 분리
-            // 예: "39 투" → 일진행건수: "39", 옵션계획: "투"
-            const parts = value.split(/(?=[가-힣])/); // 한글이 시작되는 지점에서 분리
-            obj['일진행건수'] = parts[0] || '';
-            obj['옵션계획'] = parts[1] || '';
-            console.log(`🔀 ${h} 분리: "${value}" → 일진행건수:"${obj['일진행건수']}", 옵션계획:"${obj['옵션계획']}"`);
-          } else if (h === '작업비계신상품금액겨접수상태') {
-            // 작업비계신상품금액겨접수상태 → 작업비계산서, 상품금액계산서, 접수상태로 분리
-            // 예: "N" → 작업비계산서: "N", 상품금액계산서: "", 접수상태: ""
-            const parts = value.split(/(?=[가-힣])/); // 한글이 시작되는 지점에서 분리
-            obj['작업비계산서'] = parts[0] || '';
-            obj['상품금액계산서'] = parts[1] || '';
-            obj['접수상태'] = parts[2] || '';
-            console.log(`🔀 ${h} 분리: "${value}" → 작업비계산서:"${obj['작업비계산서']}", 상품금액계산서:"${obj['상품금액계산서']}", 접수상태:"${obj['접수상태']}"`);
-          } else {
-            // 일반 헤더
-            obj[h] = value;
-          }
+          obj[h] = value;
+          console.log(`📝 ${h}: "${value}"`);
         });
         
         console.log(`📝 행 ${index + 2} 파싱 결과:`, obj);
@@ -3538,7 +3515,54 @@ ${r.optPlan}
         console.log('📄 파일 크기:', file.size, 'bytes');
         
         try {
-          const text = await file.text();
+          // 파일을 ArrayBuffer로 읽기
+          const arrayBuffer = await file.arrayBuffer();
+          console.log('📄 ArrayBuffer 크기:', arrayBuffer.byteLength);
+          
+          // 인코딩 감지 및 변환 (더 강력한 방법)
+          let text;
+          let encodingUsed = '';
+          
+          // UTF-8 BOM 확인
+          const uint8Array = new Uint8Array(arrayBuffer);
+          if (uint8Array.length >= 3 && uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF) {
+            console.log('📄 UTF-8 BOM 감지됨');
+            text = new TextDecoder('utf-8').decode(arrayBuffer);
+            encodingUsed = 'UTF-8 (BOM)';
+          } else {
+            // 여러 인코딩 시도
+            const encodings = ['utf-8', 'euc-kr', 'cp949', 'iso-8859-1'];
+            
+            for (const encoding of encodings) {
+              try {
+                text = new TextDecoder(encoding).decode(arrayBuffer);
+                
+                // 한글 문자가 제대로 디코딩되었는지 확인
+                const koreanRegex = /[가-힣]/;
+                if (koreanRegex.test(text)) {
+                  console.log(`✅ ${encoding}로 디코딩 성공 (한글 감지됨)`);
+                  encodingUsed = encoding;
+                  break;
+                } else {
+                  console.log(`⚠️ ${encoding}로 디코딩했지만 한글이 감지되지 않음`);
+                }
+              } catch (error) {
+                console.log(`❌ ${encoding} 디코딩 실패:`, error.message);
+              }
+            }
+            
+            // 모든 인코딩이 실패한 경우 기본값 사용
+            if (!text) {
+              text = new TextDecoder('utf-8', { fatal: false }).decode(arrayBuffer);
+              encodingUsed = 'UTF-8 (fallback)';
+              console.log('⚠️ 모든 인코딩 실패, UTF-8 fallback 사용');
+            }
+          }
+          
+          console.log('📄 사용된 인코딩:', encodingUsed);
+          console.log('📄 디코딩된 텍스트 길이:', text.length);
+          console.log('📄 텍스트 미리보기 (처음 200자):', text.substring(0, 200));
+          
           window.wp_upload_rows = parseCsv(text);
           console.log('✅ CSV 파싱 완료, 데이터 수:', window.wp_upload_rows.length);
           
@@ -3551,7 +3575,7 @@ ${r.optPlan}
           }
         } catch (error) {
           console.error('❌ 파일 읽기 오류:', error);
-          alert('파일을 읽는 중 오류가 발생했습니다.');
+          alert('파일을 읽는 중 오류가 발생했습니다: ' + error.message);
         }
       }
     });
@@ -3632,6 +3656,9 @@ ${r.optPlan}
             billProd: newRec.billProd,
             accepted: newRec.accepted
           });
+          
+          // 원본 CSV 데이터도 로깅
+          console.log('📋 원본 CSV 데이터:', obj);
           
           if(rec){ Object.assign(rec, newRec); updated++; }
           else { rows.unshift(newRec); updated++; }
@@ -4454,41 +4481,29 @@ ${r.optPlan}
       console.log('💡 이제 다른 탭을 클릭하면 최신 데이터가 로드됩니다');
     };
     
-    // 디버깅용 함수 - 현재 저장된 데이터 확인
-    window.debugCurrentData = async function() {
-      console.log('🔍 현재 저장된 데이터 확인');
-      const data = await loadSubs();
-      console.log('📊 총 데이터 건수:', data.length);
+    // CSV 파일 생성 가이드 함수 (디버깅용)
+    window.createSampleCSV = function() {
+      console.log('📄 샘플 CSV 파일 생성 가이드');
       
-      data.forEach((item, index) => {
-        console.log(`📋 데이터 ${index + 1}:`, {
-          no: item.no,
-          companyCode: item.companyCode,
-          companyName: item.companyName,
-          bizNo: item.bizNo,
-          contact: item.contact,
-          keywords: item.keywords,
-          totalCnt: item.totalCnt,
-          dailyCnt: item.dailyCnt,
-          accepted: item.accepted
-        });
-      });
+      const sampleData = [
+        ['번호', '제출시간', '업체코드', '업체명', '사업자번호', '카톡/번호', '제품URL', '구매키워드', '총진행건수', '일진행건수', '옵션계획', '제품배송', '입금대행', '택배대행', '작업비계산서', '상품금액계산서', '접수상태', '접수시간'],
+        ['1', '2025-10-26 01:45', 'WI01', '안뇽', '우', '어', 'https://nid.터', '39', '39', '투', 'Y', 'Y', 'N', 'N', 'N', 'N', ''],
+        ['2', '2025-10-26 01:48', 'CV31', '안녕1247', '아', '터', 'https://nid.o', '38', '28', 'ㄷ', 'Y', 'Y', 'N', 'N', 'N', 'N', '']
+      ];
       
-      // 신규요청건만 필터링
-      const newRequests = data.filter(r => !r.accepted);
-      console.log('🆕 신규요청건:', newRequests.length, '건');
-      newRequests.forEach((item, index) => {
-        console.log(`🆕 신규요청건 ${index + 1}:`, {
-          no: item.no,
-          companyCode: item.companyCode,
-          companyName: item.companyName,
-          bizNo: item.bizNo,
-          contact: item.contact,
-          keywords: item.keywords,
-          totalCnt: item.totalCnt,
-          dailyCnt: item.dailyCnt
-        });
-      });
+      const csvContent = sampleData.map(row => row.join(',')).join('\n');
+      
+      // UTF-8 BOM과 함께 CSV 파일 생성
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+      
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'sample_data_utf8.csv';
+      link.click();
+      
+      console.log('✅ 샘플 CSV 파일 다운로드 완료 (UTF-8 인코딩)');
+      console.log('💡 이 파일을 사용하여 테스트해보세요');
     };
       
       // Firebase 단계별 테스트
