@@ -2996,21 +2996,43 @@ ${r.optPlan}
       main.innerHTML = html;
 
       function buildWeeks(y,m){
+        console.log(`📅 주 생성 시작: ${y}년 ${m}월`);
+        
         const first = new Date(y, m-1, 1);
         const last = new Date(y, m, 0);
         const weeks=[];
-        // Align to Monday start, Sunday end. Base date (2025-10-01) affects only initial month availability, not weekday anchors.
+        
+        console.log(`📅 월 첫날: ${first.toISOString()}, 월 마지막날: ${last.toISOString()}`);
+        
+        // 월요일 시작으로 주 정렬
         let start = new Date(first);
-        const day = start.getDay(); // 0=Sun,1=Mon
-        const toMonday = (day + 6) % 7; // days to go back to Monday
+        const day = start.getDay(); // 0=Sun,1=Mon,...,6=Sat
+        const toMonday = (day + 6) % 7; // 일요일이면 6, 월요일이면 0, 화요일이면 1...
         start.setDate(start.getDate() - toMonday);
+        
+        console.log(`📅 첫 주 시작일 (월요일): ${start.toISOString()}`);
+        
         while(start <= last){
-          const end = new Date(start); end.setDate(end.getDate()+6);
-          const rangeStart = new Date(Math.max(start, first));
-          const rangeEnd = new Date(Math.min(end, last));
-          weeks.push({start:rangeStart, end:rangeEnd});
-          start.setDate(start.getDate()+7);
+          const end = new Date(start); 
+          end.setDate(end.getDate()+6); // 일요일까지
+          
+          // 월 범위 내에서만 유효한 주 생성
+          const rangeStart = new Date(Math.max(start.getTime(), first.getTime()));
+          const rangeEnd = new Date(Math.min(end.getTime(), last.getTime()));
+          
+          weeks.push({
+            start: rangeStart, 
+            end: rangeEnd,
+            originalStart: new Date(start),
+            originalEnd: new Date(end)
+          });
+          
+          console.log(`📅 주 생성: ${rangeStart.toISOString().split('T')[0]} ~ ${rangeEnd.toISOString().split('T')[0]} (원본: ${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]})`);
+          
+          start.setDate(start.getDate()+7); // 다음 주로
         }
+        
+        console.log(`📅 총 ${weeks.length}주 생성 완료`);
         return weeks;
       }
 
@@ -3099,14 +3121,14 @@ ${r.optPlan}
         const rows = await loadSubs();
         console.log('📊 전체 데이터 수:', rows.length);
         
-        // 더 정확한 날짜 파싱 (한국 시간대 고려)
-        const sDate = new Date(s + 'T00:00:00+09:00'); // 한국 시간대 명시
-        const eDate = new Date(e + 'T23:59:59+09:00'); // 한국 시간대 명시
+        // 날짜 파싱 - 더 정확한 방법
+        const sDate = new Date(s + 'T00:00:00');
+        const eDate = new Date(e + 'T23:59:59');
         
         console.log('📅 파싱된 시작 날짜:', sDate.toISOString());
         console.log('📅 파싱된 종료 날짜:', eDate.toISOString());
         
-        // 더 정확한 날짜 필터링
+        // 더 정확한 날짜 필터링 - 다중 검증 방식
         const fil = rows.filter(r => {
           if (!r.submittedAt) {
             console.log(`📅 데이터 ${r.no}: submittedAt이 없음`);
@@ -3117,13 +3139,32 @@ ${r.optPlan}
           
           console.log(`📅 데이터 ${r.no}: 원본 ${r.submittedAt} -> 파싱 ${submissionDate.toISOString()}`);
           
-          // 날짜만 비교 (시간 제외) - 더 정확한 비교
-          const submissionDateOnly = new Date(submissionDate.getFullYear(), submissionDate.getMonth(), submissionDate.getDate());
-          const startDateOnly = new Date(sDate.getFullYear(), sDate.getMonth(), sDate.getDate());
-          const endDateOnly = new Date(eDate.getFullYear(), eDate.getMonth(), eDate.getDate());
+          // 방법 1: UTC 기준 날짜 비교
+          const submissionDateUTC = new Date(submissionDate.getUTCFullYear(), submissionDate.getUTCMonth(), submissionDate.getUTCDate());
+          const startDateUTC = new Date(sDate.getUTCFullYear(), sDate.getUTCMonth(), sDate.getUTCDate());
+          const endDateUTC = new Date(eDate.getUTCFullYear(), eDate.getUTCMonth(), eDate.getUTCDate());
           
-          const isInRange = submissionDateOnly >= startDateOnly && submissionDateOnly <= endDateOnly;
-          console.log(`📅 데이터 ${r.no} 범위 포함 여부:`, isInRange, `(${submissionDateOnly.toISOString().split('T')[0]} >= ${startDateOnly.toISOString().split('T')[0]} && ${submissionDateOnly.toISOString().split('T')[0]} <= ${endDateOnly.toISOString().split('T')[0]})`);
+          // 방법 2: 로컬 시간 기준 날짜 비교
+          const submissionDateLocal = new Date(submissionDate.getFullYear(), submissionDate.getMonth(), submissionDate.getDate());
+          const startDateLocal = new Date(sDate.getFullYear(), sDate.getMonth(), sDate.getDate());
+          const endDateLocal = new Date(eDate.getFullYear(), eDate.getMonth(), eDate.getDate());
+          
+          // 방법 3: 문자열 비교 (YYYY-MM-DD 형식)
+          const submissionDateStr = submissionDate.toISOString().split('T')[0];
+          const startDateStr = sDate.toISOString().split('T')[0];
+          const endDateStr = eDate.toISOString().split('T')[0];
+          
+          const isInRangeUTC = submissionDateUTC >= startDateUTC && submissionDateUTC <= endDateUTC;
+          const isInRangeLocal = submissionDateLocal >= startDateLocal && submissionDateLocal <= endDateLocal;
+          const isInRangeStr = submissionDateStr >= startDateStr && submissionDateStr <= endDateStr;
+          
+          // 세 방법 모두 일치하는 경우만 포함
+          const isInRange = isInRangeUTC && isInRangeLocal && isInRangeStr;
+          
+          console.log(`📅 데이터 ${r.no} 범위 포함 여부:`, isInRange);
+          console.log(`📅 UTC 비교: ${submissionDateUTC.toISOString().split('T')[0]} >= ${startDateUTC.toISOString().split('T')[0]} && ${submissionDateUTC.toISOString().split('T')[0]} <= ${endDateUTC.toISOString().split('T')[0]} = ${isInRangeUTC}`);
+          console.log(`📅 Local 비교: ${submissionDateLocal.toISOString().split('T')[0]} >= ${startDateLocal.toISOString().split('T')[0]} && ${submissionDateLocal.toISOString().split('T')[0]} <= ${endDateLocal.toISOString().split('T')[0]} = ${isInRangeLocal}`);
+          console.log(`📅 String 비교: ${submissionDateStr} >= ${startDateStr} && ${submissionDateStr} <= ${endDateStr} = ${isInRangeStr}`);
           
           return isInRange;
         });
@@ -3233,6 +3274,10 @@ ${r.optPlan}
             try {
               // Update month options based on selected year
               const selectedYear = parseInt(yearSelect.value);
+              console.log(`📅 선택된 년도: ${selectedYear}`);
+              
+              // 현재 데이터에서 해당 년도의 월들 추출
+              const rows = await loadSubs();
               const yearMonthArray = Array.from(new Set(rows.map(row => {
                 const submissionDate = new Date(row.submittedAt);
                 const year = submissionDate.getFullYear();
@@ -3240,10 +3285,14 @@ ${r.optPlan}
                 return `${year}-${String(month).padStart(2, '0')}`;
               }))).sort().reverse();
               
+              console.log('📅 전체 년월 데이터:', yearMonthArray);
+              
               const monthsForYear = yearMonthArray
                 .filter(yearMonth => yearMonth.startsWith(selectedYear))
                 .map(yearMonth => parseInt(yearMonth.split('-')[1]))
                 .sort((a, b) => b - a);
+              
+              console.log(`📅 ${selectedYear}년의 월들:`, monthsForYear);
               
               const monthSelect = document.getElementById('wlMonth');
               if (monthSelect) {
@@ -3261,8 +3310,11 @@ ${r.optPlan}
                   monthOptions += `<option value="${String(month).padStart(2,'0')}" ${isSelected}>${month}월</option>`;
                 });
                 monthSelect.innerHTML = monthOptions;
+                
+                console.log('📅 월 옵션 업데이트 완료:', monthOptions);
               }
               
+              // 주 목록 새로고침 및 데이터 업데이트
               await refreshWeeks();
               console.log('✅ 주별 정산 - 년도 변경 처리 완료');
             } catch (error) {
@@ -3283,6 +3335,10 @@ ${r.optPlan}
             console.log('🔄 주별 정산 - 월 변경 감지, 로딩 시작');
             showLoading();
             try {
+              const selectedMonth = monthSelect.value;
+              console.log(`📅 선택된 월: ${selectedMonth}`);
+              
+              // 주 목록 새로고침 및 데이터 업데이트
               await refreshWeeks();
               console.log('✅ 주별 정산 - 월 변경 처리 완료');
             } catch (error) {
@@ -3303,6 +3359,10 @@ ${r.optPlan}
             console.log('🔄 주별 정산 - 주 변경 감지, 로딩 시작');
             showLoading();
             try {
+              const selectedWeek = weekSelect.value;
+              console.log(`📅 선택된 주: ${selectedWeek}`);
+              
+              // 데이터 업데이트
               await updateWeekly();
               console.log('✅ 주별 정산 - 주 변경 처리 완료');
             } catch (error) {
