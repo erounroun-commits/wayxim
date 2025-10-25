@@ -2734,9 +2734,9 @@ ${r.optPlan}
         const monthNum = parseInt(month);
         
         // 현재 날짜와 비교하여 기본 선택
-        const currentDate = new Date();
-        const currentYear = currentDate.getFullYear();
-        const currentMonth = currentDate.getMonth() + 1;
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
         const isCurrentMonth = (parseInt(year) === currentYear && monthNum === currentMonth);
         
         if (isCurrentMonth) {
@@ -2944,6 +2944,7 @@ ${r.optPlan}
         <select id="wlYear" class="select" style="width:120px;">${yearOptions}</select>
         <select id="wlMonth" class="select" style="width:120px;">${monthOptions}</select>
         <select id="wlWeek" class="select" style="width:200px;"></select>
+        <button id="wlSearchBtn" class="btn" style="background:var(--brand);color:white;padding:8px 16px;border:none;border-radius:4px;cursor:pointer;">조회하기</button>
       </div>`;
       html += `<div id="wlSummary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px;">
         <div class="stat-box"><div class="stat-title">요청 VENDOR 수</div><div class="stat-value" id="wVendorCount">0</div></div>
@@ -2986,7 +2987,7 @@ ${r.optPlan}
       function pad2(n){ return String(n).padStart(2,'0'); }
       function fmt(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 
-      function refreshWeeks(){
+      async function refreshWeeks(){
         const y = parseInt(document.getElementById('wlYear').value,10);
         const m = parseInt(document.getElementById('wlMonth').value,10);
         const weeks = buildWeeks(y,m);
@@ -2998,15 +2999,20 @@ ${r.optPlan}
         const today = new Date();
         const currentYear = today.getFullYear();
         const currentMonth = today.getMonth() + 1;
+        const currentDate = today.getDate();
         let selectedIndex = 0;
         
-        console.log(`📅 현재 날짜: ${currentYear}년 ${currentMonth}월 ${today.getDate()}일`);
+        console.log(`📅 현재 날짜: ${currentYear}년 ${currentMonth}월 ${currentDate}일`);
         console.log(`📅 선택된 기간: ${y}년 ${m}월`);
         
+        // 현재 년월인 경우 현재 날짜가 포함된 주 찾기
         if (y === currentYear && m === currentMonth) {
-          // 현재 월인 경우 현재 날짜가 포함된 주 찾기
+          console.log('📅 현재 년월이므로 현재 주 찾기 시작');
           for (let i = 0; i < weeks.length; i++) {
             const week = weeks[i];
+            console.log(`📅 주 ${i}: ${fmt(week.start)} ~ ${fmt(week.end)}`);
+            
+            // 현재 날짜가 이 주에 포함되는지 확인
             if (today >= week.start && today <= week.end) {
               selectedIndex = i;
               console.log(`📅 현재 주 선택: ${i}번째 주 (${fmt(week.start)} ~ ${fmt(week.end)})`);
@@ -3014,19 +3020,23 @@ ${r.optPlan}
             }
           }
         } else {
-          console.log(`📅 현재 월이 아니므로 첫 번째 주 선택`);
+          console.log(`📅 현재 년월이 아니므로 첫 번째 주 선택`);
         }
         
         sel.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmt(w.start)} ~ ${fmt(w.end)}</option>`).join('');
-        updateWeekly();
+        await updateWeekly();
       }
 
-      function updateWeekly(){
+      async function updateWeekly(){
         const val = document.getElementById('wlWeek').value;
         const [s,e] = val.split('|');
         
         console.log('🔍 주별 정산 - 날짜 필터링 시작');
         console.log('📅 선택된 주 범위:', s, '~', e);
+        
+        // rows 데이터를 다시 가져오기
+        const rows = await loadSubs();
+        console.log('📊 전체 데이터 수:', rows.length);
         
         // 한국 시간대를 고려한 날짜 파싱
         const sDate = new Date(s + 'T00:00:00+09:00'); // 한국 시간대 명시
@@ -3117,6 +3127,7 @@ ${r.optPlan}
         const monthSelect = document.getElementById('wlMonth');
         const weekSelect = document.getElementById('wlWeek');
         const excelBtn = document.getElementById('wExcel');
+        const searchBtn = document.getElementById('wlSearchBtn');
         
         if (yearSelect) {
           console.log('🔗 주별 정산 - 년도 이벤트 리스너 바인딩 시도');
@@ -3223,8 +3234,28 @@ ${r.optPlan}
           });
           console.log('주별 정산 - 엑셀 다운로드 이벤트 리스너 바인딩 완료');
         }
+        
+        if (searchBtn) {
+          console.log('🔗 주별 정산 - 조회하기 버튼 이벤트 리스너 바인딩 시도');
+          searchBtn.addEventListener('click', async () => {
+            console.log('🔄 주별 정산 - 조회하기 버튼 클릭, 로딩 시작');
+            showLoading();
+            try {
+              await updateWeekly();
+              console.log('✅ 주별 정산 - 조회하기 처리 완료');
+            } catch (error) {
+              console.error('❌ 주별 정산 - 조회하기 처리 오류:', error);
+            } finally {
+              hideLoading();
+              console.log('✅ 주별 정산 - 로딩 완료');
+            }
+          });
+          console.log('✅ 주별 정산 - 조회하기 버튼 이벤트 리스너 바인딩 완료');
+        } else {
+          console.error('❌ 주별 정산 - searchBtn 요소를 찾을 수 없음');
+        }
       }, 100);
-      refreshWeeks();
+      await refreshWeeks();
       } finally {
         hideLoading();
       }
