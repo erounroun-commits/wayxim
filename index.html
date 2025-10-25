@@ -1033,9 +1033,19 @@
         console.error('❌ 알림 버튼을 찾을 수 없음');
       }
       
-      // 기존 알림 모두 제거
+      // 기존 알림 모두 제거 (강화)
       if (window.clearAllExistingNotifications) {
         window.clearAllExistingNotifications();
+      }
+      
+      // 추가 알림 초기화 (완전 삭제)
+      if (window.clearAllNotificationCache) {
+        window.clearAllNotificationCache();
+      }
+      
+      // 알림 UI 강제 업데이트
+      if (window.updateNotificationUI) {
+        window.updateNotificationUI();
       }
       
       // 실시간 리스너 재설정 (관리자 로그인 시)
@@ -3731,6 +3741,12 @@ ${r.optPlan}
       }
     });
 
+    // 페이지 로드 시 알림 초기화 (테스트 알림 방지)
+    if (window.clearAllNotificationCache) {
+      console.log('🔄 페이지 로드 - 알림 캐시 초기화');
+      window.clearAllNotificationCache();
+    }
+    
     if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); }
   </script>
 
@@ -4009,11 +4025,17 @@ ${r.optPlan}
       const popup = document.getElementById('notificationPopup');
       const list = document.getElementById('notificationList');
       
-      if (notifications.length === 0) {
-        list.innerHTML = '<div class="notification-empty">알림이 없습니다.</div>';
+      // 읽지 않은 알림만 필터링
+      const unreadNotifications = notifications.filter(n => !n.read);
+      
+      console.log('📊 전체 알림 수:', notifications.length);
+      console.log('📊 읽지 않은 알림 수:', unreadNotifications.length);
+      
+      if (unreadNotifications.length === 0) {
+        list.innerHTML = '<div class="notification-empty">읽지 않은 알림이 없습니다.</div>';
       } else {
-        list.innerHTML = notifications.map(notification => `
-          <div class="notification-item ${notification.read ? 'read' : 'unread'}" onclick="markAsRead(${notification.id})">
+        list.innerHTML = unreadNotifications.map(notification => `
+          <div class="notification-item unread" onclick="markAsRead(${notification.id})">
             <div class="notification-title">${notification.title}</div>
             <div class="notification-content">${notification.content}</div>
             <div class="notification-time">${formatDateTime(notification.timestamp)}</div>
@@ -4154,6 +4176,16 @@ ${r.optPlan}
     window.clearSubmissionCache = function() {
       localStorage.removeItem("wp_submissions");
       console.log('🗑️ wp_submissions 캐시 초기화 완료');
+    };
+    
+    // 모든 알림 초기화 함수 (디버깅용)
+    window.clearAllNotificationCache = function() {
+      localStorage.removeItem("wp_notifications");
+      localStorage.removeItem("wp_notification_id");
+      notifications = [];
+      notificationId = 0;
+      console.log('🗑️ 모든 알림 캐시 초기화 완료');
+      updateNotificationUI();
     };
       
       // Firebase 단계별 테스트
