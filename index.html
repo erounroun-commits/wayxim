@@ -1426,28 +1426,43 @@
     }
     
     async function saveSubs(arr){ 
+      console.log('💾 saveSubs 함수 시작, 데이터 수:', arr.length);
+      
       try {
         if (!window.db) {
           console.warn('Firebase not initialized, saving to localStorage only');
           localStorage.setItem("wp_submissions", JSON.stringify(arr));
+          console.log('✅ localStorage에 저장 완료');
           return;
         }
+        
+        console.log('🔥 Firebase에 데이터 저장 시작');
         
         // 기존 데이터 삭제 후 새로 저장
         const submissionsRef = collection(db, 'submissions');
         const snapshot = await getDocs(submissionsRef);
+        console.log('🗑️ 기존 데이터 삭제, 건수:', snapshot.docs.length);
+        
         const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
         await Promise.all(deletePromises);
+        console.log('✅ 기존 데이터 삭제 완료');
         
         // 새 데이터 저장
+        console.log('📝 새 데이터 저장 시작, 건수:', arr.length);
         const addPromises = arr.map(submission => addDoc(submissionsRef, submission));
         await Promise.all(addPromises);
+        console.log('✅ 새 데이터 저장 완료');
         
         // localStorage에도 백업 저장
         localStorage.setItem("wp_submissions", JSON.stringify(arr));
+        console.log('✅ localStorage 백업 저장 완료');
+        
+        console.log('🎉 saveSubs 함수 완료');
       } catch(e) {
-        console.error('Error saving submissions to Firebase, saving to localStorage:', e);
+        console.error('❌ Firebase 저장 오류:', e);
+        console.log('💾 localStorage에 저장 시도');
         localStorage.setItem("wp_submissions", JSON.stringify(arr));
+        console.log('✅ localStorage 저장 완료');
       }
     }
     
@@ -3485,9 +3500,19 @@ ${r.optPlan}
           if(rec){ Object.assign(rec, newRec); updated++; }
           else { rows.unshift(newRec); updated++; }
         });
-        saveSubs(rows);
+        
+        console.log('💾 데이터 저장 시작, 총 건수:', rows.length);
+        await saveSubs(rows);
+        console.log('✅ 데이터 저장 완료');
+        
+        // 저장 후 검증
+        const savedData = await loadSubs();
+        console.log('🔍 저장 후 데이터 검증, 건수:', savedData.length);
+        
         alert(`${updated}건이 업데이트 되었습니다`);
-        showDataManagement();
+        
+        console.log('🔄 데이터 관리 화면 새로고침');
+        await showDataManagement();
       }
     });
 
