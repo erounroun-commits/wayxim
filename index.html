@@ -1642,15 +1642,16 @@
         window.wp_data_cache_cleared = false;
       }
       
-      try {
-        const firebaseReady = await waitForFirebase();
-        if (!firebaseReady || !window.db) {
-          console.warn('Firebase not ready, falling back to localStorage');
-          const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-          console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
-          return localData;
-        }
-        
+      // Firebase 연결 상태 확인
+      if (!checkFirebaseConnection()) {
+        console.warn('Firebase 연결 불가, localStorage에서 데이터 로드');
+        const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
+        console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
+        return localData;
+      }
+      
+      // 안전한 Firebase 데이터 로드
+      const result = await safeFirebaseOperation(async () => {
         console.log('🔥 Firebase에서 최신 데이터 가져오기 시작');
         
         const submissionsRef = collection(db, 'submissions');
@@ -1670,25 +1671,32 @@
         console.log('✅ localStorage 백업 저장 완료');
         
         return submissions;
-      } catch(e){ 
-        console.error('❌ Firebase 데이터 로드 오류:', e);
+      }, '데이터 로드');
+      
+      if (result) {
+        return result;
+      } else {
+        // Firebase 로드 실패 시 localStorage에서 데이터 반환
+        console.warn('Firebase 로드 실패, localStorage에서 데이터 반환');
         const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
         console.log('📊 localStorage 데이터 반환 (오류 시), 건수:', localData.length);
-        return localData; 
+        return localData;
       }
     }
     
     async function saveSubs(arr){ 
       console.log('💾 saveSubs 함수 시작, 데이터 수:', arr.length);
       
-      try {
-        if (!window.db) {
-          console.warn('Firebase not initialized, saving to localStorage only');
-          localStorage.setItem("wp_submissions", JSON.stringify(arr));
-          console.log('✅ localStorage에 저장 완료');
-          return;
-        }
-        
+      // Firebase 연결 상태 확인
+      if (!checkFirebaseConnection()) {
+        console.warn('Firebase 연결 불가, localStorage에만 저장');
+        localStorage.setItem("wp_submissions", JSON.stringify(arr));
+        console.log('✅ localStorage에 저장 완료');
+        return;
+      }
+      
+      // 안전한 Firebase 저장 작업
+      const result = await safeFirebaseOperation(async () => {
         console.log('🔥 Firebase에 데이터 저장 시작');
         
         // 기존 데이터 삭제 후 새로 저장
@@ -1706,14 +1714,17 @@
         await Promise.all(addPromises);
         console.log('✅ 새 데이터 저장 완료');
         
+        return true;
+      }, '데이터 저장');
+      
+      if (result) {
         // localStorage에도 백업 저장
         localStorage.setItem("wp_submissions", JSON.stringify(arr));
         console.log('✅ localStorage 백업 저장 완료');
-        
         console.log('🎉 saveSubs 함수 완료');
-      } catch(e) {
-        console.error('❌ Firebase 저장 오류:', e);
-        console.log('💾 localStorage에 저장 시도');
+      } else {
+        // Firebase 저장 실패 시 localStorage에만 저장
+        console.warn('Firebase 저장 실패, localStorage에만 저장');
         localStorage.setItem("wp_submissions", JSON.stringify(arr));
         console.log('✅ localStorage 저장 완료');
       }
@@ -2007,10 +2018,8 @@ ${r.optPlan}
               return;
             }
             
-            // Firebase 업데이트
-            const firebaseReady = await waitForFirebase();
-            if (firebaseReady && window.db) {
-              // 개별 업데이트로 변경 (writeBatch 대신)
+            // Firebase 업데이트 (안전한 버전)
+            if (checkFirebaseConnection()) {
               const currentTime = Date.now();
               
               let successCount = 0;
@@ -2018,21 +2027,24 @@ ${r.optPlan}
               const failedRequests = [];
               
               for (const request of newRequests) {
-                try {
+                const result = await safeFirebaseOperation(async () => {
                   const docRef = doc(window.db, 'submissions', request.id);
                   await updateDoc(docRef, {
                     accepted: true,
                     acceptedAt: currentTime
                   });
+                  return true;
+                }, `요청건 ${request.no} 접수처리`);
+                
+                if (result) {
                   console.log(`📝 요청건 ${request.no} 접수처리 성공:`, request.companyName);
                   successCount++;
-                } catch (error) {
-                  console.error(`❌ 요청건 ${request.no} 접수처리 실패:`, error);
+                } else {
                   failCount++;
                   failedRequests.push({
                     no: request.no,
                     companyName: request.companyName,
-                    error: error.message
+                    error: 'Firebase 업데이트 실패'
                   });
                 }
               }
@@ -5275,124 +5287,274 @@ ${r.optPlan}
     const db = getFirestore(app);
     // const analytics = getAnalytics(app); // 임시로 비활성화
     
-    // 실시간 리스너 설정 (조건부 비활성화)
+    // 실시간 리스너 설정 (안전한 관리)
     let realtimeUnsubscribe = null;
     let isFirstLoad = true;
     let lastProcessedSubmissionId = null;
     let isRealtimeListenerDisabled = false; // 실시간 리스너 활성화
+    let isListenerActive = false; // 리스너 중복 방지
+    let firebaseErrorCount = 0; // Firebase 오류 카운터
+    const MAX_FIREBASE_ERRORS = 5; // 최대 허용 오류 수
     
     function setupRealtimeListener() {
-      // 실시간 리스너 비활성화 플래그 확인
-      if (isRealtimeListenerDisabled) {
-        console.log('🚫 실시간 리스너 비활성화됨 (중복 방지)');
+      // 리스너 중복 방지 강화
+      if (isListenerActive) {
+        console.log('🚫 실시간 리스너 이미 활성화됨 (중복 방지)');
         return;
       }
       
-      if (!window.db) return;
+      // 실시간 리스너 비활성화 플래그 확인
+      if (isRealtimeListenerDisabled) {
+        console.log('🚫 실시간 리스너 비활성화됨 (설정에 의해)');
+        return;
+      }
+      
+      // Firebase 오류가 너무 많으면 리스너 비활성화
+      if (firebaseErrorCount >= MAX_FIREBASE_ERRORS) {
+        console.error('🚨 Firebase 오류가 너무 많아 실시간 리스너 비활성화');
+        return;
+      }
+      
+      if (!window.db) {
+        console.error('❌ Firebase DB가 초기화되지 않음');
+        return;
+      }
       
       try {
+        isListenerActive = true; // 리스너 활성화 표시
+        console.log('🔄 실시간 리스너 설정 시작...');
+        
         const submissionsRef = collection(db, 'submissions');
         const q = query(submissionsRef, orderBy('submittedAt', 'desc'));
         
         realtimeUnsubscribe = onSnapshot(q, async (snapshot) => {
-          console.log('📡 실시간 데이터 업데이트:', snapshot.docs.length, '건');
-          
-          // 실시간 리스너 비활성화 플래그 재확인
-          if (isRealtimeListenerDisabled) {
-            console.log('🚫 실시간 리스너 실행 중 비활성화됨');
-            return;
-          }
-          
-          const allSubmissions = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          
-          // 첫 로드인 경우
-          if (isFirstLoad) {
-            console.log('🔄 첫 로드 - 초기 데이터 설정');
-            if (allSubmissions.length > 0) {
-              lastProcessedSubmissionId = allSubmissions[0].id;
-              console.log('📊 마지막 처리 ID 설정:', lastProcessedSubmissionId);
+          try {
+            console.log('📡 실시간 데이터 업데이트:', snapshot.docs.length, '건');
+            
+            // 실시간 리스너 비활성화 플래그 재확인
+            if (isRealtimeListenerDisabled) {
+              console.log('🚫 실시간 리스너 실행 중 비활성화됨');
+              return;
             }
+            
+            const allSubmissions = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            
+            // 첫 로드인 경우
+            if (isFirstLoad) {
+              console.log('🔄 첫 로드 - 초기 데이터 설정');
+              if (allSubmissions.length > 0) {
+                lastProcessedSubmissionId = allSubmissions[0].id;
+                console.log('📊 마지막 처리 ID 설정:', lastProcessedSubmissionId);
+              }
+              localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
+              isFirstLoad = false;
+              console.log('📝 초기 데이터 저장 완료, 알림 생성 안함');
+              return;
+            }
+            
+            // 실시간 리스너에서 신규 요청건 감지 및 알림 생성
+            const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
+            
+            // 정확한 신규 요청건 찾기 (이전 데이터와 비교)
+            const newRequests = allSubmissions.filter(newSub => 
+              !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+            );
+            
+            console.log('🆕 신규 요청건 개수:', newRequests.length);
+            console.log('📊 이전 데이터 개수:', previousSubmissions.length);
+            console.log('📊 현재 데이터 개수:', allSubmissions.length);
+            console.log('👨‍💼 관리자 상태:', sessionStorage.getItem("wp_is_admin"));
+            
+            // localStorage 업데이트
             localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
-            isFirstLoad = false;
-            console.log('📝 초기 데이터 저장 완료, 알림 생성 안함');
-            return;
-          }
-          
-          // 실시간 리스너에서 신규 요청건 감지 및 알림 생성
-          const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
-          
-          // 정확한 신규 요청건 찾기 (이전 데이터와 비교)
-          const newRequests = allSubmissions.filter(newSub => 
-            !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
-          );
-          
-          console.log('🆕 신규 요청건 개수:', newRequests.length);
-          console.log('📊 이전 데이터 개수:', previousSubmissions.length);
-          console.log('📊 현재 데이터 개수:', allSubmissions.length);
-          console.log('👨‍💼 관리자 상태:', sessionStorage.getItem("wp_is_admin"));
-          
-          // localStorage 업데이트
-          localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
-          
-          // 관리자 화면에서만 푸시 알림 표시 (정말 신규인 경우만)
-          if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
-            console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
             
-            // 가장 최신 신규 요청건 찾기 (submittedAt 기준)
-            const latestNewRequest = newRequests.reduce((latest, current) => {
-              return current.submittedAt > latest.submittedAt ? current : latest;
-            });
-            
-            if (latestNewRequest) {
-              // 중복 알림 방지: 이미 같은 ID로 알림이 있는지 확인
-              const existingNotification = notifications.find(n => 
-                n.content.includes(latestNewRequest.id) || 
-                (n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000) // 5초 이내 동일 시간
-              );
+            // 관리자 화면에서만 푸시 알림 표시 (정말 신규인 경우만)
+            if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
+              console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
               
-              if (existingNotification) {
-                console.log('🚫 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id);
-                return;
+              // 가장 최신 신규 요청건 찾기 (submittedAt 기준)
+              const latestNewRequest = newRequests.reduce((latest, current) => {
+                return current.submittedAt > latest.submittedAt ? current : latest;
+              });
+              
+              if (latestNewRequest) {
+                // 중복 알림 방지: 이미 같은 ID로 알림이 있는지 확인
+                const existingNotification = notifications.find(n => 
+                  n.content.includes(latestNewRequest.id) || 
+                  (n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000) // 5초 이내 동일 시간
+                );
+                
+                if (existingNotification) {
+                  console.log('🚫 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id);
+                  return;
+                }
+                
+                const notificationTitle = '신규 작업요청건이 있습니다';
+                const notificationContent = '신규 작업요청서가 접수되었습니다';
+                
+                console.log('📝 실시간 리스너 알림 내용:', notificationContent);
+                console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
+                
+                // 푸시 알림 표시
+                showPushNotification(notificationTitle, notificationContent);
+                
+                // 상단 알림 아이콘에도 알림 추가 (실제 제출 시간 사용)
+                if (window.addNotification) {
+                  window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
+                  console.log('📝 실시간 리스너 상단 알림 아이콘에 알림 추가 완료');
+                }
+                
+                // 마지막 처리 ID 업데이트 (가장 최신 ID로)
+                lastProcessedSubmissionId = latestNewRequest.id;
+                console.log('🔔 실시간 리스너 푸시 알림 표시 완료, 마지막 처리 ID:', lastProcessedSubmissionId);
               }
-              
-              const notificationTitle = '신규 작업요청건이 있습니다';
-              const notificationContent = '신규 작업요청서가 접수되었습니다';
-              
-              console.log('📝 실시간 리스너 알림 내용:', notificationContent);
-              console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
-              
-              // 푸시 알림 표시
-              showPushNotification(notificationTitle, notificationContent);
-              
-              // 상단 알림 아이콘에도 알림 추가 (실제 제출 시간 사용)
-              if (window.addNotification) {
-                window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
-                console.log('📝 실시간 리스너 상단 알림 아이콘에 알림 추가 완료');
-              }
-              
-              // 마지막 처리 ID 업데이트 (가장 최신 ID로)
-              lastProcessedSubmissionId = latestNewRequest.id;
-              console.log('🔔 실시간 리스너 푸시 알림 표시 완료, 마지막 처리 ID:', lastProcessedSubmissionId);
+            } else if (newRequests.length > 0) {
+              console.log('🚫 관리자 화면이 아님 - 실시간 리스너 알림 표시 안함');
+            } else {
+              console.log('📝 신규 요청건 없음 - 알림 표시 안함');
             }
-          } else if (newRequests.length > 0) {
-            console.log('🚫 관리자 화면이 아님 - 실시간 리스너 알림 표시 안함');
-          } else {
-            console.log('📝 신규 요청건 없음 - 알림 표시 안함');
+            
+            // 오류 카운터 리셋 (성공적인 처리)
+            firebaseErrorCount = 0;
+            
+          } catch (error) {
+            console.error('❌ 실시간 리스너 데이터 처리 오류:', error);
+            firebaseErrorCount++;
+            
+            if (firebaseErrorCount >= MAX_FIREBASE_ERRORS) {
+              console.error('🚨 Firebase 오류가 너무 많아 실시간 리스너 비활성화');
+              disableRealtimeListener();
+            }
+          }
+        }, (error) => {
+          console.error('❌ 실시간 리스너 연결 오류:', error);
+          firebaseErrorCount++;
+          
+          if (firebaseErrorCount >= MAX_FIREBASE_ERRORS) {
+            console.error('🚨 Firebase 연결 오류가 너무 많아 실시간 리스너 비활성화');
+            disableRealtimeListener();
           }
         });
         
         console.log('✅ 실시간 리스너 설정 완료 (활성화 상태)');
       } catch (error) {
         console.error('❌ 실시간 리스너 설정 실패:', error);
+        firebaseErrorCount++;
+        isListenerActive = false; // 실패 시 리스너 비활성화
       }
     }
-      // 전역 변수로 db 접근 가능하게 설정
-      window.db = db;
-      window.collection = collection;
-      window.doc = doc;
+    
+    // 안전한 Firebase 작업을 위한 헬퍼 함수들
+    async function safeFirebaseOperation(operation, operationName = 'Firebase 작업') {
+      try {
+        const result = await operation();
+        firebaseErrorCount = 0; // 성공 시 오류 카운터 리셋
+        return result;
+      } catch (error) {
+        console.error(`❌ ${operationName} 실패:`, error);
+        firebaseErrorCount++;
+        
+        // 사용자 친화적 오류 메시지
+        let userMessage = '서비스 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요.';
+        
+        if (error.code === 'permission-denied') {
+          userMessage = '접근 권한이 없습니다. 관리자에게 문의하세요.';
+        } else if (error.code === 'not-found') {
+          userMessage = '요청한 데이터를 찾을 수 없습니다.';
+        } else if (error.code === 'unavailable') {
+          userMessage = '서비스가 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.';
+        } else if (error.code === 'resource-exhausted') {
+          userMessage = '서비스 사용량이 초과되었습니다. 잠시 후 다시 시도해주세요.';
+        }
+        
+        // 오류가 너무 많으면 실시간 리스너 비활성화
+        if (firebaseErrorCount >= MAX_FIREBASE_ERRORS) {
+          console.error('🚨 Firebase 오류가 너무 많아 실시간 리스너 비활성화');
+          disableRealtimeListener();
+          userMessage = '연결 문제가 지속되고 있습니다. 페이지를 새로고침해주세요.';
+        }
+        
+        // 사용자에게 오류 알림 (관리자만)
+        if (sessionStorage.getItem("wp_is_admin") === "1") {
+          showPushNotification('오류 발생', userMessage);
+        }
+        
+        return null;
+      }
+    }
+    
+    // Firebase 연결 상태 확인 함수
+    function checkFirebaseConnection() {
+      if (!window.db) {
+        console.error('❌ Firebase DB가 초기화되지 않음');
+        return false;
+      }
+      
+      if (firebaseErrorCount >= MAX_FIREBASE_ERRORS) {
+        console.error('❌ Firebase 오류가 너무 많음');
+        return false;
+      }
+      
+      return true;
+    }
+    
+    // 실시간 리스너 안전하게 비활성화
+    function disableRealtimeListener() {
+      if (realtimeUnsubscribe) {
+        realtimeUnsubscribe();
+        realtimeUnsubscribe = null;
+        console.log('🚫 실시간 리스너 비활성화');
+      }
+      isListenerActive = false;
+      isRealtimeListenerDisabled = true;
+    }
+    
+    // 페이지 언로드 시 리소스 정리
+    window.addEventListener('beforeunload', () => {
+      console.log('🔄 페이지 언로드 - 리소스 정리 시작');
+      
+      // 실시간 리스너 정리
+      if (realtimeUnsubscribe) {
+        realtimeUnsubscribe();
+        realtimeUnsubscribe = null;
+        console.log('✅ 실시간 리스너 정리 완료');
+      }
+      
+      // 이벤트 리스너 정리
+      isListenerActive = false;
+      isRealtimeListenerDisabled = true;
+      
+      console.log('✅ 리소스 정리 완료');
+    });
+    
+    // 메모리 사용량 모니터링 (개발용)
+    function logMemoryUsage() {
+      if (performance.memory) {
+        const memory = performance.memory;
+        console.log('📊 메모리 사용량:', {
+          used: Math.round(memory.usedJSHeapSize / 1024 / 1024) + 'MB',
+          total: Math.round(memory.totalJSHeapSize / 1024 / 1024) + 'MB',
+          limit: Math.round(memory.jsHeapSizeLimit / 1024 / 1024) + 'MB'
+        });
+      }
+    }
+    
+    // 주기적 메모리 사용량 체크 (5분마다)
+    setInterval(logMemoryUsage, 5 * 60 * 1000);
+    
+    // 전역 함수로 등록
+    window.logMemoryUsage = logMemoryUsage;
+    
+    // 전역 변수로 db 접근 가능하게 설정
+    window.db = db;
+    window.collection = collection;
+    window.doc = doc;
+    window.safeFirebaseOperation = safeFirebaseOperation;
+    window.checkFirebaseConnection = checkFirebaseConnection;
+    window.disableRealtimeListener = disableRealtimeListener;
     
     // Firebase 초기화 후 실시간 리스너 설정 (활성화)
     if (window.db) {
