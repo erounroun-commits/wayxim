@@ -258,7 +258,7 @@
 .vendor-chart-container { height: 300px; position: relative; background: #f8f9fa; border-radius: 8px; padding: 16px; }
 
 /* Vendor list page */
-.vendor-list-table-scroll { max-height: 400px; overflow-y: auto; }
+.vendor-list-table-scroll { overflow-y: auto; }
 
 @media (max-width: 960px){
   .admin-table th, .admin-table td { font-size: 13px; }
@@ -2749,7 +2749,7 @@ ${r.optPlan}
       </div>`;
       
       // Table
-      html += `<div class="scroll-x" style="max-height:400px;overflow-y:auto;">
+      html += `<div class="scroll-x" style="overflow-y:auto;">
         <table class="admin-table" id="monthlyTable">
           <thead>
             <tr>
@@ -2831,7 +2831,7 @@ ${r.optPlan}
         <div class="stat-box"><div class="stat-title">정산액 (제휴 수수료)</div><div class="stat-value" id="wAmount">0원</div></div>
       </div>`;
       html += `<div style="margin-bottom:8px;"><button class="btn ghost" id="wExcel" type="button">엑셀 다운로드</button></div>`;
-      html += `<div class="scroll-x" style="max-height:400px;overflow-y:auto;">
+      html += `<div class="scroll-x" style="overflow-y:auto;">
         <table class="admin-table" id="wTable">
           <thead><tr>
             <th>NO</th><th>제출시간</th><th>업체코드</th><th>VENDOR 유형</th><th>업체명</th><th>사업자번호</th>
@@ -3381,8 +3381,8 @@ ${r.optPlan}
       
       // Recent data table
       html += `<div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
-        <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">최근 데이터 (최대 10개)</h3>
-        <div class="scroll-x" style="max-height:400px;overflow-y:auto;">
+        <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">전체 데이터</h3>
+        <div class="scroll-x" style="overflow-y:auto;">
           <table class="admin-table">
             <thead>
               <tr>
@@ -3398,7 +3398,7 @@ ${r.optPlan}
             </thead>
             <tbody>`;
       
-      const recentData = rows.slice(0, 10);
+      const recentData = rows;
       if(recentData.length === 0){
         html += '<tr><td colspan="7" style="text-align:center;color:#6a7a89">데이터가 없습니다.</td></tr>';
       } else {
