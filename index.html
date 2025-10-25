@@ -72,12 +72,19 @@
       width: 100vw !important;
       height: 100vh !important;
       background: rgba(0, 0, 0, 0.5) !important;
-      display: flex !important;
       align-items: center !important;
       justify-content: center !important;
       z-index: 99999 !important;
       margin: 0 !important;
       padding: 0 !important;
+    }
+    
+    .loading-popup.show {
+      display: flex !important;
+    }
+    
+    .loading-popup.hide {
+      display: none !important;
     }
     
     .loading-content {
@@ -647,7 +654,7 @@
   </div>
 
   <!-- 로딩 팝업 -->
-  <div id="loadingPopup" class="loading-popup" style="display: none;">
+  <div id="loadingPopup" class="loading-popup hide">
     <div class="loading-content">
       <div class="loading-spinner"></div>
       <div class="loading-text">로딩중입니다</div>
@@ -818,15 +825,16 @@
       const loadingPopup = document.getElementById('loadingPopup');
       if (loadingPopup) {
         console.log('🔄 로딩 팝업 표시');
-        loadingPopup.style.display = 'flex';
-        // 강제로 중앙 정렬 확인
-        loadingPopup.style.position = 'fixed';
-        loadingPopup.style.top = '0';
-        loadingPopup.style.left = '0';
-        loadingPopup.style.width = '100vw';
-        loadingPopup.style.height = '100vh';
-        loadingPopup.style.zIndex = '99999';
+        
+        // CSS 클래스로 제어
+        loadingPopup.classList.remove('hide');
+        loadingPopup.classList.add('show');
+        
         console.log('✅ 로딩 팝업 표시 완료');
+        console.log('🔍 로딩 팝업 상태 확인:', {
+          classList: loadingPopup.classList.toString(),
+          computedDisplay: window.getComputedStyle(loadingPopup).display
+        });
       } else {
         console.error('❌ 로딩 팝업 요소를 찾을 수 없음');
       }
@@ -836,8 +844,16 @@
       const loadingPopup = document.getElementById('loadingPopup');
       if (loadingPopup) {
         console.log('✅ 로딩 팝업 숨김 시작');
-        loadingPopup.style.display = 'none';
+        
+        // CSS 클래스로 제어
+        loadingPopup.classList.remove('show');
+        loadingPopup.classList.add('hide');
+        
         console.log('✅ 로딩 팝업 숨김 완료');
+        console.log('🔍 로딩 팝업 상태 확인:', {
+          classList: loadingPopup.classList.toString(),
+          computedDisplay: window.getComputedStyle(loadingPopup).display
+        });
       } else {
         console.error('❌ 로딩 팝업 요소를 찾을 수 없음');
       }
@@ -4887,6 +4903,38 @@ ${r.optPlan}
       window.wp_data_cache_cleared = true;
       console.log('🔄 데이터 캐시 강제 초기화 완료');
       console.log('💡 이제 다른 탭을 클릭하면 최신 데이터가 로드됩니다');
+    };
+    
+    // 로딩 팝업 디버깅 함수
+    window.debugLoadingPopup = function() {
+      const loadingPopup = document.getElementById('loadingPopup');
+      if (loadingPopup) {
+        const computedStyle = window.getComputedStyle(loadingPopup);
+        console.log('🔍 로딩 팝업 디버깅 정보:', {
+          element: loadingPopup,
+          classList: loadingPopup.classList.toString(),
+          styleDisplay: loadingPopup.style.display,
+          computedDisplay: computedStyle.display,
+          computedVisibility: computedStyle.visibility,
+          computedOpacity: computedStyle.opacity,
+          computedZIndex: computedStyle.zIndex,
+          isVisible: computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden'
+        });
+      } else {
+        console.error('❌ 로딩 팝업 요소를 찾을 수 없음');
+      }
+    };
+    
+    window.forceHideLoading = function() {
+      const loadingPopup = document.getElementById('loadingPopup');
+      if (loadingPopup) {
+        loadingPopup.classList.remove('show');
+        loadingPopup.classList.add('hide');
+        loadingPopup.style.display = 'none';
+        loadingPopup.style.visibility = 'hidden';
+        loadingPopup.style.opacity = '0';
+        console.log('✅ 강제 로딩 팝업 숨김 완료');
+      }
     };
     
     // 데이터 매핑 디버깅 함수 (디버깅용)
