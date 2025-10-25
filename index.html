@@ -2713,17 +2713,6 @@ ${r.optPlan}
         const month = submissionDate.getMonth() + 1;
         const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
         yearMonthSet.add(yearMonth);
-        
-        // 처음 5개와 마지막 5개 데이터 로깅
-        if (index < 5 || index >= rows.length - 5) {
-          console.log(`📅 데이터 ${index + 1}:`, {
-            submittedAt: row.submittedAt,
-            parsedDate: submissionDate,
-            year: year,
-            month: month,
-            yearMonth: yearMonth
-          });
-        }
       });
       
       console.log('📅 발견된 년월들:', Array.from(yearMonthSet).sort());
@@ -2737,11 +2726,18 @@ ${r.optPlan}
         const [year, month] = yearMonth.split('-');
         const yearShort = String(year).slice(-2);
         const monthNum = parseInt(month);
-        const isSelected = yearMonthArray.indexOf(yearMonth) === 0 ? 'selected' : ''; // Select newest month by default
+        
+        // 현재 날짜와 비교하여 기본 선택
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+        const currentMonth = currentDate.getMonth() + 1;
+        const isCurrentMonth = (parseInt(year) === currentYear && monthNum === currentMonth);
+        const isSelected = isCurrentMonth ? 'selected' : '';
+        
         yearMonthOptions += `<option value="${yearMonth}" ${isSelected}>${yearShort}년 ${monthNum}월</option>`;
       });
       
-      console.log('📋 생성된 옵션들:', yearMonthOptions);
+      console.log('📋 현재 날짜 기준 기본 선택 완료');
       
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">월별 정산 LIST</h2>`;
       
@@ -2809,7 +2805,12 @@ ${r.optPlan}
         const yearMonthSelect = document.getElementById('yearMonthSelect');
         if (yearMonthSelect) {
           yearMonthSelect.addEventListener('change', async () => {
-            await updateMonthlyData();
+            showLoading();
+            try {
+              await updateMonthlyData();
+            } finally {
+              hideLoading();
+            }
           });
           console.log('월별 정산 - 년도/월 선택 이벤트 리스너 바인딩 완료');
         }
@@ -2839,17 +2840,6 @@ ${r.optPlan}
         const month = submissionDate.getMonth() + 1;
         const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
         yearMonthSet.add(yearMonth);
-        
-        // 처음 5개와 마지막 5개 데이터 로깅
-        if (index < 5 || index >= rows.length - 5) {
-          console.log(`📅 데이터 ${index + 1}:`, {
-            submittedAt: row.submittedAt,
-            parsedDate: submissionDate,
-            year: year,
-            month: month,
-            yearMonth: yearMonth
-          });
-        }
       });
       
       console.log('📅 발견된 년월들:', Array.from(yearMonthSet).sort());
@@ -2869,12 +2859,22 @@ ${r.optPlan}
       
       let yearOptions = '';
       yearArray.forEach(year => {
-        const isSelected = yearArray.indexOf(year) === 0 ? 'selected' : ''; // Select newest year by default
+        // 현재 날짜와 비교하여 기본 선택
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+        const isCurrentYear = (year === currentYear);
+        const isSelected = isCurrentYear ? 'selected' : '';
+        
         yearOptions += `<option value="${year}" ${isSelected}>${String(year).slice(-2)}년</option>`;
       });
       
       // Month dropdown based on actual data for selected year
-      const selectedYear = yearArray[0]; // newest year
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+      
+      // 현재 년도가 데이터에 있으면 현재 년도 사용, 없으면 가장 최신 년도 사용
+      const selectedYear = yearArray.includes(currentYear) ? currentYear : yearArray[0];
       const monthsForYear = yearMonthArray
         .filter(yearMonth => yearMonth.startsWith(selectedYear))
         .map(yearMonth => parseInt(yearMonth.split('-')[1]))
@@ -2884,12 +2884,14 @@ ${r.optPlan}
       
       let monthOptions = '';
       monthsForYear.forEach(month => {
-        const isSelected = monthsForYear.indexOf(month) === 0 ? 'selected' : ''; // Select newest month by default
+        // 현재 년도이고 현재 월이면 기본 선택
+        const isCurrentMonth = (selectedYear === currentYear && month === currentMonth);
+        const isSelected = isCurrentMonth ? 'selected' : '';
+        
         monthOptions += `<option value="${String(month).padStart(2,'0')}" ${isSelected}>${month}월</option>`;
       });
       
-      console.log('📋 생성된 년도 옵션들:', yearOptions);
-      console.log('📋 생성된 월 옵션들:', monthOptions);
+      console.log('📋 현재 날짜 기준 기본 선택 완료');
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">주별 정산 LIST</h2>`;
       html += `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
         <select id="wlYear" class="select" style="width:120px;">${yearOptions}</select>
@@ -2943,11 +2945,16 @@ ${r.optPlan}
         const weeks = buildWeeks(y,m);
         const sel = document.getElementById('wlWeek');
         
+        console.log(`📅 주별 정산 - ${y}년 ${m}월 주 생성:`, weeks.length, '주');
+        
         // 현재 날짜에 해당하는 주 찾기
         const today = new Date();
         const currentYear = today.getFullYear();
         const currentMonth = today.getMonth() + 1;
         let selectedIndex = 0;
+        
+        console.log(`📅 현재 날짜: ${currentYear}년 ${currentMonth}월 ${today.getDate()}일`);
+        console.log(`📅 선택된 기간: ${y}년 ${m}월`);
         
         if (y === currentYear && m === currentMonth) {
           // 현재 월인 경우 현재 날짜가 포함된 주 찾기
@@ -2955,9 +2962,12 @@ ${r.optPlan}
             const week = weeks[i];
             if (today >= week.start && today <= week.end) {
               selectedIndex = i;
+              console.log(`📅 현재 주 선택: ${i}번째 주 (${fmt(week.start)} ~ ${fmt(week.end)})`);
               break;
             }
           }
+        } else {
+          console.log(`📅 현재 월이 아니므로 첫 번째 주 선택`);
         }
         
         sel.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmt(w.start)} ~ ${fmt(w.end)}</option>`).join('');
@@ -3036,42 +3046,61 @@ ${r.optPlan}
         
         if (yearSelect) {
           yearSelect.addEventListener('change', async () => {
-            // Update month options based on selected year
-            const selectedYear = parseInt(yearSelect.value);
-            const yearMonthArray = Array.from(new Set(rows.map(row => {
-              const submissionDate = new Date(row.submittedAt);
-              const year = submissionDate.getFullYear();
-              const month = submissionDate.getMonth() + 1;
-              return `${year}-${String(month).padStart(2, '0')}`;
-            }))).sort().reverse();
-            
-            const monthsForYear = yearMonthArray
-              .filter(yearMonth => yearMonth.startsWith(selectedYear))
-              .map(yearMonth => parseInt(yearMonth.split('-')[1]))
-              .sort((a, b) => b - a);
-            
-            const monthSelect = document.getElementById('wlMonth');
-            if (monthSelect) {
-              let monthOptions = '';
-              monthsForYear.forEach(month => {
-                const isSelected = monthsForYear.indexOf(month) === 0 ? 'selected' : '';
-                monthOptions += `<option value="${String(month).padStart(2,'0')}" ${isSelected}>${month}월</option>`;
-              });
-              monthSelect.innerHTML = monthOptions;
+            showLoading();
+            try {
+              // Update month options based on selected year
+              const selectedYear = parseInt(yearSelect.value);
+              const yearMonthArray = Array.from(new Set(rows.map(row => {
+                const submissionDate = new Date(row.submittedAt);
+                const year = submissionDate.getFullYear();
+                const month = submissionDate.getMonth() + 1;
+                return `${year}-${String(month).padStart(2, '0')}`;
+              }))).sort().reverse();
+              
+              const monthsForYear = yearMonthArray
+                .filter(yearMonth => yearMonth.startsWith(selectedYear))
+                .map(yearMonth => parseInt(yearMonth.split('-')[1]))
+                .sort((a, b) => b - a);
+              
+              const monthSelect = document.getElementById('wlMonth');
+              if (monthSelect) {
+                let monthOptions = '';
+                monthsForYear.forEach(month => {
+                  const isSelected = monthsForYear.indexOf(month) === 0 ? 'selected' : '';
+                  monthOptions += `<option value="${String(month).padStart(2,'0')}" ${isSelected}>${month}월</option>`;
+                });
+                monthSelect.innerHTML = monthOptions;
+              }
+              
+              refreshWeeks();
+            } finally {
+              hideLoading();
             }
-            
-            refreshWeeks();
           });
           console.log('주별 정산 - 년도 선택 이벤트 리스너 바인딩 완료');
         }
         
         if (monthSelect) {
-          monthSelect.addEventListener('change', refreshWeeks);
+          monthSelect.addEventListener('change', async () => {
+            showLoading();
+            try {
+              await refreshWeeks();
+            } finally {
+              hideLoading();
+            }
+          });
           console.log('주별 정산 - 월 선택 이벤트 리스너 바인딩 완료');
         }
         
         if (weekSelect) {
-          weekSelect.addEventListener('change', updateWeekly);
+          weekSelect.addEventListener('change', async () => {
+            showLoading();
+            try {
+              await updateWeekly();
+            } finally {
+              hideLoading();
+            }
+          });
           console.log('주별 정산 - 주 선택 이벤트 리스너 바인딩 완료');
         }
         
