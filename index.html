@@ -3491,14 +3491,14 @@ ${r.optPlan}
         const byNo = new Map(rows.map(r=> [String(r.no), r]));
         const incoming = window.wp_upload_rows||[];
         let updated=0;
-        incoming.forEach(obj=>{
+        for (const obj of incoming) {
           const noStr = (obj['번호']||'').trim();
           let rec = noStr && byNo.get(noStr);
           const parseBool = v=> String(v||'').toUpperCase()==='Y';
           const parseTs = v=> v? Date.parse(v): null;
           const toInt = v=> { const n=parseInt(String(v||'0'),10); return isNaN(n)?0:n; };
           const newRec = {
-            no: rec? rec.no : (getNextNo()),
+            no: rec? rec.no : (await getNextNo()),
             submittedAt: parseTs(obj['제출시간']) || (rec? rec.submittedAt : Date.now()),
             companyCode: obj['업체코드']|| (rec? rec.companyCode : ''),
             companyName: obj['업체명']|| (rec? rec.companyName : ''),
@@ -3519,9 +3519,21 @@ ${r.optPlan}
           };
           if(rec){ Object.assign(rec, newRec); updated++; }
           else { rows.unshift(newRec); updated++; }
-        });
+        }
         
         console.log('💾 데이터 저장 시작, 총 건수:', rows.length);
+        
+        // 데이터 검증 - Promise 객체 확인
+        const invalidData = rows.filter(row => 
+          row.no && typeof row.no.then === 'function' // Promise 객체 확인
+        );
+        if (invalidData.length > 0) {
+          console.error('❌ Promise 객체가 포함된 데이터 발견:', invalidData.length, '건');
+          console.error('❌ 문제 데이터:', invalidData);
+          alert('데이터 처리 중 오류가 발생했습니다. 콘솔을 확인해주세요.');
+          return;
+        }
+        
         await saveSubs(rows);
         console.log('✅ 데이터 저장 완료');
         
