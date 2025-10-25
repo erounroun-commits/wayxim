@@ -3883,8 +3883,36 @@ ${r.optPlan}
             console.log(`📝 ${key}: "${obj[key]}"`);
           });
           
-          if(rec){ Object.assign(rec, newRec); updated++; }
-          else { rows.unshift(newRec); updated++; }
+          if(rec){ 
+            // 기존 데이터 업데이트 시 접수 완료 상태 보존
+            const preservedAccepted = rec.accepted;
+            const preservedAcceptedAt = rec.acceptedAt;
+            
+            console.log('🔄 기존 데이터 업데이트 - 접수 상태 보존:', {
+              기존번호: rec.no,
+              기존접수상태: preservedAccepted,
+              기존접수시간: preservedAcceptedAt ? new Date(preservedAcceptedAt).toLocaleString() : '없음'
+            });
+            
+            // 데이터 업데이트
+            Object.assign(rec, newRec);
+            
+            // 접수 완료 상태 복원
+            rec.accepted = preservedAccepted;
+            rec.acceptedAt = preservedAcceptedAt;
+            
+            console.log('✅ 접수 상태 복원 완료:', {
+              번호: rec.no,
+              최종접수상태: rec.accepted,
+              최종접수시간: rec.acceptedAt ? new Date(rec.acceptedAt).toLocaleString() : '없음'
+            });
+            
+            updated++; 
+          }
+          else { 
+            rows.unshift(newRec); 
+            updated++; 
+          }
         }
         
         console.log('💾 데이터 저장 시작, 총 건수:', rows.length);
@@ -3959,6 +3987,16 @@ ${r.optPlan}
           업데이트건수: updated
         });
         
+        // 접수 상태별 통계
+        const acceptedCount = savedData.filter(r => r.accepted).length;
+        const newRequestCount = savedData.filter(r => !r.accepted).length;
+        
+        console.log('📊 접수 상태별 통계:', {
+          접수완료건: acceptedCount,
+          신규요청건: newRequestCount,
+          전체건수: savedData.length
+        });
+        
         // 신규요청건 탭 즉시 새로고침
         console.log('🔄 신규요청건 탭 새로고침');
         await showReqList(false);
@@ -3972,7 +4010,11 @@ ${r.optPlan}
         resultMessage += `📋 총 처리 건수: ${incoming.length}건\n`;
         resultMessage += `🔄 중복 데이터 (업데이트): ${duplicateCount}건\n`;
         resultMessage += `✅ 신규 데이터 (추가): ${newCount}건\n`;
-        resultMessage += `💾 총 업데이트: ${updated}건`;
+        resultMessage += `💾 총 업데이트: ${updated}건\n\n`;
+        resultMessage += `📊 현재 상태:\n`;
+        resultMessage += `🔵 접수 완료: ${acceptedCount}건\n`;
+        resultMessage += `🟡 신규 요청: ${newRequestCount}건\n`;
+        resultMessage += `📈 전체: ${savedData.length}건`;
         
         alert(resultMessage);
         
