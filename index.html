@@ -1054,26 +1054,34 @@
             if (snapshot.docs.length > 0) {
               const allSubmissions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
               const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
-              const hasNewRequests = allSubmissions.some(newSub => 
+              
+              // 정확한 신규 요청건 찾기 (이전 데이터와 비교)
+              const newRequests = allSubmissions.filter(newSub => 
                 !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
               );
               
-              if (hasNewRequests) {
-                const latestRequest = allSubmissions.find(newSub => 
-                  !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
-                );
+              console.log('🆕 관리자 로그인 후 신규 요청건 개수:', newRequests.length);
+              
+              if (newRequests.length > 0) {
+                // 가장 최신 신규 요청건 찾기 (submittedAt 기준)
+                const latestNewRequest = newRequests.reduce((latest, current) => {
+                  return current.submittedAt > latest.submittedAt ? current : latest;
+                });
                 
-                if (latestRequest && window.showPushNotification) {
+                if (latestNewRequest && window.showPushNotification) {
                   const notificationTitle = '신규 작업요청건이 있습니다';
-                  const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+                  const notificationContent = `${latestNewRequest.companyName} (${latestNewRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
                   
                   console.log('🔔 관리자 로그인 후 푸시 알림:', notificationContent);
+                  console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
                   window.showPushNotification(notificationTitle, notificationContent);
                   
                   if (window.addNotification) {
                     window.addNotification(notificationTitle, notificationContent, 'success');
                   }
                 }
+              } else {
+                console.log('📝 관리자 로그인 후 신규 요청건 없음');
               }
               
               localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
@@ -3798,31 +3806,35 @@ ${r.optPlan}
           
           // 실시간 리스너에서 신규 요청건 감지 및 알림 생성
           const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
-          const hasNewRequests = allSubmissions.some(newSub => 
-            !previousSubmissions.some(prevSub => prevSub.id === newSub.id) &&
-            newSub.id !== lastProcessedSubmissionId
+          
+          // 정확한 신규 요청건 찾기 (이전 데이터와 비교)
+          const newRequests = allSubmissions.filter(newSub => 
+            !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
           );
           
-          console.log('🆕 신규 요청건 확인:', hasNewRequests);
+          console.log('🆕 신규 요청건 개수:', newRequests.length);
+          console.log('📊 이전 데이터 개수:', previousSubmissions.length);
+          console.log('📊 현재 데이터 개수:', allSubmissions.length);
           console.log('👨‍💼 관리자 상태:', sessionStorage.getItem("wp_is_admin"));
           
           // localStorage 업데이트
           localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
           
-          // 관리자 화면에서만 푸시 알림 표시
-          if (hasNewRequests && sessionStorage.getItem("wp_is_admin") === "1") {
+          // 관리자 화면에서만 푸시 알림 표시 (정말 신규인 경우만)
+          if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
             console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
             
-            // 가장 최신 요청건 찾기
-            const latestRequest = allSubmissions.find(newSub => 
-              !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
-            );
+            // 가장 최신 신규 요청건 찾기 (submittedAt 기준)
+            const latestNewRequest = newRequests.reduce((latest, current) => {
+              return current.submittedAt > latest.submittedAt ? current : latest;
+            });
             
-            if (latestRequest) {
+            if (latestNewRequest) {
               const notificationTitle = '신규 작업요청건이 있습니다';
-              const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+              const notificationContent = `${latestNewRequest.companyName} (${latestNewRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
               
               console.log('📝 실시간 리스너 알림 내용:', notificationContent);
+              console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
               
               // 푸시 알림 표시
               showPushNotification(notificationTitle, notificationContent);
@@ -3833,12 +3845,14 @@ ${r.optPlan}
                 console.log('📝 실시간 리스너 상단 알림 아이콘에 알림 추가 완료');
               }
               
-              // 마지막 처리 ID 업데이트
-              lastProcessedSubmissionId = latestRequest.id;
-              console.log('🔔 실시간 리스너 푸시 알림 표시 완료');
+              // 마지막 처리 ID 업데이트 (가장 최신 ID로)
+              lastProcessedSubmissionId = latestNewRequest.id;
+              console.log('🔔 실시간 리스너 푸시 알림 표시 완료, 마지막 처리 ID:', lastProcessedSubmissionId);
             }
-          } else if (hasNewRequests) {
+          } else if (newRequests.length > 0) {
             console.log('🚫 관리자 화면이 아님 - 실시간 리스너 알림 표시 안함');
+          } else {
+            console.log('📝 신규 요청건 없음 - 알림 표시 안함');
           }
         });
         
@@ -4140,6 +4154,12 @@ ${r.optPlan}
     window.showPushNotification = showPushNotification;
     window.testPushNotification = testPushNotification;
     window.setupRealtimeListener = setupRealtimeListener;
+    
+    // localStorage 초기화 함수 (디버깅용)
+    window.clearSubmissionCache = function() {
+      localStorage.removeItem("wp_submissions");
+      console.log('🗑️ wp_submissions 캐시 초기화 완료');
+    };
       
       // Firebase 단계별 테스트
       console.log('Starting Firebase step-by-step test...');
