@@ -3367,29 +3367,49 @@ ${r.optPlan}
     });
 
     // Handle form submission (제출하기)
-    const rfForm = document.getElementById("rfForm");
-    const rfSubmit = document.getElementById("rfSubmit");
-    console.log('📝 폼 이벤트 리스너 설정:', rfForm);
-    console.log('📝 제출 버튼 설정:', rfSubmit);
+    console.log('🔍 폼 요소 검색 시작...');
     
-    // 폼 제출 이벤트 리스너
-    rfForm?.addEventListener("submit", async (e)=>{
-      console.log('🚀 폼 제출 이벤트 발생!');
-      e.preventDefault();
-      await handleFormSubmission();
-    });
+    // DOM이 완전히 로드될 때까지 기다림
+    setTimeout(() => {
+      const rfForm = document.getElementById("rfForm");
+      const rfSubmit = document.getElementById("rfSubmit");
+      
+      console.log('📝 폼 요소:', rfForm);
+      console.log('📝 제출 버튼:', rfSubmit);
+      console.log('📝 폼이 화면에 보이는가:', rfForm?.style.display !== 'none' && rfForm?.offsetParent !== null);
+      
+      if (!rfForm) {
+        console.error('❌ rfForm을 찾을 수 없음!');
+        return;
+      }
+      
+      if (!rfSubmit) {
+        console.error('❌ rfSubmit을 찾을 수 없음!');
+        return;
+      }
     
-    // 버튼 클릭 이벤트 리스너 (백업)
-    rfSubmit?.addEventListener("click", async (e)=>{
-      console.log('🚀 제출 버튼 클릭 이벤트 발생!');
-      e.preventDefault();
-      await handleFormSubmission();
-    });
+      // 폼 제출 이벤트 리스너
+      rfForm.addEventListener("submit", async (e)=>{
+        console.log('🚀 폼 제출 이벤트 발생!');
+        e.preventDefault();
+        await handleFormSubmission();
+      });
+      
+      // 버튼 클릭 이벤트 리스너 (백업)
+      rfSubmit.addEventListener("click", async (e)=>{
+        console.log('🚀 제출 버튼 클릭 이벤트 발생!');
+        e.preventDefault();
+        await handleFormSubmission();
+      });
+      
+      console.log('✅ 이벤트 리스너 등록 완료');
+    }, 1000); // 1초 후 실행
     
     // 실제 폼 처리 함수
     async function handleFormSubmission() {
       console.log('🔄 폼 처리 시작');
-      if(!(rfForm instanceof HTMLFormElement)) return;
+      const rfForm = document.getElementById("rfForm");
+      if(!rfForm || !(rfForm instanceof HTMLFormElement)) return;
       if(!rfForm.checkValidity()){ rfForm.reportValidity(); return; }
       const companyName = companyNameInput?.value.trim()||"";
       const companyCode = await stableIdForName(companyName)||"";
