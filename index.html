@@ -3163,8 +3163,8 @@ ${r.optPlan}
         <div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
           <h3 style="margin:0 0 12px;color:var(--brand);font-size:16px;">데이터 생성/정정하기</h3>
           <p style="margin:0 0 12px;color:#6a7a89;font-size:14px;">수정된 CSV를 업로드하면 신규/변경 데이터만 반영됩니다. 중복은 무시됩니다.</p>
-          <input id="dataUpload" type="file" accept=".csv" style="margin:6px 0 12px;" />
-          <div class="hint">헤더 예시: 번호,제출시간,업체코드,업체명,사업자번호,카톡/번호,제품URL,구매키워드,총진행건수,일진행건수,옵션계획,제품배송,입금대행,택배대행,작업비계산서,상품금액계산서,접수상태,접수시간</div>
+          <input id="dataUpload" type="file" accept=".csv,.xlsx,.xls" style="margin:6px 0 12px;" />
+          <div class="hint">지원 파일: CSV, Excel(.xlsx, .xls)<br/>헤더 예시: 번호,제출시간,업체코드,업체명,사업자번호,카톡/번호,제품URL,구매키워드,총진행건수,일진행건수,옵션계획,제품배송,입금대행,택배대행,작업비계산서,상품금액계산서,접수상태,접수시간</div>
           <div class="right" style="margin-top:12px;"><button class="btn" id="applyDataUpload" type="button" disabled style="opacity:0.5;">업데이트 적용</button></div>
         </div>
         
@@ -3453,111 +3453,64 @@ ${r.optPlan}
       await showDataManagement();
     }
 
-    // Parse CSV text to array of objects (UTF-8 with BOM handled)
-    function parseCsv(text){
-      console.log('📄 CSV 파싱 시작');
-      text = text.replace(/^\uFEFF/, '');
-      const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
-      if(lines.length===0) {
-        console.log('❌ CSV 파일이 비어있음');
-        return [];
-      }
-      
-      const headers = lines[0].split(',').map(h=>h.trim());
-      console.log('📋 원본 CSV 헤더:', headers);
-      console.log('📋 헤더 개수:', headers.length);
-      
-      // 첫 번째 데이터 행도 확인
-      if (lines.length > 1) {
-        const firstDataLine = lines[1].split(',');
-        console.log('📋 첫 번째 데이터 행:', firstDataLine);
-        console.log('📋 데이터 개수:', firstDataLine.length);
-      }
-      
-      const result = lines.slice(1).map((line, index) => {
-        const cols = line.split(',');
-        const obj = {}; 
+    // Excel 파일 파싱 함수
+    function parseExcelFile(file) {
+      return new Promise((resolve, reject) => {
+        console.log('📊 Excel 파일 파싱 시작');
         
-        console.log(`🔍 행 ${index + 2} 원본 데이터:`, cols);
+        if (!window.XLSX) {
+          reject(new Error('Excel 라이브러리가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.'));
+          return;
+        }
         
-        // 깨진 헤더를 올바른 필드명으로 매핑
-        headers.forEach((h,i) => { 
-          const value = (cols[i] || '').replace(/^"|"$/g, '').trim();
-          
-          // 깨진 헤더 매핑
-          let mappedKey = h;
-          if (h.includes('ȣ') && h.length <= 3) {
-            mappedKey = '번호';
-          } else if (h.includes('ð') && h.length <= 5) {
-            mappedKey = '제출시간';
-          } else if (h.includes('ü') && h.includes('ڵ') && h.length <= 5) {
-            mappedKey = '업체코드';
-          } else if (h.includes('ü') && h.length <= 3) {
-            mappedKey = '업체명';
-          } else if (h.includes('ڹ') && h.includes('ȣ') && h.length <= 6) {
-            mappedKey = '사업자번호';
-          } else if (h.includes('ī') && h.includes('/') && h.includes('ȣ')) {
-            mappedKey = '카톡/번호';
-          } else if (h.includes('ǰ') && h.includes('URL')) {
-            mappedKey = '제품URL';
-          } else if (h.includes('Ű') && h.includes('Ǽ')) {
-            mappedKey = '구매키워드총진행건수';
-          } else if (h.includes('Ǽ') && h.includes('ɼ')) {
-            mappedKey = '일진행건수옵션계획';
-          } else if (h.includes('ǰ') && h.includes('���')) {
-            mappedKey = '제품배송';
-          } else if (h.includes('Ա') && h.includes('ݴ')) {
-            mappedKey = '입금대행';
-          } else if (h.includes('ù') && h.includes('����')) {
-            mappedKey = '택배대행';
-          } else if (h.includes('۾') && h.includes('꼭')) {
-            mappedKey = '작업비계산서';
-          } else if (h.includes('ǰ') && h.includes('ݾ') && h.includes('꼭')) {
-            mappedKey = '상품금액계산서';
-          } else if (h.includes('��') && h.includes('��')) {
-            mappedKey = '접수상태';
-          } else if (h.includes('ð') && h.length <= 5 && h !== '제출시간') {
-            mappedKey = '접수시간';
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // 첫 번째 시트 선택
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            console.log('📊 Excel 시트명:', firstSheetName);
+            
+            // JSON으로 변환
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            if (jsonData.length === 0) {
+              reject(new Error('Excel 파일이 비어있습니다.'));
+              return;
+            }
+            
+            // 헤더와 데이터 분리
+            const headers = jsonData[0].map(h => String(h || '').trim());
+            console.log('📋 Excel 헤더:', headers);
+            
+            const result = jsonData.slice(1).map((row, index) => {
+              const obj = {};
+              headers.forEach((header, i) => {
+                const value = String(row[i] || '').trim();
+                obj[header] = value;
+              });
+              console.log(`📝 Excel 행 ${index + 2} 파싱 결과:`, obj);
+              return obj;
+            });
+            
+            console.log('✅ Excel 파싱 완료, 총 행 수:', result.length);
+            resolve(result);
+          } catch (error) {
+            console.error('❌ Excel 파싱 오류:', error);
+            reject(error);
           }
-          
-          // 복합 헤더 분리 처리
-          if (mappedKey === '사업자번호카톡/번호') {
-            // 사업자번호카톡/번호 → 사업자번호와 카톡/번호로 분리
-            const parts = value.split(/(?=[가-힣])/);
-            obj['사업자번호'] = parts[0] || '';
-            obj['카톡/번호'] = parts[1] || '';
-            console.log(`🔀 ${mappedKey} 분리: "${value}" → 사업자번호:"${obj['사업자번호']}", 카톡/번호:"${obj['카톡/번호']}"`);
-          } else if (mappedKey === '구매키워드총진행건수') {
-            // 구매키워드총진행건수 → 구매키워드와 총진행건수로 분리
-            const parts = value.split(/(?=\d)/);
-            obj['구매키워드'] = parts[0] || '';
-            obj['총진행건수'] = parts[1] || '';
-            console.log(`🔀 ${mappedKey} 분리: "${value}" → 구매키워드:"${obj['구매키워드']}", 총진행건수:"${obj['총진행건수']}"`);
-          } else if (mappedKey === '일진행건수옵션계획') {
-            // 일진행건수옵션계획 → 일진행건수와 옵션계획으로 분리
-            const parts = value.split(/(?=[가-힣])/);
-            obj['일진행건수'] = parts[0] || '';
-            obj['옵션계획'] = parts[1] || '';
-            console.log(`🔀 ${mappedKey} 분리: "${value}" → 일진행건수:"${obj['일진행건수']}", 옵션계획:"${obj['옵션계획']}"`);
-          } else if (mappedKey === '작업비계신상품금액겨접수상태') {
-            // 작업비계신상품금액겨접수상태 → 작업비계산서, 상품금액계산서, 접수상태로 분리
-            const parts = value.split(/(?=[가-힣])/);
-            obj['작업비계산서'] = parts[0] || '';
-            obj['상품금액계산서'] = parts[1] || '';
-            obj['접수상태'] = parts[2] || '';
-            console.log(`🔀 ${mappedKey} 분리: "${value}" → 작업비계산서:"${obj['작업비계산서']}", 상품금액계산서:"${obj['상품금액계산서']}", 접수상태:"${obj['접수상태']}"`);
-          } else {
-            // 일반 헤더
-            obj[mappedKey] = value;
-          }
-        });
+        };
         
-        console.log(`📝 행 ${index + 2} 파싱 결과:`, obj);
-        return obj;
+        reader.onerror = function() {
+          reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
+        };
+        
+        reader.readAsArrayBuffer(file);
       });
-      
-      console.log('✅ CSV 파싱 완료, 총 행 수:', result.length);
-      return result;
     }
 
     // Attach upload handlers when data management screen is shown
@@ -3572,58 +3525,74 @@ ${r.optPlan}
         
         console.log('📄 파일명:', file.name);
         console.log('📄 파일 크기:', file.size, 'bytes');
+        console.log('📄 파일 타입:', file.type);
         
         try {
-          // 파일을 ArrayBuffer로 읽기
-          const arrayBuffer = await file.arrayBuffer();
-          console.log('📄 ArrayBuffer 크기:', arrayBuffer.byteLength);
+          let parsedData;
           
-          // 인코딩 감지 및 변환 (더 강력한 방법)
-          let text;
-          let encodingUsed = '';
-          
-          // UTF-8 BOM 확인
-          const uint8Array = new Uint8Array(arrayBuffer);
-          if (uint8Array.length >= 3 && uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF) {
-            console.log('📄 UTF-8 BOM 감지됨');
-            text = new TextDecoder('utf-8').decode(arrayBuffer);
-            encodingUsed = 'UTF-8 (BOM)';
-          } else {
-            // 여러 인코딩 시도
-            const encodings = ['utf-8', 'euc-kr', 'cp949', 'iso-8859-1'];
+          // 파일 확장자에 따라 파싱 방법 선택
+          const fileName = file.name.toLowerCase();
+          if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+            console.log('📊 Excel 파일 감지 - Excel 파서 사용');
+            parsedData = await parseExcelFile(file);
+          } else if (fileName.endsWith('.csv')) {
+            console.log('📄 CSV 파일 감지 - CSV 파서 사용');
             
-            for (const encoding of encodings) {
-              try {
-                text = new TextDecoder(encoding).decode(arrayBuffer);
-                
-                // 한글 문자가 제대로 디코딩되었는지 확인
-                const koreanRegex = /[가-힣]/;
-                if (koreanRegex.test(text)) {
-                  console.log(`✅ ${encoding}로 디코딩 성공 (한글 감지됨)`);
-                  encodingUsed = encoding;
-                  break;
-                } else {
-                  console.log(`⚠️ ${encoding}로 디코딩했지만 한글이 감지되지 않음`);
+            // 파일을 ArrayBuffer로 읽기
+            const arrayBuffer = await file.arrayBuffer();
+            console.log('📄 ArrayBuffer 크기:', arrayBuffer.byteLength);
+            
+            // 인코딩 감지 및 변환 (더 강력한 방법)
+            let text;
+            let encodingUsed = '';
+            
+            // UTF-8 BOM 확인
+            const uint8Array = new Uint8Array(arrayBuffer);
+            if (uint8Array.length >= 3 && uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF) {
+              console.log('📄 UTF-8 BOM 감지됨');
+              text = new TextDecoder('utf-8').decode(arrayBuffer);
+              encodingUsed = 'UTF-8 (BOM)';
+            } else {
+              // 여러 인코딩 시도
+              const encodings = ['utf-8', 'euc-kr', 'cp949', 'iso-8859-1'];
+              
+              for (const encoding of encodings) {
+                try {
+                  text = new TextDecoder(encoding).decode(arrayBuffer);
+                  
+                  // 한글 문자가 제대로 디코딩되었는지 확인
+                  const koreanRegex = /[가-힣]/;
+                  if (koreanRegex.test(text)) {
+                    console.log(`✅ ${encoding}로 디코딩 성공 (한글 감지됨)`);
+                    encodingUsed = encoding;
+                    break;
+                  } else {
+                    console.log(`⚠️ ${encoding}로 디코딩했지만 한글이 감지되지 않음`);
+                  }
+                } catch (error) {
+                  console.log(`❌ ${encoding} 디코딩 실패:`, error.message);
                 }
-              } catch (error) {
-                console.log(`❌ ${encoding} 디코딩 실패:`, error.message);
+              }
+              
+              // 모든 인코딩이 실패한 경우 기본값 사용
+              if (!text) {
+                text = new TextDecoder('utf-8', { fatal: false }).decode(arrayBuffer);
+                encodingUsed = 'UTF-8 (fallback)';
+                console.log('⚠️ 모든 인코딩 실패, UTF-8 fallback 사용');
               }
             }
             
-            // 모든 인코딩이 실패한 경우 기본값 사용
-            if (!text) {
-              text = new TextDecoder('utf-8', { fatal: false }).decode(arrayBuffer);
-              encodingUsed = 'UTF-8 (fallback)';
-              console.log('⚠️ 모든 인코딩 실패, UTF-8 fallback 사용');
-            }
+            console.log('📄 사용된 인코딩:', encodingUsed);
+            console.log('📄 디코딩된 텍스트 길이:', text.length);
+            console.log('📄 텍스트 미리보기 (처음 200자):', text.substring(0, 200));
+            
+            parsedData = parseCsv(text);
+          } else {
+            throw new Error('지원하지 않는 파일 형식입니다. CSV 또는 Excel 파일(.xlsx, .xls)을 사용해주세요.');
           }
           
-          console.log('📄 사용된 인코딩:', encodingUsed);
-          console.log('📄 디코딩된 텍스트 길이:', text.length);
-          console.log('📄 텍스트 미리보기 (처음 200자):', text.substring(0, 200));
-          
-          window.wp_upload_rows = parseCsv(text);
-          console.log('✅ CSV 파싱 완료, 데이터 수:', window.wp_upload_rows.length);
+          window.wp_upload_rows = parsedData;
+          console.log('✅ 파일 파싱 완료, 데이터 수:', window.wp_upload_rows.length);
           
           // 업데이트 적용 버튼 활성화
           const applyBtn = document.getElementById('applyDataUpload');
@@ -4111,6 +4080,14 @@ ${r.optPlan}
     import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot, where } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
     import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics.js";
     
+    // Excel 파일 읽기 라이브러리 추가
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.onload = function() {
+      console.log('✅ Excel 라이브러리 로드 완료');
+    };
+    document.head.appendChild(script);
+    
     try {
       // Your web app's Firebase configuration (VERIFIED SETTINGS)
       const firebaseConfig = {
@@ -4547,30 +4524,34 @@ ${r.optPlan}
       console.log('💡 이제 다른 탭을 클릭하면 최신 데이터가 로드됩니다');
     };
     
-    // CSV 헤더 매핑 테스트 함수 (디버깅용)
-    window.testCSVHeaderMapping = function() {
-      console.log('🧪 CSV 헤더 매핑 테스트');
+    // 샘플 Excel 파일 생성 함수 (디버깅용)
+    window.createSampleExcel = function() {
+      console.log('📊 샘플 Excel 파일 생성 가이드');
       
-      const testHeaders = ['��ȣ', '����ð�', '��ü�ڵ�', '��ü��', '����ڹ�ȣ', 'ī��/��ȣ'];
+      if (!window.XLSX) {
+        alert('Excel 라이브러리가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.');
+        return;
+      }
       
-      testHeaders.forEach(header => {
-        let mappedKey = header;
-        if (header.includes('ȣ') && header.length <= 3) {
-          mappedKey = '번호';
-        } else if (header.includes('ð') && header.length <= 5) {
-          mappedKey = '제출시간';
-        } else if (header.includes('ü') && header.includes('ڵ') && header.length <= 5) {
-          mappedKey = '업체코드';
-        } else if (header.includes('ü') && header.length <= 3) {
-          mappedKey = '업체명';
-        } else if (header.includes('ڹ') && header.includes('ȣ') && header.length <= 6) {
-          mappedKey = '사업자번호';
-        } else if (header.includes('ī') && header.includes('/') && header.includes('ȣ')) {
-          mappedKey = '카톡/번호';
-        }
-        
-        console.log(`📝 ${header} → ${mappedKey}`);
-      });
+      const sampleData = [
+        ['번호', '제출시간', '업체코드', '업체명', '사업자번호', '카톡/번호', '제품URL', '구매키워드', '총진행건수', '일진행건수', '옵션계획', '제품배송', '입금대행', '택배대행', '작업비계산서', '상품금액계산서', '접수상태', '접수시간'],
+        ['1', '2025-10-26 01:45', 'WI01', '안뇽', '우', '어', 'https://nid.터', '39', '39', '투', 'Y', 'Y', 'N', 'N', 'N', 'N', ''],
+        ['2', '2025-10-26 01:48', 'CV31', '안녕1247', '아', '터', 'https://nid.o', '38', '28', 'ㄷ', 'Y', 'Y', 'N', 'N', 'N', 'N', ''],
+        ['3', '2025-10-26 01:50', 'GO85', '안녕하세요어', '어', '어', 'https://nid.디방', '48', '48', '라', 'Y', 'Y', 'N', 'N', 'N', 'N', '']
+      ];
+      
+      // 워크북 생성
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(sampleData);
+      
+      // 워크시트 추가
+      XLSX.utils.book_append_sheet(wb, ws, '데이터');
+      
+      // 파일 생성 및 다운로드
+      XLSX.writeFile(wb, 'sample_data.xlsx');
+      
+      console.log('✅ 샘플 Excel 파일 다운로드 완료');
+      console.log('💡 이 파일을 사용하여 테스트해보세요');
     };
       
       // Firebase 단계별 테스트
