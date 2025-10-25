@@ -3740,20 +3740,59 @@ ${r.optPlan}
             return;
           }
           
-          // 실시간 리스너가 비활성화되어 있으면 알림 생성 안함
-          console.log('📝 실시간 리스너 비활성화로 인해 알림 생성 안함');
+          // 실시간 리스너에서 신규 요청건 감지 및 알림 생성
+          const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
+          const hasNewRequests = allSubmissions.some(newSub => 
+            !previousSubmissions.some(prevSub => prevSub.id === newSub.id) &&
+            newSub.id !== lastProcessedSubmissionId
+          );
+          
+          console.log('🆕 신규 요청건 확인:', hasNewRequests);
+          console.log('👨‍💼 관리자 상태:', sessionStorage.getItem("wp_is_admin"));
+          
+          // localStorage 업데이트
           localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
+          
+          // 관리자 화면에서만 푸시 알림 표시
+          if (hasNewRequests && sessionStorage.getItem("wp_is_admin") === "1") {
+            console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
+            
+            // 가장 최신 요청건 찾기
+            const latestRequest = allSubmissions.find(newSub => 
+              !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+            );
+            
+            if (latestRequest) {
+              const notificationTitle = '신규 작업요청건이 있습니다';
+              const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+              
+              console.log('📝 실시간 리스너 알림 내용:', notificationContent);
+              
+              // 푸시 알림 표시
+              showPushNotification(notificationTitle, notificationContent);
+              
+              // 상단 알림 아이콘에도 알림 추가
+              if (window.addNotification) {
+                window.addNotification(notificationTitle, notificationContent, 'success');
+                console.log('📝 실시간 리스너 상단 알림 아이콘에 알림 추가 완료');
+              }
+              
+              // 마지막 처리 ID 업데이트
+              lastProcessedSubmissionId = latestRequest.id;
+              console.log('🔔 실시간 리스너 푸시 알림 표시 완료');
+            }
+          }
         });
         
-        console.log('✅ 실시간 리스너 설정 완료 (비활성화 상태)');
+        console.log('✅ 실시간 리스너 설정 완료 (활성화 상태)');
       } catch (error) {
         console.error('❌ 실시간 리스너 설정 실패:', error);
       }
     }
-     // Firebase 초기화 후 실시간 리스너 설정 (비활성화)
+     // Firebase 초기화 후 실시간 리스너 설정 (활성화)
      if (window.db) {
-      console.log('🚫 Firebase 초기화 완료 - 실시간 리스너 비활성화');
-      setupRealtimeListener(); // 비활성화된 상태로 실행
+      console.log('✅ Firebase 초기화 완료 - 실시간 리스너 활성화');
+      setupRealtimeListener(); // 활성화된 상태로 실행
     }
     
     // 전역 변수로 db 접근 가능하게 설정
@@ -3992,22 +4031,34 @@ ${r.optPlan}
       }
     }
     
-    // 테스트용 푸시 알림 함수 (강화)
+    // 테스트용 푸시 알림 함수 (관리자 화면에서만 실행)
     function testPushNotification() {
       console.log('🧪 테스트 푸시 알림 실행');
-      showPushNotification('테스트 알림', '이것은 테스트 푸시 알림입니다.');
       
       // 관리자 상태 확인
-      console.log('👨‍💼 관리자 상태:', sessionStorage.getItem("wp_is_admin"));
+      const isAdmin = sessionStorage.getItem("wp_is_admin") === "1";
+      console.log('👨‍💼 관리자 상태:', isAdmin);
+      
+      if (!isAdmin) {
+        console.log('❌ 관리자가 아님 - 테스트 알림 실행 안함');
+        return;
+      }
+      
+      showPushNotification('테스트 알림', '이것은 테스트 푸시 알림입니다.');
       
       // 푸시 알림 함수 존재 확인
       console.log('🔍 showPushNotification 함수 존재:', typeof window.showPushNotification);
     }
     
-    // 즉시 테스트 실행
+    // 즉시 테스트 실행 (관리자 화면에서만)
     setTimeout(() => {
-      console.log('🚀 자동 테스트 실행');
-      testPushNotification();
+      const isAdmin = sessionStorage.getItem("wp_is_admin") === "1";
+      if (isAdmin) {
+        console.log('🚀 자동 테스트 실행 (관리자 화면)');
+        testPushNotification();
+      } else {
+        console.log('🚫 일반 화면 - 자동 테스트 실행 안함');
+      }
     }, 2000);
     
     // 작업요청서 제출 시 알림 추가 (푸시 알림 + 알림 목록)
