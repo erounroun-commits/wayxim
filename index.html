@@ -1571,7 +1571,9 @@
       }
     }
 
-    // 업체명 변경 시 자동 ID 조회
+    // 업체명 변경 시 자동 ID 조회 및 관련 정보 관리
+    let lastCompanyCode = null; // 마지막으로 선택된 업체코드 저장
+    
     companyNameInput?.addEventListener('input', async (e) => {
       const name = e.target.value.trim();
       if (name.length > 0) {
@@ -1582,21 +1584,43 @@
           idOutput.textContent = code ? `ID: ${code}` : "ID: 미발급";
           rfIdVerified = !!code;
           
-          // Auto-fill for returning vendors
-          if(code){
-            const rows = await loadSubs();
-            const prev = rows.find(r=> r.companyCode===code);
-            if(prev){
+          // 업체코드가 변경되었는지 확인
+          if (code !== lastCompanyCode) {
+            // 업체코드가 변경된 경우
+            if (lastCompanyCode !== null) {
+              // 이전 업체와 다른 업체로 변경된 경우 관련 정보 초기화
               const biz = document.getElementById("bizNo");
               const contact = document.getElementById("contact");
-              if(biz && !biz.value) biz.value = prev.bizNo||"";
-              if(contact && !contact.value) contact.value = prev.contact||"";
+              if (biz) biz.value = "";
+              if (contact) contact.value = "";
+            }
+            
+            // 새로운 업체코드로 업데이트
+            lastCompanyCode = code;
+            
+            // Auto-fill for returning vendors (기존 업체인 경우)
+            if(code){
+              const rows = await loadSubs();
+              const prev = rows.find(r=> r.companyCode===code);
+              if(prev){
+                const biz = document.getElementById("bizNo");
+                const contact = document.getElementById("contact");
+                if(biz) biz.value = prev.bizNo||"";
+                if(contact) contact.value = prev.contact||"";
+              }
             }
           }
         }, 500);
       } else {
         idOutput.textContent = "ID: 미발급";
         rfIdVerified = false;
+        lastCompanyCode = null;
+        
+        // 업체명이 비어있으면 관련 정보도 초기화
+        const biz = document.getElementById("bizNo");
+        const contact = document.getElementById("contact");
+        if (biz) biz.value = "";
+        if (contact) contact.value = "";
       }
     });
 
