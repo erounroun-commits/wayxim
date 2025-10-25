@@ -418,7 +418,7 @@
           <span class="notification-icon">🔔</span>
           <span id="notificationCount" class="notification-count" style="display: none;">0</span>
         </button>
-        <a id="adminTrigger" class="admin-btn" href="#" aria-label="관리자로 접속중" style="pointer-events: none; opacity: 0.7;">관리자로 접속중</a>
+        <a id="adminTrigger" class="admin-btn" href="#" aria-label="관리자 전환" style="pointer-events: auto; opacity: 1;">관리자 전환</a>
       </div>
     </div>
   </header>
@@ -3659,17 +3659,21 @@ ${r.optPlan}
             if (hasNewRequests) {
               console.log('🆕 신규 요청건 감지! 강제 업데이트 실행');
               
-              // 푸시 알림 표시
+              // 푸시 알림 표시 (관리자 화면이 열려있을 때만)
               const latestRequest = newSubmissions.find(newSub => 
                 !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
               );
               
-              if (latestRequest) {
+              if (latestRequest && sessionStorage.getItem("wp_is_admin") === "1") {
+                console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
                 if (window.showPushNotification) {
                   window.showPushNotification(
                     '신규 작업요청건이 있습니다',
                     `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`
                   );
+                  console.log('🔔 실시간 리스너 푸시 알림 표시 완료');
+                } else {
+                  console.log('❌ showPushNotification 함수를 찾을 수 없음');
                 }
               }
               
@@ -3816,7 +3820,7 @@ ${r.optPlan}
     
     // 푸시 알림 표시 함수
     function showPushNotification(title, content) {
-      console.log('🔔 푸시 알림 표시 시작:', title);
+      console.log('🔔 푸시 알림 표시 시작:', title, content);
       
       // 기존 푸시 알림이 있다면 제거
       const existingNotification = document.querySelector('.push-notification');
@@ -3863,7 +3867,10 @@ ${r.optPlan}
       console.log('📝 알림 목록에 추가 완료');
       
       // 관리자 화면이 열려있다면 푸시 알림 표시
-      if (sessionStorage.getItem("wp_is_admin") === "1") {
+      const isAdminActive = sessionStorage.getItem("wp_is_admin") === "1";
+      console.log('👨‍💼 관리자 상태 확인:', isAdminActive);
+      
+      if (isAdminActive) {
         console.log('👨‍💼 관리자 화면 감지, 푸시 알림 표시 시도');
         if (window.showPushNotification) {
           showPushNotification('신규 작업요청건이 있습니다', content);
@@ -3872,7 +3879,7 @@ ${r.optPlan}
           console.log('❌ showPushNotification 함수를 찾을 수 없음');
         }
       } else {
-        console.log('❌ 관리자 화면이 아님');
+        console.log('❌ 관리자 화면이 아님 - 푸시 알림 표시 안함');
       }
     }
     
