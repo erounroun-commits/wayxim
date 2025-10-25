@@ -1511,13 +1511,25 @@
         const countersRef = collection(db, 'counters');
         const snapshot = await getDocs(countersRef);
         
+        // 기존 submissions 데이터 확인
+        const submissionsRef = collection(db, 'submissions');
+        const submissionsSnapshot = await getDocs(submissionsRef);
+        
         let currentNo = 1;
         if (!snapshot.empty) {
           const data = snapshot.docs[0].data();
           currentNo = (data.nextNo || 1);
-          console.log('🔢 Firebase 기존 번호:', currentNo);
-          // 기존 문서 업데이트
-          await updateDoc(snapshot.docs[0].ref, { nextNo: currentNo + 1 });
+          
+          // 기존 submissions가 없으면 번호를 1로 초기화
+          if (submissionsSnapshot.empty && currentNo > 1) {
+            console.log('🔢 기존 submissions 없음 - 번호를 1로 초기화');
+            currentNo = 1;
+            await updateDoc(snapshot.docs[0].ref, { nextNo: 2 });
+          } else {
+            console.log('🔢 Firebase 기존 번호:', currentNo);
+            // 기존 문서 업데이트
+            await updateDoc(snapshot.docs[0].ref, { nextNo: currentNo + 1 });
+          }
         } else {
           console.log('🔢 Firebase 새 문서 생성');
           // 새 문서 생성
@@ -3449,15 +3461,29 @@ ${r.optPlan}
 
     // Parse CSV text to array of objects (UTF-8 with BOM handled)
     function parseCsv(text){
+      console.log('📄 CSV 파싱 시작');
       text = text.replace(/^\uFEFF/, '');
       const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
-      if(lines.length===0) return [];
+      if(lines.length===0) {
+        console.log('❌ CSV 파일이 비어있음');
+        return [];
+      }
+      
       const headers = lines[0].split(',').map(h=>h.trim());
-      return lines.slice(1).map(line=>{
+      console.log('📋 CSV 헤더:', headers);
+      
+      const result = lines.slice(1).map((line, index) => {
         const cols = line.split(',');
-        const obj={}; headers.forEach((h,i)=>{ obj[h]= (cols[i]||'').replace(/^"|"$/g,''); });
+        const obj = {}; 
+        headers.forEach((h,i) => { 
+          obj[h] = (cols[i] || '').replace(/^"|"$/g, '').trim(); 
+        });
+        console.log(`📝 행 ${index + 2} 파싱:`, obj);
         return obj;
       });
+      
+      console.log('✅ CSV 파싱 완료, 총 행 수:', result.length);
+      return result;
     }
 
     // Attach upload handlers when data management screen is shown
@@ -3533,25 +3559,41 @@ ${r.optPlan}
           const newRec = {
             no: newNo,
             submittedAt: parseTs(obj['제출시간']) || (rec? rec.submittedAt : Date.now()),
-            companyCode: obj['업체코드']|| (rec? rec.companyCode : ''),
-            companyName: obj['업체명']|| (rec? rec.companyName : ''),
-            bizNo: obj['사업자번호']|| (rec? rec.bizNo : ''),
-            contact: obj['카톡/번호']|| (rec? rec.contact : ''),
-            productUrl: obj['제품URL']|| (rec? rec.productUrl : ''),
-            keywords: obj['구매키워드']|| (rec? rec.keywords : ''),
-            totalCnt: toInt(obj['총진행건수']!=null?obj['총진행건수']: rec? rec.totalCnt : 0),
-            dailyCnt: toInt(obj['일진행건수']!=null?obj['일진행건수']: rec? rec.dailyCnt : 0),
-            optPlan: obj['옵션계획']!=null?obj['옵션계획']: (rec? rec.optPlan : ''),
-            ship: obj['제품배송']!=null?obj['제품배송']: (rec? rec.ship : ''),
-            prepay: obj['입금대행']!=null?obj['입금대행']: (rec? rec.prepay : ''),
-            courier: obj['택배대행']!=null?obj['택배대행']: (rec? rec.courier : ''),
-            billWork: obj['작업비계산서']!=null?obj['작업비계산서']: (rec? rec.billWork : ''),
-            billProd: obj['상품금액계산서']!=null?obj['상품금액계산서']: (rec? rec.billProd : ''),
-            accepted: obj['접수상태']!=null? parseBool(obj['접수상태']) : (rec? rec.accepted : false),
-            acceptedAt: obj['접수시간']? parseTs(obj['접수시간']) : (rec? rec.acceptedAt : null)
+            companyCode: (obj['업체코드'] || '').trim() || (rec? rec.companyCode : ''),
+            companyName: (obj['업체명'] || '').trim() || (rec? rec.companyName : ''),
+            bizNo: (obj['사업자번호'] || '').trim() || (rec? rec.bizNo : ''),
+            contact: (obj['카톡/번호'] || '').trim() || (rec? rec.contact : ''),
+            productUrl: (obj['제품URL'] || '').trim() || (rec? rec.productUrl : ''),
+            keywords: (obj['구매키워드'] || '').trim() || (rec? rec.keywords : ''),
+            totalCnt: toInt(obj['총진행건수'] != null ? obj['총진행건수'] : (rec? rec.totalCnt : 0)),
+            dailyCnt: toInt(obj['일진행건수'] != null ? obj['일진행건수'] : (rec? rec.dailyCnt : 0)),
+            optPlan: (obj['옵션계획'] || '').trim() || (rec? rec.optPlan : ''),
+            ship: (obj['제품배송'] || '').trim() || (rec? rec.ship : ''),
+            prepay: (obj['입금대행'] || '').trim() || (rec? rec.prepay : ''),
+            courier: (obj['택배대행'] || '').trim() || (rec? rec.courier : ''),
+            billWork: (obj['작업비계산서'] || '').trim() || (rec? rec.billWork : ''),
+            billProd: (obj['상품금액계산서'] || '').trim() || (rec? rec.billProd : ''),
+            accepted: obj['접수상태'] != null ? parseBool(obj['접수상태']) : (rec? rec.accepted : false),
+            acceptedAt: obj['접수시간'] ? parseTs(obj['접수시간']) : (rec? rec.acceptedAt : null)
           };
           
-          console.log('📋 생성된 데이터:', { no: newRec.no, companyName: newRec.companyName, noType: typeof newRec.no });
+          console.log('📋 매핑된 데이터 상세:', {
+            no: newRec.no,
+            companyName: newRec.companyName,
+            companyCode: newRec.companyCode,
+            contact: newRec.contact,
+            productUrl: newRec.productUrl,
+            keywords: newRec.keywords,
+            totalCnt: newRec.totalCnt,
+            dailyCnt: newRec.dailyCnt,
+            optPlan: newRec.optPlan,
+            ship: newRec.ship,
+            prepay: newRec.prepay,
+            courier: newRec.courier,
+            billWork: newRec.billWork,
+            billProd: newRec.billProd,
+            accepted: newRec.accepted
+          });
           
           if(rec){ Object.assign(rec, newRec); updated++; }
           else { rows.unshift(newRec); updated++; }
@@ -4346,6 +4388,35 @@ ${r.optPlan}
       window.wp_data_cache_cleared = true;
       console.log('🔄 데이터 캐시 강제 초기화 완료');
       console.log('💡 이제 다른 탭을 클릭하면 최신 데이터가 로드됩니다');
+    };
+    
+    // 번호 초기화 함수 (디버깅용)
+    window.resetNumberCounter = async function() {
+      console.log('🔄 번호 카운터 초기화 시작');
+      
+      if (!window.db) {
+        localStorage.setItem("wp_next_no", "1");
+        console.log('✅ localStorage 번호 초기화 완료');
+        return;
+      }
+      
+      try {
+        const countersRef = collection(db, 'counters');
+        const snapshot = await getDocs(countersRef);
+        
+        if (!snapshot.empty) {
+          await updateDoc(snapshot.docs[0].ref, { nextNo: 1 });
+          console.log('✅ Firebase 번호 초기화 완료');
+        } else {
+          await addDoc(countersRef, { nextNo: 1 });
+          console.log('✅ Firebase 새 카운터 생성 완료');
+        }
+        
+        localStorage.setItem("wp_next_no", "1");
+        console.log('✅ 번호 카운터 초기화 완료');
+      } catch (error) {
+        console.error('❌ 번호 초기화 오류:', error);
+      }
     };
       
       // Firebase 단계별 테스트
