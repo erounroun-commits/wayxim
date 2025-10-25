@@ -3750,81 +3750,8 @@ ${r.optPlan}
         console.error('❌ 실시간 리스너 설정 실패:', error);
       }
     }
-    // Firebase 초기화 후 실시간 리스너 설정 (비활성화)
-    if (window.db) {
-      console.log('🚫 Firebase 초기화 완료 - 실시간 리스너 비활성화');
-      setupRealtimeListener(); // 비활성화된 상태로 실행
-    }
-                  
-                  // 푸시알림 표시
-                  showPushNotification(notificationTitle, notificationContent);
-                  
-                  // 상단 알림 아이콘에도 알림 추가
-                  if (window.addNotification) {
-                    window.addNotification(notificationTitle, notificationContent, 'success');
-                    console.log('📝 상단 알림 아이콘에도 알림 추가 완료');
-                  }
-                  
-                  console.log('🔔 실시간 리스너 푸시 알림 표시 완료 (방법 1)');
-                } catch (error) {
-                  console.error('❌ 방법 1 실패:', error);
-                  
-                  // 방법 2: window를 통한 호출
-                  try {
-                    if (window.showPushNotification) {
-                      const notificationTitle = '신규 작업요청건이 있습니다';
-                      const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
-                      
-                      window.showPushNotification(notificationTitle, notificationContent);
-                      
-                      // 상단 알림 아이콘에도 알림 추가
-                      if (window.addNotification) {
-                        window.addNotification(notificationTitle, notificationContent, 'success');
-                        console.log('📝 상단 알림 아이콘에도 알림 추가 완료 (방법 2)');
-                      }
-                      
-                      console.log('🔔 실시간 리스너 푸시 알림 표시 완료 (방법 2)');
-                    } else {
-                      console.error('❌ window.showPushNotification 함수를 찾을 수 없음');
-                    }
-                  } catch (error2) {
-                    console.error('❌ 방법 2도 실패:', error2);
-                  }
-                }
-                
-              } else {
-                console.log('❌ 최신 요청건을 찾을 수 없음');
-              }
-              
-              // 현재 활성화된 탭에 따라 강제 업데이트
-              if (currentSection === 'home') {
-                await showAdminHome();
-              } else if (currentSection === 'req-new') {
-                await showReqList(false);
-              } else if (currentSection === 'req-all') {
-                await showAllReqList();
-              } else if (currentSection === 'vendor') {
-                await showVendorDashboard();
-              } else if (currentSection === 'vendor-list') {
-                await showVendorList();
-              } else if (currentSection === 'settle') {
-                await showSettlementDashboard();
-              } else if (currentSection === 'settle-weekly') {
-                await showWeeklySettlementList();
-              } else if (currentSection === 'settle-monthly') {
-                await showMonthlySettlementList();
-              }
-    // 실시간 리스너 코드 정리 완료 (문법 오류 수정)
-    
-    // Firebase 초기화 후 실시간 리스너 설정 (비활성화)
-    if (window.db) {
-      console.log('🚫 Firebase 초기화 완료 - 실시간 리스너 비활성화');
-      setupRealtimeListener(); // 비활성화된 상태로 실행
-    }
-    // 실시간 리스너 코드 정리 완료 (문법 오류 수정)
-    
-    // Firebase 초기화 후 실시간 리스너 설정 (비활성화)
-    if (window.db) {
+     // Firebase 초기화 후 실시간 리스너 설정 (비활성화)
+     if (window.db) {
       console.log('🚫 Firebase 초기화 완료 - 실시간 리스너 비활성화');
       setupRealtimeListener(); // 비활성화된 상태로 실행
     }
@@ -3847,7 +3774,6 @@ ${r.optPlan}
     // 알림 시스템 초기화
     let notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
     let notificationId = parseInt(localStorage.getItem('wp_notification_id') || '0');
-    
     console.log('🔔 알림 시스템 초기화:', {
       notificationsCount: notifications.length,
       notificationId: notificationId,
