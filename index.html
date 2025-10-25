@@ -3105,7 +3105,7 @@ ${r.optPlan}
           <p style="margin:0 0 12px;color:#6a7a89;font-size:14px;">수정된 CSV를 업로드하면 신규/변경 데이터만 반영됩니다. 중복은 무시됩니다.</p>
           <input id="dataUpload" type="file" accept=".csv" style="margin:6px 0 12px;" />
           <div class="hint">헤더 예시: 번호,제출시간,업체코드,업체명,사업자번호,카톡/번호,제품URL,구매키워드,총진행건수,일진행건수,옵션계획,제품배송,입금대행,택배대행,작업비계산서,상품금액계산서,접수상태,접수시간</div>
-          <div class="right" style="margin-top:12px;"><button class="btn" id="applyDataUpload" type="button">업데이트 적용</button></div>
+          <div class="right" style="margin-top:12px;"><button class="btn" id="applyDataUpload" type="button" disabled style="opacity:0.5;">업데이트 적용</button></div>
         </div>
         
         <div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
@@ -3409,16 +3409,50 @@ ${r.optPlan}
     // Attach upload handlers when data management screen is shown
     document.addEventListener('change', async (e)=>{
       if(e.target && e.target.id === 'dataUpload'){
+        console.log('📁 파일 업로드 감지');
         const file = e.target.files && e.target.files[0];
-        if(!file) return;
-        const text = await file.text();
-        window.wp_upload_rows = parseCsv(text);
+        if(!file) {
+          console.log('❌ 파일이 선택되지 않음');
+          return;
+        }
+        
+        console.log('📄 파일명:', file.name);
+        console.log('📄 파일 크기:', file.size, 'bytes');
+        
+        try {
+          const text = await file.text();
+          window.wp_upload_rows = parseCsv(text);
+          console.log('✅ CSV 파싱 완료, 데이터 수:', window.wp_upload_rows.length);
+          
+          // 업데이트 적용 버튼 활성화
+          const applyBtn = document.getElementById('applyDataUpload');
+          if (applyBtn) {
+            applyBtn.disabled = false;
+            applyBtn.style.opacity = '1';
+            console.log('✅ 업데이트 적용 버튼 활성화');
+          }
+        } catch (error) {
+          console.error('❌ 파일 읽기 오류:', error);
+          alert('파일을 읽는 중 오류가 발생했습니다.');
+        }
       }
     });
 
-    document.addEventListener('click', (e)=>{
+    document.addEventListener('click', async (e)=>{
       if(e.target && e.target.id === 'applyDataUpload'){
-        const rows = loadSubs();
+        console.log('🔄 업데이트 적용 버튼 클릭');
+        
+        // 업로드된 파일이 있는지 확인
+        if (!window.wp_upload_rows || window.wp_upload_rows.length === 0) {
+          alert('먼저 CSV 파일을 업로드해주세요.');
+          return;
+        }
+        
+        console.log('📊 업로드된 데이터 수:', window.wp_upload_rows.length);
+        
+        const rows = await loadSubs();
+        console.log('📊 기존 데이터 수:', rows.length);
+        
         const byNo = new Map(rows.map(r=> [String(r.no), r]));
         const incoming = window.wp_upload_rows||[];
         let updated=0;
