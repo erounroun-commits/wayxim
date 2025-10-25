@@ -3470,15 +3470,53 @@ ${r.optPlan}
       }
       
       const headers = lines[0].split(',').map(h=>h.trim());
-      console.log('📋 CSV 헤더:', headers);
+      console.log('📋 원본 CSV 헤더:', headers);
       
       const result = lines.slice(1).map((line, index) => {
         const cols = line.split(',');
         const obj = {}; 
+        
+        // 복합 헤더 분리 처리
         headers.forEach((h,i) => { 
-          obj[h] = (cols[i] || '').replace(/^"|"$/g, '').trim(); 
+          const value = (cols[i] || '').replace(/^"|"$/g, '').trim();
+          
+          // 복합 헤더 분리 (더 정확한 패턴 매칭)
+          if (h === '사업자번호카톡/번호') {
+            // 사업자번호카톡/번호 → 사업자번호와 카톡/번호로 분리
+            // 예: "우어" → 사업자번호: "우", 카톡/번호: "어"
+            const parts = value.split(/(?=[가-힣])/); // 한글이 시작되는 지점에서 분리
+            obj['사업자번호'] = parts[0] || '';
+            obj['카톡/번호'] = parts[1] || '';
+            console.log(`🔀 ${h} 분리: "${value}" → 사업자번호:"${obj['사업자번호']}", 카톡/번호:"${obj['카톡/번호']}"`);
+          } else if (h === '구매키워드총진행건수') {
+            // 구매키워드총진행건수 → 구매키워드와 총진행건수로 분리
+            // 예: "39" → 구매키워드: "", 총진행건수: "39"
+            const parts = value.split(/(?=\d)/); // 숫자가 시작되는 지점에서 분리
+            obj['구매키워드'] = parts[0] || '';
+            obj['총진행건수'] = parts[1] || '';
+            console.log(`🔀 ${h} 분리: "${value}" → 구매키워드:"${obj['구매키워드']}", 총진행건수:"${obj['총진행건수']}"`);
+          } else if (h === '일진행건수옵션계획') {
+            // 일진행건수옵션계획 → 일진행건수와 옵션계획으로 분리
+            // 예: "39 투" → 일진행건수: "39", 옵션계획: "투"
+            const parts = value.split(/(?=[가-힣])/); // 한글이 시작되는 지점에서 분리
+            obj['일진행건수'] = parts[0] || '';
+            obj['옵션계획'] = parts[1] || '';
+            console.log(`🔀 ${h} 분리: "${value}" → 일진행건수:"${obj['일진행건수']}", 옵션계획:"${obj['옵션계획']}"`);
+          } else if (h === '작업비계신상품금액겨접수상태') {
+            // 작업비계신상품금액겨접수상태 → 작업비계산서, 상품금액계산서, 접수상태로 분리
+            // 예: "N" → 작업비계산서: "N", 상품금액계산서: "", 접수상태: ""
+            const parts = value.split(/(?=[가-힣])/); // 한글이 시작되는 지점에서 분리
+            obj['작업비계산서'] = parts[0] || '';
+            obj['상품금액계산서'] = parts[1] || '';
+            obj['접수상태'] = parts[2] || '';
+            console.log(`🔀 ${h} 분리: "${value}" → 작업비계산서:"${obj['작업비계산서']}", 상품금액계산서:"${obj['상품금액계산서']}", 접수상태:"${obj['접수상태']}"`);
+          } else {
+            // 일반 헤더
+            obj[h] = value;
+          }
         });
-        console.log(`📝 행 ${index + 2} 파싱:`, obj);
+        
+        console.log(`📝 행 ${index + 2} 파싱 결과:`, obj);
         return obj;
       });
       
@@ -3601,6 +3639,28 @@ ${r.optPlan}
         
         console.log('💾 데이터 저장 시작, 총 건수:', rows.length);
         
+        // 저장 전 데이터 상세 확인
+        console.log('🔍 저장할 데이터 상세 확인:');
+        rows.forEach((row, index) => {
+          console.log(`📋 행 ${index + 1}:`, {
+            no: row.no,
+            companyCode: row.companyCode,
+            companyName: row.companyName,
+            bizNo: row.bizNo,
+            contact: row.contact,
+            keywords: row.keywords,
+            totalCnt: row.totalCnt,
+            dailyCnt: row.dailyCnt,
+            optPlan: row.optPlan,
+            ship: row.ship,
+            prepay: row.prepay,
+            courier: row.courier,
+            billWork: row.billWork,
+            billProd: row.billProd,
+            accepted: row.accepted
+          });
+        });
+        
         // 데이터 검증 - Promise 객체 및 잘못된 데이터 타입 확인
         const invalidData = rows.filter(row => {
           // Promise 객체 확인
@@ -3640,6 +3700,10 @@ ${r.optPlan}
         // 저장 후 검증
         const savedData = await loadSubs();
         console.log('🔍 저장 후 데이터 검증, 건수:', savedData.length);
+        
+        // 신규요청건 탭 즉시 새로고침
+        console.log('🔄 신규요청건 탭 새로고침');
+        await showReqList(false);
         
         // 모든 관리자 탭의 데이터 캐시 강제 초기화
         console.log('🔄 모든 관리자 탭 데이터 캐시 초기화');
@@ -4390,33 +4454,41 @@ ${r.optPlan}
       console.log('💡 이제 다른 탭을 클릭하면 최신 데이터가 로드됩니다');
     };
     
-    // 번호 초기화 함수 (디버깅용)
-    window.resetNumberCounter = async function() {
-      console.log('🔄 번호 카운터 초기화 시작');
+    // 디버깅용 함수 - 현재 저장된 데이터 확인
+    window.debugCurrentData = async function() {
+      console.log('🔍 현재 저장된 데이터 확인');
+      const data = await loadSubs();
+      console.log('📊 총 데이터 건수:', data.length);
       
-      if (!window.db) {
-        localStorage.setItem("wp_next_no", "1");
-        console.log('✅ localStorage 번호 초기화 완료');
-        return;
-      }
+      data.forEach((item, index) => {
+        console.log(`📋 데이터 ${index + 1}:`, {
+          no: item.no,
+          companyCode: item.companyCode,
+          companyName: item.companyName,
+          bizNo: item.bizNo,
+          contact: item.contact,
+          keywords: item.keywords,
+          totalCnt: item.totalCnt,
+          dailyCnt: item.dailyCnt,
+          accepted: item.accepted
+        });
+      });
       
-      try {
-        const countersRef = collection(db, 'counters');
-        const snapshot = await getDocs(countersRef);
-        
-        if (!snapshot.empty) {
-          await updateDoc(snapshot.docs[0].ref, { nextNo: 1 });
-          console.log('✅ Firebase 번호 초기화 완료');
-        } else {
-          await addDoc(countersRef, { nextNo: 1 });
-          console.log('✅ Firebase 새 카운터 생성 완료');
-        }
-        
-        localStorage.setItem("wp_next_no", "1");
-        console.log('✅ 번호 카운터 초기화 완료');
-      } catch (error) {
-        console.error('❌ 번호 초기화 오류:', error);
-      }
+      // 신규요청건만 필터링
+      const newRequests = data.filter(r => !r.accepted);
+      console.log('🆕 신규요청건:', newRequests.length, '건');
+      newRequests.forEach((item, index) => {
+        console.log(`🆕 신규요청건 ${index + 1}:`, {
+          no: item.no,
+          companyCode: item.companyCode,
+          companyName: item.companyName,
+          bizNo: item.bizNo,
+          contact: item.contact,
+          keywords: item.keywords,
+          totalCnt: item.totalCnt,
+          dailyCnt: item.dailyCnt
+        });
+      });
     };
       
       // Firebase 단계별 테스트
