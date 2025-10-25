@@ -2138,11 +2138,11 @@
         }
         
         // Firebase에서 기존 매핑 데이터 가져오기
-        const nameToCodeRef = collection(db, 'nameToCode');
-        const codeToNameRef = collection(db, 'codeToName');
+        const nameToCodeRef = window.collection(window.db, 'nameToCode');
+        const codeToNameRef = window.collection(window.db, 'codeToName');
         
-        const nameToCodeSnapshot = await getDocs(nameToCodeRef);
-        const codeToNameSnapshot = await getDocs(codeToNameRef);
+        const nameToCodeSnapshot = await window.getDocs(nameToCodeRef);
+        const codeToNameSnapshot = await window.getDocs(codeToNameRef);
         
         let mapNameToCode = {};
         let mapCodeToName = {};
@@ -2171,8 +2171,8 @@
         while(mapCodeToName[code] && mapCodeToName[code]!==n){ seed++; code = codeFromSeed(seed); }
         
         // Firebase에 새 매핑 저장
-        await addDoc(nameToCodeRef, { name: n, code: code });
-        await addDoc(codeToNameRef, { code: code, name: n });
+        await window.addDoc(nameToCodeRef, { name: n, code: code });
+        await window.addDoc(codeToNameRef, { code: code, name: n });
         
         // localStorage에도 백업
         const mapNameToCodeLocal = JSON.parse(localStorage.getItem("wp_name_to_code")||"{}");
@@ -2326,11 +2326,11 @@
       const result = await safeFirebaseOperation(async () => {
         console.log('🔥 Firebase에서 최신 데이터 가져오기 시작');
         
-        const submissionsRef = collection(db, 'submissions');
-        const q = query(submissionsRef, orderBy('no', 'asc'));
+        const submissionsRef = window.collection(window.db, 'submissions');
+        const q = window.query(submissionsRef, window.orderBy('no', 'asc'));
         
         // 캐시 무시하고 서버에서 최신 데이터 가져오기
-        const snapshot = await getDocs(q);
+        const snapshot = await window.getDocs(q);
         const submissions = [];
         snapshot.forEach(doc => {
           submissions.push({ id: doc.id, ...doc.data() });
@@ -2380,17 +2380,17 @@
         console.log('🔥 Firebase에 데이터 저장 시작');
         
         // 기존 데이터 삭제 후 새로 저장
-        const submissionsRef = collection(db, 'submissions');
-        const snapshot = await getDocs(submissionsRef);
+        const submissionsRef = window.collection(window.db, 'submissions');
+        const snapshot = await window.getDocs(submissionsRef);
         console.log('🗑️ 기존 데이터 삭제, 건수:', snapshot.docs.length);
         
-        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+        const deletePromises = snapshot.docs.map(doc => window.deleteDoc(doc.ref));
         await Promise.all(deletePromises);
         console.log('✅ 기존 데이터 삭제 완료');
         
         // 새 데이터 저장
         console.log('📝 새 데이터 저장 시작, 건수:', arr.length);
-        const addPromises = arr.map(submission => addDoc(submissionsRef, submission));
+        const addPromises = arr.map(submission => window.addDoc(submissionsRef, submission));
         await Promise.all(addPromises);
         console.log('✅ 새 데이터 저장 완료');
         
@@ -2432,12 +2432,12 @@
           return n;
         }
         
-        const countersRef = collection(db, 'counters');
-        const snapshot = await getDocs(countersRef);
+        const countersRef = window.collection(window.db, 'counters');
+        const snapshot = await window.getDocs(countersRef);
         
         // 기존 submissions 데이터 확인
-        const submissionsRef = collection(db, 'submissions');
-        const submissionsSnapshot = await getDocs(submissionsRef);
+        const submissionsRef = window.collection(window.db, 'submissions');
+        const submissionsSnapshot = await window.getDocs(submissionsRef);
         
         let currentNo = 1;
         if (!snapshot.empty) {
@@ -2447,11 +2447,11 @@
           // 기존 submissions가 없어도 번호를 계속 증가시키도록 수정
           console.log('🔢 Firebase 기존 번호:', currentNo);
           // 기존 문서 업데이트
-          await updateDoc(snapshot.docs[0].ref, { nextNo: currentNo + 1 });
+          await window.updateDoc(snapshot.docs[0].ref, { nextNo: currentNo + 1 });
         } else {
           console.log('🔢 Firebase 새 문서 생성');
           // 새 문서 생성
-          await addDoc(countersRef, { nextNo: 2 });
+          await window.addDoc(countersRef, { nextNo: 2 });
         }
         
         // localStorage에도 백업
@@ -3414,8 +3414,8 @@ ${r.optPlan}
       
       // Override first if admin set vendor type explicitly
       try{
-        const overridesRef = collection(db, 'vendorTypeOverrides');
-        const snapshot = await getDocs(overridesRef);
+        const overridesRef = window.collection(window.db, 'vendorTypeOverrides');
+        const snapshot = await window.getDocs(overridesRef);
         
         for(const doc of snapshot.docs) {
           const data = doc.data();
@@ -4923,11 +4923,11 @@ ${r.optPlan}
               
               for (const collectionName of collections) {
                 console.log(`🗑️ ${collectionName} 컬렉션 삭제 시작`);
-                const collectionRef = collection(db, collectionName);
-                const snapshot = await getDocs(collectionRef);
+                const collectionRef = window.collection(window.db, collectionName);
+                const snapshot = await window.getDocs(collectionRef);
                 
                 if (snapshot.docs.length > 0) {
-                  const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+                  const deletePromises = snapshot.docs.map(doc => window.deleteDoc(doc.ref));
                   await Promise.all(deletePromises);
                   console.log(`✅ ${collectionName} 컬렉션 삭제 완료: ${snapshot.docs.length}개 문서`);
                 } else {
@@ -4968,8 +4968,8 @@ ${r.optPlan}
           // Firebase에서 직접 삭제 (문서 ID가 있는 경우)
           if (window.db && targetRow.id) {
             console.log('🔥 Firebase에서 직접 삭제 시도:', targetRow.id);
-            const docRef = doc(db, 'submissions', targetRow.id);
-            await deleteDoc(docRef);
+            const docRef = window.doc(window.db, 'submissions', targetRow.id);
+            await window.deleteDoc(docRef);
             console.log('✅ Firebase 직접 삭제 완료');
           } else {
             console.log('📝 Firebase 직접 삭제 불가, 전체 데이터 재저장 방식 사용');
@@ -5080,8 +5080,8 @@ ${r.optPlan}
         if(pending[id].vendorTypeOverride){
           // Firebase에 vendor type override 저장
           try {
-            const overridesRef = collection(db, 'vendorTypeOverrides');
-            await addDoc(overridesRef, { 
+            const overridesRef = window.collection(window.db, 'vendorTypeOverrides');
+            await window.addDoc(overridesRef, { 
               companyCode: rec.companyCode, 
               type: pending[id].vendorTypeOverride 
             });
@@ -5909,11 +5909,19 @@ ${r.optPlan}
       try {
         isListenerActive = true; // 리스너 활성화 표시
         console.log('🔄 실시간 리스너 설정 시작...');
+        console.log('🔍 Firebase DB 상태:', window.db);
+        console.log('🔍 collection 함수:', typeof window.collection);
+        console.log('🔍 query 함수:', typeof window.query);
+        console.log('🔍 orderBy 함수:', typeof window.orderBy);
+        console.log('🔍 onSnapshot 함수:', typeof window.onSnapshot);
         
-        const submissionsRef = collection(db, 'submissions');
-        const q = query(submissionsRef, orderBy('submittedAt', 'desc'));
+        const submissionsRef = window.collection(window.db, 'submissions');
+        const q = window.query(submissionsRef, window.orderBy('submittedAt', 'desc'));
         
-        realtimeUnsubscribe = onSnapshot(q, async (snapshot) => {
+        console.log('🔍 submissionsRef:', submissionsRef);
+        console.log('🔍 query:', q);
+        
+        realtimeUnsubscribe = window.onSnapshot(q, async (snapshot) => {
           try {
             console.log('📡 실시간 데이터 업데이트:', snapshot.docs.length, '건');
             
@@ -6249,6 +6257,12 @@ ${r.optPlan}
     function addNotification(title, content, type = 'info', actualTimestamp = null) {
       console.log('📝 새 알림 추가:', title, content, type);
       
+      // 관리자 화면이 아니면 알림 추가 안함
+      if (sessionStorage.getItem("wp_is_admin") !== "1") {
+        console.log('🚫 관리자 화면이 아님 - 알림 추가 안함');
+        return;
+      }
+      
       // 실제 제출 시간이 있으면 사용, 없으면 현재 시간 사용
       const notificationTimestamp = actualTimestamp || Date.now();
       
@@ -6280,6 +6294,13 @@ ${r.optPlan}
     
     function updateNotificationUI() {
       console.log('🔄 알림 UI 업데이트 시작');
+      
+      // 관리자 화면이 아니면 알림 UI 업데이트 안함
+      if (sessionStorage.getItem("wp_is_admin") !== "1") {
+        console.log('🚫 관리자 화면이 아님 - 알림 UI 업데이트 안함');
+        return;
+      }
+      
       const notificationBtn = document.getElementById('notificationBtn');
       const notificationCount = document.getElementById('notificationCount');
       
@@ -6291,22 +6312,25 @@ ${r.optPlan}
       console.log('📊 읽지 않은 알림 수:', unreadCount);
       
       if (notificationBtn && notificationCount) {
-      if (unreadCount > 0) {
-        notificationCount.textContent = unreadCount;
-        notificationCount.style.display = 'flex';
+        if (unreadCount > 0) {
+          notificationCount.textContent = unreadCount;
+          notificationCount.style.display = 'flex';
           console.log('✅ 알림 카운트 표시:', unreadCount);
-      } else {
-        notificationCount.style.display = 'none';
+        } else {
+          notificationCount.style.display = 'none';
           console.log('📝 알림 카운트 숨김');
         }
         
         // 알림 버튼이 보이도록 강제 설정
-        if (sessionStorage.getItem("wp_is_admin") === "1") {
-          notificationBtn.style.display = 'block';
-          console.log('✅ 알림 버튼 표시');
-        }
+        notificationBtn.style.display = 'block';
+        console.log('✅ 알림 버튼 표시');
       } else {
         console.error('❌ 알림 버튼 또는 카운트 요소를 찾을 수 없음');
+        console.log('🔍 현재 관리자 상태:', sessionStorage.getItem("wp_is_admin"));
+        console.log('🔍 DOM 요소 확인:', {
+          notificationBtn: !!notificationBtn,
+          notificationCount: !!notificationCount
+        });
       }
     }
     
@@ -6602,14 +6626,14 @@ ${r.optPlan}
       
       // 3단계: 컬렉션 참조 생성 테스트
       try {
-        const testRef = collection(db, 'test');
+        const testRef = window.collection(window.db, 'test');
         console.log('✅ Step 3: Collection reference created');
         
         // 4단계: 실제 쓰기 테스트 (5초 후)
         setTimeout(async () => {
           try {
             console.log('🔄 Step 4: Testing write operation...');
-            await addDoc(testRef, { 
+            await window.addDoc(testRef, { 
               message: 'Firebase connection test', 
               timestamp: Date.now(),
               testId: Math.random().toString(36).substr(2, 9)
