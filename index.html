@@ -3459,6 +3459,20 @@ ${r.optPlan}
         console.log('❌ addSubmissionNotification 함수를 찾을 수 없음');
       }
       
+      // 강제 푸시알림 표시 (백업)
+      if (sessionStorage.getItem("wp_is_admin") === "1") {
+        console.log('🔔 폼 제출 시 강제 푸시알림 표시 시도');
+        try {
+          showPushNotification(
+            '신규 작업요청건이 있습니다',
+            `${companyName} (${companyCode})에서 새로운 작업요청서가 제출되었습니다.`
+          );
+          console.log('🔔 폼 제출 시 푸시알림 표시 완료');
+        } catch (error) {
+          console.error('❌ 폼 제출 시 푸시알림 표시 중 오류:', error);
+        }
+      }
+      
       alert("제출되었습니다. 관리자 확인 후 회신드리겠습니다. 감사합니다.");
       rfForm.reset();
       if(idOutput) idOutput.textContent = "ID 미발급";
@@ -3728,16 +3742,40 @@ ${r.optPlan}
                 console.log('📋 알림 내용:', `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`);
                 console.log('👨‍💼 관리자 상태 재확인:', sessionStorage.getItem("wp_is_admin"));
                 
-                // 직접 함수 호출 (window를 통하지 않고)
+                // 강제 푸시알림 표시 (여러 방법 시도)
+                const notificationTitle = '신규 작업요청건이 있습니다';
+                const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+                
+                // 방법 1: 직접 함수 호출
                 try {
-                  showPushNotification(
-                    '신규 작업요청건이 있습니다',
-                    `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`
-                  );
-                  console.log('🔔 실시간 리스너 푸시 알림 표시 완료');
+                  showPushNotification(notificationTitle, notificationContent);
+                  console.log('🔔 실시간 리스너 푸시 알림 표시 완료 (방법 1)');
                 } catch (error) {
-                  console.error('❌ 푸시 알림 표시 중 오류:', error);
+                  console.error('❌ 방법 1 실패:', error);
+                  
+                  // 방법 2: window를 통한 호출
+                  try {
+                    if (window.showPushNotification) {
+                      window.showPushNotification(notificationTitle, notificationContent);
+                      console.log('🔔 실시간 리스너 푸시 알림 표시 완료 (방법 2)');
+                    } else {
+                      console.error('❌ window.showPushNotification 함수를 찾을 수 없음');
+                    }
+                  } catch (error2) {
+                    console.error('❌ 방법 2도 실패:', error2);
+                  }
                 }
+                
+                // 방법 3: 지연된 푸시알림 (백업)
+                setTimeout(() => {
+                  try {
+                    showPushNotification(notificationTitle, notificationContent);
+                    console.log('🔔 지연된 푸시알림 표시 완료 (방법 3)');
+                  } catch (error3) {
+                    console.error('❌ 방법 3도 실패:', error3);
+                  }
+                }, 500);
+                
               } else {
                 console.log('❌ 최신 요청건을 찾을 수 없음');
               }
@@ -3895,10 +3933,10 @@ ${r.optPlan}
         });
         console.log('🗑️ 기존 푸시 알림 제거:', existingNotifications.length, '개');
         
-        // 중복 방지를 위한 플래그 (더 유연하게)
+        // 중복 방지 로직 완화 (1초로 단축)
         const now = Date.now();
-        if (window.pushNotificationShowing && (now - window.lastPushNotificationTime) < 2000) {
-          console.log('⚠️ 최근에 푸시알림이 표시되었으므로 스킵 (2초 내)');
+        if (window.pushNotificationShowing && (now - window.lastPushNotificationTime) < 1000) {
+          console.log('⚠️ 최근에 푸시알림이 표시되었으므로 스킵 (1초 내)');
           return;
         }
         window.pushNotificationShowing = true;
