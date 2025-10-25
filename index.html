@@ -826,14 +826,20 @@
         loadingPopup.style.width = '100vw';
         loadingPopup.style.height = '100vh';
         loadingPopup.style.zIndex = '99999';
+        console.log('✅ 로딩 팝업 표시 완료');
+      } else {
+        console.error('❌ 로딩 팝업 요소를 찾을 수 없음');
       }
     }
     
     function hideLoading() {
       const loadingPopup = document.getElementById('loadingPopup');
       if (loadingPopup) {
-        console.log('✅ 로딩 팝업 숨김');
+        console.log('✅ 로딩 팝업 숨김 시작');
         loadingPopup.style.display = 'none';
+        console.log('✅ 로딩 팝업 숨김 완료');
+      } else {
+        console.error('❌ 로딩 팝업 요소를 찾을 수 없음');
       }
     }
 
@@ -950,14 +956,24 @@
       // Draw separate charts
       drawRequestsChart(chartData);
       drawVendorsChart(chartData);
-      } finally {
+      
+      // 차트 그리기 완료 후 로딩 팝업 숨김 (약간의 지연)
+      setTimeout(() => {
         hideLoading();
+      }, 100);
+      } finally {
+        // finally 블록에서도 로딩 팝업 숨김 (안전장치)
+        setTimeout(() => {
+          hideLoading();
+        }, 200);
       }
     }
     
     function drawRequestsChart(data) {
       const container = document.getElementById('requestsChart');
       if (!container || data.length === 0) return;
+      
+      console.log('📊 요청 차트 그리기 시작');
       
       const maxRequests = Math.max(...data.map(d => d.requests));
       const chartWidth = container.offsetWidth - 32;
@@ -1021,11 +1037,14 @@
       
       chartHtml += '</svg>';
       container.innerHTML = chartHtml;
+      console.log('📊 요청 차트 그리기 완료');
     }
     
     function drawVendorsChart(data) {
       const container = document.getElementById('vendorsChart');
       if (!container || data.length === 0) return;
+      
+      console.log('📊 벤더 차트 그리기 시작');
       
       const maxVendors = Math.max(...data.map(d => d.vendors));
       const chartWidth = container.offsetWidth - 32;
@@ -1089,6 +1108,7 @@
       
       chartHtml += '</svg>';
       container.innerHTML = chartHtml;
+      console.log('📊 벤더 차트 그리기 완료');
     }
 
     async function goAdmin(){
