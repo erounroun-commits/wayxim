@@ -3698,7 +3698,7 @@ ${r.optPlan}
     let realtimeUnsubscribe = null;
     let isFirstLoad = true;
     let lastProcessedSubmissionId = null;
-    let isRealtimeListenerDisabled = true; // 실시간 리스너 비활성화 플래그
+    let isRealtimeListenerDisabled = false; // 실시간 리스너 활성화
     
     function setupRealtimeListener() {
       // 실시간 리스너 비활성화 플래그 확인
@@ -3992,11 +3992,23 @@ ${r.optPlan}
       }
     }
     
-    // 테스트용 푸시 알림 함수
+    // 테스트용 푸시 알림 함수 (강화)
     function testPushNotification() {
       console.log('🧪 테스트 푸시 알림 실행');
       showPushNotification('테스트 알림', '이것은 테스트 푸시 알림입니다.');
+      
+      // 관리자 상태 확인
+      console.log('👨‍💼 관리자 상태:', sessionStorage.getItem("wp_is_admin"));
+      
+      // 푸시 알림 함수 존재 확인
+      console.log('🔍 showPushNotification 함수 존재:', typeof window.showPushNotification);
     }
+    
+    // 즉시 테스트 실행
+    setTimeout(() => {
+      console.log('🚀 자동 테스트 실행');
+      testPushNotification();
+    }, 2000);
     
     // 작업요청서 제출 시 알림 추가 (푸시 알림 + 알림 목록)
     function addSubmissionNotification(companyName, companyCode) {
