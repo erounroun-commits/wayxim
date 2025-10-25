@@ -1938,6 +1938,10 @@ ${r.optPlan}
               // 개별 업데이트로 변경 (writeBatch 대신)
               const currentTime = Date.now();
               
+              let successCount = 0;
+              let failCount = 0;
+              const failedRequests = [];
+              
               for (const request of newRequests) {
                 try {
                   const docRef = doc(window.db, 'submissions', request.id);
@@ -1945,17 +1949,35 @@ ${r.optPlan}
                     accepted: true,
                     acceptedAt: currentTime
                   });
-                  console.log(`📝 요청건 ${request.no} 접수처리:`, request.companyName);
+                  console.log(`📝 요청건 ${request.no} 접수처리 성공:`, request.companyName);
+                  successCount++;
                 } catch (error) {
                   console.error(`❌ 요청건 ${request.no} 접수처리 실패:`, error);
+                  failCount++;
+                  failedRequests.push({
+                    no: request.no,
+                    companyName: request.companyName,
+                    error: error.message
+                  });
                 }
+              }
+              
+              // 결과 요약
+              console.log(`📊 접수처리 결과: 성공 ${successCount}건, 실패 ${failCount}건`);
+              
+              if (failCount > 0) {
+                const failedList = failedRequests.map(r => `- 요청건 ${r.no} (${r.companyName}): ${r.error}`).join('\n');
+                alert(`⚠️ 일부 요청건 접수처리에 실패했습니다.\n\n실패한 요청건:\n${failedList}\n\n데이터 관리에서 해당 데이터를 확인해주세요.`);
               }
               
               console.log('✅ 모든 요청건 접수처리 완료');
               
               // 화면 새로고침
               await showReqList(false);
-              alert(`${newRequests.length}건의 요청이 접수처리되었습니다.`);
+              
+              if (successCount > 0) {
+                alert(`✅ ${successCount}건의 요청이 성공적으로 접수처리되었습니다.`);
+              }
             } else {
               console.warn('Firebase not ready, using localStorage');
               // localStorage 업데이트
@@ -4898,9 +4920,45 @@ ${r.optPlan}
         const rec = arr.find(r=> r.no===no);
         if(rec){
           const checked = t.checked;
+          console.log(`🔄 요청건 ${no} 접수 상태 변경:`, checked ? '접수' : '미접수');
+          
+          try {
+            // Firebase 업데이트 시도
+            const firebaseReady = await waitForFirebase();
+            if (firebaseReady && window.db && rec.id) {
+              console.log(`📝 Firebase 업데이트 시도 - 요청건 ${no} (ID: ${rec.id})`);
+              
+              const docRef = doc(window.db, 'submissions', rec.id);
+              await updateDoc(docRef, {
+                accepted: checked,
+                acceptedAt: checked ? Date.now() : null
+              });
+              
+              console.log(`✅ Firebase 업데이트 성공 - 요청건 ${no}`);
+            } else {
+              console.warn('Firebase not ready, using localStorage only');
+            }
+          } catch (error) {
+            console.error(`❌ Firebase 업데이트 실패 - 요청건 ${no}:`, error);
+            
+            // Firebase 업데이트 실패 시 사용자에게 알림
+            if (error.code === 'not-found') {
+              alert(`요청건 ${no}의 Firebase 문서를 찾을 수 없습니다. 데이터 관리에서 해당 데이터를 확인해주세요.`);
+            } else {
+              alert(`요청건 ${no} 업데이트 중 오류가 발생했습니다: ${error.message}`);
+            }
+            
+            // 체크박스 상태 되돌리기
+            t.checked = !checked;
+            return;
+          }
+          
+          // 로컬 데이터 업데이트
           rec.accepted = checked;
           rec.acceptedAt = checked ? Date.now() : null;
           await saveSubs(arr);
+          
+          console.log(`✅ 로컬 데이터 업데이트 완료 - 요청건 ${no}`);
           
           // 접수 완료로 변경된 경우 접수 완료건 탭으로 이동
           if(checked) {
