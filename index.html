@@ -3415,6 +3415,71 @@ ${r.optPlan}
       setTimeout(setupFormListeners, 1000);
     }
     
+    // 실시간 리스너 강제 재설정 (백업)
+    setTimeout(() => {
+      console.log('🔄 실시간 리스너 강제 재설정 시도');
+      if (window.db) {
+        try {
+          const submissionsRef = window.collection(window.db, 'submissions');
+          const q = window.query(submissionsRef, window.orderBy('submittedAt', 'desc'));
+          
+          // 기존 리스너 해제
+          if (window.realtimeUnsubscribe) {
+            window.realtimeUnsubscribe();
+            console.log('🗑️ 기존 실시간 리스너 해제');
+          }
+          
+          // 새 리스너 설정
+          window.realtimeUnsubscribe = window.onSnapshot(q, async (snapshot) => {
+            console.log('📡 강제 재설정된 실시간 리스너 작동:', snapshot.docs.length, '건');
+            
+            // 이전 데이터와 비교하여 신규 요청건 확인
+            const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
+            const newSubmissions = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            
+            // 신규 요청건이 있는지 확인
+            const hasNewRequests = newSubmissions.some(newSub => 
+              !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+            );
+            
+            console.log('🆕 강제 재설정된 리스너 - 신규 요청건 확인:', hasNewRequests);
+            
+            // localStorage 업데이트
+            localStorage.setItem("wp_submissions", JSON.stringify(newSubmissions));
+            
+            // 관리자 페이지가 열려있다면 푸시알림 표시
+            if (sessionStorage.getItem("wp_is_admin") === "1" && hasNewRequests) {
+              const latestRequest = newSubmissions.find(newSub => 
+                !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+              );
+              
+              if (latestRequest) {
+                console.log('🔔 강제 재설정된 리스너에서 푸시알림 표시');
+                try {
+                  showPushNotification(
+                    '신규 작업요청건이 있습니다',
+                    `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`
+                  );
+                  console.log('🔔 강제 재설정된 리스너 푸시알림 표시 완료');
+                } catch (error) {
+                  console.error('❌ 강제 재설정된 리스너 푸시알림 오류:', error);
+                }
+              }
+            }
+          });
+          
+          console.log('✅ 실시간 리스너 강제 재설정 완료');
+        } catch (error) {
+          console.error('❌ 실시간 리스너 강제 재설정 실패:', error);
+        }
+      } else {
+        console.log('❌ Firebase DB가 없어서 실시간 리스너 재설정 불가');
+      }
+    }, 2000); // 2초 후 실행
+    
     // 실제 폼 처리 함수
     async function handleFormSubmission() {
       console.log('🔄 폼 처리 시작');
@@ -3742,9 +3807,11 @@ ${r.optPlan}
                 console.log('📋 알림 내용:', `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`);
                 console.log('👨‍💼 관리자 상태 재확인:', sessionStorage.getItem("wp_is_admin"));
                 
-                // 강제 푸시알림 표시 (여러 방법 시도)
+                // 강제 푸시알림 표시 (중복 방지 없이)
                 const notificationTitle = '신규 작업요청건이 있습니다';
                 const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+                
+                console.log('🔔 실시간 리스너에서 푸시알림 강제 표시 시도');
                 
                 // 방법 1: 직접 함수 호출
                 try {
@@ -3765,16 +3832,6 @@ ${r.optPlan}
                     console.error('❌ 방법 2도 실패:', error2);
                   }
                 }
-                
-                // 방법 3: 지연된 푸시알림 (백업)
-                setTimeout(() => {
-                  try {
-                    showPushNotification(notificationTitle, notificationContent);
-                    console.log('🔔 지연된 푸시알림 표시 완료 (방법 3)');
-                  } catch (error3) {
-                    console.error('❌ 방법 3도 실패:', error3);
-                  }
-                }, 500);
                 
               } else {
                 console.log('❌ 최신 요청건을 찾을 수 없음');
@@ -3933,14 +3990,8 @@ ${r.optPlan}
         });
         console.log('🗑️ 기존 푸시 알림 제거:', existingNotifications.length, '개');
         
-        // 중복 방지 로직 완화 (1초로 단축)
-        const now = Date.now();
-        if (window.pushNotificationShowing && (now - window.lastPushNotificationTime) < 1000) {
-          console.log('⚠️ 최근에 푸시알림이 표시되었으므로 스킵 (1초 내)');
-          return;
-        }
-        window.pushNotificationShowing = true;
-        window.lastPushNotificationTime = now;
+        // 중복 방지 로직 완전 제거 (실제 신규 요청서는 항상 표시)
+        console.log('🔔 푸시알림 표시 진행 (중복 방지 없음)');
         
         // 새 푸시 알림 생성
         const notification = document.createElement('div');
@@ -3980,7 +4031,6 @@ ${r.optPlan}
           }
           // 푸시알림 제거
           notification.remove();
-          window.pushNotificationShowing = false;
         });
         
         document.body.appendChild(notification);
@@ -3992,7 +4042,6 @@ ${r.optPlan}
           setTimeout(() => {
             if (notification.parentNode) {
               notification.remove();
-              window.pushNotificationShowing = false; // 플래그 해제
               console.log('🗑️ 푸시 알림 자동 제거 완료');
             }
           }, 300);
