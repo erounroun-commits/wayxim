@@ -1433,6 +1433,41 @@
           const docRef = window.doc(window.db, 'submissions', uniqueId);
           await window.setDoc(docRef, rec);
           console.log('✅ 제품 제출 완료:', uniqueId);
+          
+          // 관리자 화면에서만 즉시 알림 생성
+          if (sessionStorage.getItem("wp_is_admin") === "1") {
+            console.log('🔔 제품 제출 시 즉시 알림 생성');
+            
+            const notificationTitle = '신규 작업요청건이 있습니다';
+            const notificationContent = `${productData.companyName} (${companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+            
+            // 푸시 알림 표시
+            if (window.showPushNotification) {
+              console.log('📱 푸시 알림 표시 시도:', notificationTitle);
+              window.showPushNotification(notificationTitle, notificationContent);
+            } else {
+              console.error('❌ window.showPushNotification 함수를 찾을 수 없음');
+            }
+            
+            // 상단 알림 아이콘에도 알림 추가
+            if (window.addNotification) {
+              console.log('🔔 상단 알림 아이콘에 알림 추가 시도');
+              window.addNotification(notificationTitle, notificationContent, 'success', rec.submittedAt);
+            } else {
+              console.error('❌ window.addNotification 함수를 찾을 수 없음');
+            }
+            
+            // localStorage 업데이트 (실시간 리스너가 감지할 수 있도록)
+            try {
+              const existingData = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
+              existingData.unshift(rec);
+              localStorage.setItem("wp_submissions", JSON.stringify(existingData));
+              console.log('📝 localStorage 업데이트 완료 (제품 제출 후)');
+            } catch (error) {
+              console.error('❌ localStorage 업데이트 실패:', error);
+            }
+          }
+          
         } catch (error) {
           console.error('❌ 제품 제출 실패:', error);
           throw error;
@@ -5918,11 +5953,14 @@ ${r.optPlan}
             // 관리자 화면에서만 푸시 알림 표시 (정말 신규인 경우만)
             if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
               console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
+              console.log('📊 신규 요청건 상세:', newRequests.map(r => ({ id: r.id, companyName: r.companyName, submittedAt: r.submittedAt })));
               
               // 가장 최신 신규 요청건 찾기 (submittedAt 기준)
               const latestNewRequest = newRequests.reduce((latest, current) => {
                 return current.submittedAt > latest.submittedAt ? current : latest;
               });
+              
+              console.log('📋 가장 최신 신규 요청건:', { id: latestNewRequest.id, companyName: latestNewRequest.companyName, submittedAt: latestNewRequest.submittedAt });
               
               if (latestNewRequest) {
                 // 중복 알림 방지: 이미 같은 ID로 알림이 있는지 확인
@@ -5937,18 +5975,26 @@ ${r.optPlan}
                 }
                 
                 const notificationTitle = '신규 작업요청건이 있습니다';
-                const notificationContent = '신규 작업요청서가 접수되었습니다';
+                const notificationContent = `${latestNewRequest.companyName}에서 새로운 작업요청서가 접수되었습니다.`;
                 
                 console.log('📝 실시간 리스너 알림 내용:', notificationContent);
                 console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
                 
                 // 푸시 알림 표시
-                showPushNotification(notificationTitle, notificationContent);
+                if (window.showPushNotification) {
+                  console.log('📱 실시간 리스너 푸시 알림 표시 시도');
+                  window.showPushNotification(notificationTitle, notificationContent);
+                } else {
+                  console.error('❌ 실시간 리스너에서 window.showPushNotification 함수를 찾을 수 없음');
+                }
                 
                 // 상단 알림 아이콘에도 알림 추가 (실제 제출 시간 사용)
                 if (window.addNotification) {
+                  console.log('🔔 실시간 리스너 상단 알림 아이콘에 알림 추가 시도');
                   window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
                   console.log('📝 실시간 리스너 상단 알림 아이콘에 알림 추가 완료');
+                } else {
+                  console.error('❌ 실시간 리스너에서 window.addNotification 함수를 찾을 수 없음');
                 }
                 
                 // 마지막 처리 ID 업데이트 (가장 최신 ID로)
@@ -5957,6 +6003,7 @@ ${r.optPlan}
               }
             } else if (newRequests.length > 0) {
               console.log('🚫 관리자 화면이 아님 - 실시간 리스너 알림 표시 안함');
+              console.log('👨‍💼 현재 관리자 상태:', sessionStorage.getItem("wp_is_admin"));
             } else {
               console.log('📝 신규 요청건 없음 - 알림 표시 안함');
             }
@@ -6110,6 +6157,8 @@ ${r.optPlan}
     // Firebase 초기화 후 실시간 리스너 설정 (활성화)
     if (window.db) {
       console.log('✅ Firebase 초기화 완료 - 실시간 리스너 활성화');
+      console.log('🔍 Firebase DB 상태:', window.db);
+      console.log('🔍 setupRealtimeListener 함수 존재:', typeof window.setupRealtimeListener);
       window.firebaseReady = true; // Firebase 준비 상태 플래그 설정
       setupRealtimeListener(); // 활성화된 상태로 실행
     } else {
