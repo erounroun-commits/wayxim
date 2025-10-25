@@ -1642,12 +1642,20 @@
         window.wp_data_cache_cleared = false;
       }
       
-      // Firebase 연결 상태 확인
-      if (!checkFirebaseConnection()) {
+      // Firebase 연결 상태 확인 (안전한 호출)
+      if (typeof checkFirebaseConnection === 'function' && !checkFirebaseConnection()) {
         console.warn('Firebase 연결 불가, localStorage에서 데이터 로드');
         const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
         console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
         return localData;
+      } else if (typeof checkFirebaseConnection !== 'function') {
+        // 함수가 아직 정의되지 않은 경우 기본 Firebase 확인
+        if (!window.db) {
+          console.warn('Firebase DB가 초기화되지 않음, localStorage에서 데이터 로드');
+          const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
+          console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
+          return localData;
+        }
       }
       
       // 안전한 Firebase 데이터 로드
@@ -1687,12 +1695,20 @@
     async function saveSubs(arr){ 
       console.log('💾 saveSubs 함수 시작, 데이터 수:', arr.length);
       
-      // Firebase 연결 상태 확인
-      if (!checkFirebaseConnection()) {
+      // Firebase 연결 상태 확인 (안전한 호출)
+      if (typeof checkFirebaseConnection === 'function' && !checkFirebaseConnection()) {
         console.warn('Firebase 연결 불가, localStorage에만 저장');
         localStorage.setItem("wp_submissions", JSON.stringify(arr));
         console.log('✅ localStorage에 저장 완료');
         return;
+      } else if (typeof checkFirebaseConnection !== 'function') {
+        // 함수가 아직 정의되지 않은 경우 기본 Firebase 확인
+        if (!window.db) {
+          console.warn('Firebase DB가 초기화되지 않음, localStorage에만 저장');
+          localStorage.setItem("wp_submissions", JSON.stringify(arr));
+          console.log('✅ localStorage에 저장 완료');
+          return;
+        }
       }
       
       // 안전한 Firebase 저장 작업
@@ -2019,7 +2035,7 @@ ${r.optPlan}
             }
             
             // Firebase 업데이트 (안전한 버전)
-            if (checkFirebaseConnection()) {
+            if (typeof checkFirebaseConnection === 'function' && checkFirebaseConnection()) {
               const currentTime = Date.now();
               
               let successCount = 0;
@@ -5597,18 +5613,6 @@ ${r.optPlan}
       console.log('🔔 관리자 로그인 감지 - 기존 알림 삭제');
       clearAllExistingNotifications();
     }
-    
-    // 실시간 리스너 완전 비활성화 (중복 방지)
-    function disableRealtimeListener() {
-      if (realtimeUnsubscribe) {
-        realtimeUnsubscribe();
-        realtimeUnsubscribe = null;
-        console.log('🚫 실시간 리스너 비활성화');
-      }
-    }
-    
-    // 실시간 리스너 비활성화
-    disableRealtimeListener();
     
     function addNotification(title, content, type = 'info', actualTimestamp = null) {
       console.log('📝 새 알림 추가:', title, content, type);
