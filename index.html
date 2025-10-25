@@ -3024,9 +3024,36 @@ ${r.optPlan}
       function updateWeekly(){
         const val = document.getElementById('wlWeek').value;
         const [s,e] = val.split('|');
-        const sDate = new Date(s+'T00:00:00');
-        const eDate = new Date(e+'T23:59:59');
-        const fil = rows.filter(r=>{ const d=new Date(r.submittedAt); return d>=sDate && d<=eDate; });
+        
+        console.log('🔍 주별 정산 - 날짜 필터링 시작');
+        console.log('📅 선택된 주 범위:', s, '~', e);
+        
+        // 한국 시간대를 고려한 날짜 파싱
+        const sDate = new Date(s + 'T00:00:00+09:00'); // 한국 시간대 명시
+        const eDate = new Date(e + 'T23:59:59+09:00'); // 한국 시간대 명시
+        
+        console.log('📅 파싱된 시작 날짜:', sDate);
+        console.log('📅 파싱된 종료 날짜:', eDate);
+        
+        // 더 정확한 날짜 필터링
+        const fil = rows.filter(r => {
+          const submissionDate = new Date(r.submittedAt);
+          console.log(`📅 데이터 ${r.no}: ${r.submittedAt} -> ${submissionDate}`);
+          
+          // 날짜만 비교 (시간 제외)
+          const submissionDateOnly = new Date(submissionDate.getFullYear(), submissionDate.getMonth(), submissionDate.getDate());
+          const startDateOnly = new Date(sDate.getFullYear(), sDate.getMonth(), sDate.getDate());
+          const endDateOnly = new Date(eDate.getFullYear(), eDate.getMonth(), eDate.getDate());
+          
+          const isInRange = submissionDateOnly >= startDateOnly && submissionDateOnly <= endDateOnly;
+          console.log(`📅 데이터 ${r.no} 범위 포함 여부:`, isInRange);
+          
+          return isInRange;
+        });
+        
+        console.log('📊 필터링된 데이터 수:', fil.length);
+        console.log('📊 필터링된 데이터:', fil.map(r => ({ no: r.no, submittedAt: r.submittedAt, companyName: r.companyName })));
+        
         const vendorSet = new Set(fil.map(r=>r.companyCode));
         const vendorCount = vendorSet.size;
         const totalRequests = fil.reduce((a,b)=>a+b.totalCnt,0);
@@ -3207,11 +3234,23 @@ ${r.optPlan}
       const selectedValue = document.getElementById('yearMonthSelect').value;
       const [year, month] = selectedValue.split('-');
       
+      console.log('🔍 월별 정산 - 날짜 필터링 시작');
+      console.log('📅 선택된 년월:', year, '년', month, '월');
+      
       const rows = await loadSubs();
       const selectedMonthRequests = rows.filter(r => {
         const submissionDate = new Date(r.submittedAt);
-        return submissionDate.getFullYear() == year && (submissionDate.getMonth() + 1) == month;
+        const submissionYear = submissionDate.getFullYear();
+        const submissionMonth = submissionDate.getMonth() + 1;
+        
+        const isInRange = submissionYear == year && submissionMonth == month;
+        console.log(`📅 데이터 ${r.no}: ${r.submittedAt} -> ${submissionYear}년 ${submissionMonth}월, 포함 여부: ${isInRange}`);
+        
+        return isInRange;
       });
+      
+      console.log('📊 월별 필터링된 데이터 수:', selectedMonthRequests.length);
+      console.log('📊 월별 필터링된 데이터:', selectedMonthRequests.map(r => ({ no: r.no, submittedAt: r.submittedAt, companyName: r.companyName })));
       
       // Calculate summary
       const vendorSet = new Set(selectedMonthRequests.map(r => r.companyCode));
@@ -5294,36 +5333,69 @@ ${r.optPlan}
       }, 2000);
     };
     
-    window.testCurrentDateSelection = function() {
-      console.log('🧪 현재 날짜 기준 선택 테스트 시작...');
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      const currentMonth = currentDate.getMonth() + 1;
-      console.log(`📅 현재 날짜: ${currentYear}년 ${currentMonth}월 ${currentDate.getDate()}일`);
+    window.testDateFiltering = async function() {
+      console.log('🧪 날짜 필터링 테스트 시작...');
       
-      // 월별 정산 LIST 확인
-      const monthlySelect = document.getElementById('yearMonthSelect');
-      if (monthlySelect) {
-        const selectedValue = monthlySelect.value;
-        console.log(`📅 월별 정산 선택된 값: ${selectedValue}`);
-        const expectedValue = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-        console.log(`📅 월별 정산 예상 값: ${expectedValue}`);
-        console.log(`📅 월별 정산 일치 여부: ${selectedValue === expectedValue}`);
+      // 현재 선택된 주별 정산 기간 확인
+      const weekSelect = document.getElementById('wlWeek');
+      if (weekSelect) {
+        const selectedWeek = weekSelect.value;
+        console.log('📅 현재 선택된 주:', selectedWeek);
+        
+        if (selectedWeek) {
+          const [startDate, endDate] = selectedWeek.split('|');
+          console.log('📅 시작 날짜:', startDate);
+          console.log('📅 종료 날짜:', endDate);
+          
+          // 한국 시간대를 고려한 날짜 파싱
+          const sDate = new Date(startDate + 'T00:00:00+09:00');
+          const eDate = new Date(endDate + 'T23:59:59+09:00');
+          
+          console.log('📅 파싱된 시작 날짜:', sDate);
+          console.log('📅 파싱된 종료 날짜:', eDate);
+          
+          // 모든 데이터 확인
+          const rows = await loadSubs();
+          console.log('📊 전체 데이터 수:', rows.length);
+          
+          rows.forEach(r => {
+            const submissionDate = new Date(r.submittedAt);
+            const submissionDateOnly = new Date(submissionDate.getFullYear(), submissionDate.getMonth(), submissionDate.getDate());
+            const startDateOnly = new Date(sDate.getFullYear(), sDate.getMonth(), sDate.getDate());
+            const endDateOnly = new Date(eDate.getFullYear(), eDate.getMonth(), eDate.getDate());
+            
+            const isInRange = submissionDateOnly >= startDateOnly && submissionDateOnly <= endDateOnly;
+            
+            console.log(`📅 데이터 ${r.no}: ${r.submittedAt} -> ${submissionDateOnly.toISOString().split('T')[0]}, 범위 포함: ${isInRange}`);
+          });
+        }
+      } else {
+        console.log('❌ 주별 정산 주 선택 요소를 찾을 수 없습니다.');
       }
       
-      // 주별 정산 LIST 확인
-      const weeklyYearSelect = document.getElementById('wlYear');
-      const weeklyMonthSelect = document.getElementById('wlMonth');
-      
-      if (weeklyYearSelect && weeklyMonthSelect) {
-        const selectedYear = weeklyYearSelect.value;
-        const selectedMonth = weeklyMonthSelect.value;
-        console.log(`📅 주별 정산 선택된 년도: ${selectedYear}`);
-        console.log(`📅 주별 정산 선택된 월: ${selectedMonth}`);
-        console.log(`📅 주별 정산 예상 년도: ${currentYear}`);
-        console.log(`📅 주별 정산 예상 월: ${String(currentMonth).padStart(2, '0')}`);
-        console.log(`📅 주별 정산 년도 일치 여부: ${selectedYear === currentYear.toString()}`);
-        console.log(`📅 주별 정산 월 일치 여부: ${selectedMonth === String(currentMonth).padStart(2, '0')}`);
+      // 현재 선택된 월별 정산 기간 확인
+      const monthSelect = document.getElementById('yearMonthSelect');
+      if (monthSelect) {
+        const selectedMonth = monthSelect.value;
+        console.log('📅 현재 선택된 월:', selectedMonth);
+        
+        if (selectedMonth) {
+          const [year, month] = selectedMonth.split('-');
+          console.log('📅 선택된 년도:', year);
+          console.log('📅 선택된 월:', month);
+          
+          const rows = await loadSubs();
+          rows.forEach(r => {
+            const submissionDate = new Date(r.submittedAt);
+            const submissionYear = submissionDate.getFullYear();
+            const submissionMonth = submissionDate.getMonth() + 1;
+            
+            const isInRange = submissionYear == year && submissionMonth == month;
+            console.log(`📅 데이터 ${r.no}: ${r.submittedAt} -> ${submissionYear}년 ${submissionMonth}월, 범위 포함: ${isInRange}`);
+          });
+        }
+      } else {
+        console.log('❌ 월별 정산 월 선택 요소를 찾을 수 없습니다.');
       }
     };
   </script>
