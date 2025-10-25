@@ -715,28 +715,6 @@
         <span class="pipe">|</span>
         <a class="btn inquiry-btn" href="http://pf.kakao.com/_qqhUn/chat" target="_blank" rel="noopener">1:1 문의하기</a>
       </div>
-      
-      <!-- 제품별 탭 안내 -->
-      <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 16px; margin: 20px 0;">
-        <p style="margin: 0; color: #856404; font-weight: 600; font-size: 16px;">
-          📋 제품별로 탭을 분류하여 작성해주세요
-        </p>
-        <p style="margin: 8px 0 0; color: #856404; font-size: 14px;">
-          하나의 업체에서 여러 제품에 대한 작업요청서를 제출할 수 있습니다. 각 제품별로 탭을 추가하여 작성해주세요.
-        </p>
-      </div>
-      
-      <!-- 제품별 탭 구조 -->
-      <div class="product-tabs-container">
-        <div class="product-tabs" id="productTabs">
-          <!-- 제품 탭들이 여기에 동적으로 추가됩니다 -->
-        </div>
-        
-        <!-- 제품 추가 버튼 -->
-        <button type="button" class="btn secondary add-product-btn" id="addProductBtn">
-          + 제품 추가하기
-        </button>
-      </div>
     </section>
 
     <!-- Request Form (SPA) -->
@@ -1164,6 +1142,80 @@
           await handleCompanyNameChange(e, productId);
         });
       }
+
+      // 첫 번째 제품이 아닌 경우 기존 업체 정보 복사
+      if (productCount > 1) {
+        copyCompanyInfoToNewProduct(form, productId);
+      }
+    }
+
+    // 기존 업체 정보를 새 제품에 복사
+    function copyCompanyInfoToNewProduct(form, productId) {
+      // 첫 번째 제품 폼에서 정보 가져오기
+      const firstForm = document.querySelector('.product-form');
+      if (!firstForm) return;
+
+      const companyName = firstForm.querySelector('.company-name')?.value;
+      const bizNo = firstForm.querySelector('.biz-no')?.value;
+      const contact = firstForm.querySelector('.contact')?.value;
+      const companyId = firstForm.querySelector('.company-id')?.textContent;
+
+      // 새 제품 폼에 정보 복사
+      const newCompanyName = form.querySelector('.company-name');
+      const newBizNo = form.querySelector('.biz-no');
+      const newContact = form.querySelector('.contact');
+      const newCompanyId = form.querySelector('.company-id');
+
+      if (companyName && newCompanyName) {
+        newCompanyName.value = companyName;
+      }
+      if (bizNo && newBizNo) {
+        newBizNo.value = bizNo;
+      }
+      if (contact && newContact) {
+        newContact.value = contact;
+      }
+      if (companyId && newCompanyId) {
+        newCompanyId.textContent = companyId;
+      }
+
+      // 기타 사항 및 계산서 발행 정보도 복사
+      copyRadioButtons(firstForm, form, productId);
+    }
+
+    // 라디오 버튼 정보 복사
+    function copyRadioButtons(sourceForm, targetForm, productId) {
+      // 기타 사항 복사
+      const shipChecked = sourceForm.querySelector('input[name^="ship_"]:checked');
+      if (shipChecked) {
+        const targetShip = targetForm.querySelector(`input[name="ship_${productId}"][value="${shipChecked.value}"]`);
+        if (targetShip) targetShip.checked = true;
+      }
+
+      const prepayChecked = sourceForm.querySelector('input[name^="prepay_"]:checked');
+      if (prepayChecked) {
+        const targetPrepay = targetForm.querySelector(`input[name="prepay_${productId}"][value="${prepayChecked.value}"]`);
+        if (targetPrepay) targetPrepay.checked = true;
+      }
+
+      const courierChecked = sourceForm.querySelector('input[name^="courier_"]:checked');
+      if (courierChecked) {
+        const targetCourier = targetForm.querySelector(`input[name="courier_${productId}"][value="${courierChecked.value}"]`);
+        if (targetCourier) targetCourier.checked = true;
+      }
+
+      // 계산서 발행 복사
+      const billWorkChecked = sourceForm.querySelector('input[name^="billWork_"]:checked');
+      if (billWorkChecked) {
+        const targetBillWork = targetForm.querySelector(`input[name="billWork_${productId}"][value="${billWorkChecked.value}"]`);
+        if (targetBillWork) targetBillWork.checked = true;
+      }
+
+      const billProdChecked = sourceForm.querySelector('input[name^="billProd_"]:checked');
+      if (billProdChecked) {
+        const targetBillProd = targetForm.querySelector(`input[name="billProd_${productId}"][value="${billProdChecked.value}"]`);
+        if (targetBillProd) targetBillProd.checked = true;
+      }
     }
 
     // 제품 전환
@@ -1378,8 +1430,8 @@
       // Firebase에 직접 저장
       if (window.db) {
         try {
-          const docRef = doc(db, 'submissions', uniqueId);
-          await setDoc(docRef, rec);
+          const docRef = window.doc(window.db, 'submissions', uniqueId);
+          await window.setDoc(docRef, rec);
           console.log('✅ 제품 제출 완료:', uniqueId);
         } catch (error) {
           console.error('❌ 제품 제출 실패:', error);
@@ -5520,51 +5572,6 @@ ${r.optPlan}
       }
     });
 
-    // Handle form submission (제출하기)
-    console.log('🔍 폼 요소 검색 시작...');
-    
-    // 즉시 실행 (DOM 로딩 완료 후)
-    function setupFormListeners() {
-    const rfForm = document.getElementById("rfForm");
-      const rfSubmit = document.getElementById("rfSubmit");
-      
-      console.log('📝 폼 요소:', rfForm);
-      console.log('📝 제출 버튼:', rfSubmit);
-      
-      if (!rfForm) {
-        console.error('❌ rfForm을 찾을 수 없음!');
-        return false;
-      }
-      
-      if (!rfSubmit) {
-        console.error('❌ rfSubmit을 찾을 수 없음!');
-        return false;
-      }
-    
-      // 폼 제출 이벤트 리스너
-      rfForm.addEventListener("submit", async (e)=>{
-        console.log('🚀 폼 제출 이벤트 발생!');
-      e.preventDefault();
-        await handleFormSubmission();
-      });
-      
-      // 버튼 클릭 이벤트 리스너 (백업)
-      rfSubmit.addEventListener("click", async (e)=>{
-        console.log('🚀 제출 버튼 클릭 이벤트 발생!');
-        e.preventDefault();
-        await handleFormSubmission();
-      });
-      
-      console.log('✅ 이벤트 리스너 등록 완료');
-      return true;
-    }
-    
-    // 즉시 시도
-    if (!setupFormListeners()) {
-      // 실패하면 1초 후 재시도
-      setTimeout(setupFormListeners, 1000);
-    }
-    
     // 실시간 리스너 활성화 (Firebase 준비 후)
     console.log('🔄 실시간 리스너 활성화 시도');
     if (window.firebaseReady && window.setupRealtimeListener) {
@@ -5574,151 +5581,6 @@ ${r.optPlan}
       console.log('⏳ Firebase 준비 중 - 실시간 리스너는 자동으로 활성화됩니다');
     }
     
-    // 실제 폼 처리 함수
-    let isSubmitting = false; // 제출 중복 방지 플래그
-    
-    async function handleFormSubmission() {
-      // 중복 제출 방지
-      if (isSubmitting) {
-        console.log('⚠️ 이미 제출 중입니다. 중복 제출 방지');
-        return;
-      }
-      
-      isSubmitting = true;
-      
-      // 제출 버튼 비활성화
-      const submitBtn = document.getElementById('rfSubmit');
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = '제출 중...';
-        submitBtn.style.opacity = '0.6';
-      }
-      
-      try {
-        console.log('🔄 폼 처리 시작');
-        const rfForm = document.getElementById("rfForm");
-        if(!rfForm || !(rfForm instanceof HTMLFormElement)) return;
-        if(!rfForm.checkValidity()){ rfForm.reportValidity(); return; }
-        const companyName = companyNameInput?.value.trim()||"";
-        const companyCode = await stableIdForName(companyName)||"";
-        console.log('📋 업체 정보:', companyName, companyCode);
-        if(idOutput) idOutput.textContent = companyCode ? `ID: ${companyCode}` : "ID: 미발급";
-
-        const totalCnt = parseInt(document.getElementById("totalCnt")?.value||"0",10);
-        const dailyCnt = parseInt(document.getElementById("dailyCnt")?.value||"0",10);
-        
-        // 일 진행건수 검증 (최소 2건 이상)
-        if (dailyCnt < 2) {
-          alert("일 진행건수는 최소 2건 이상이어야 합니다.");
-          document.getElementById("dailyCnt").focus();
-          return;
-        }
-        
-        // 총 진행건수와 일 진행건수 관계 검증
-        if (totalCnt < dailyCnt) {
-          alert("총 진행건수는 일 진행건수보다 크거나 같아야 합니다.");
-          document.getElementById("totalCnt").focus();
-          return;
-        }
-        
-        console.log('✅ 진행건수 검증 통과:', { totalCnt, dailyCnt });
-
-        // 고유 ID 생성 (타임스탬프 + 랜덤)
-        const uniqueId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const displayNo = await getNextNo(); // 화면 표시용 번호
-        
-        const rec = {
-          id: uniqueId, // Firebase 문서 ID로 사용할 고유 ID
-          no: displayNo, // 화면 표시용 번호
-          submittedAt: Date.now(),
-          companyCode,
-          companyName,
-          bizNo: document.getElementById("bizNo")?.value.trim()||"",
-          contact: document.getElementById("contact")?.value.trim()||"",
-          productUrl: document.getElementById("productUrl")?.value.trim()||"",
-          keywords: document.getElementById("keywords")?.value.trim()||"",
-          totalCnt: totalCnt,
-          dailyCnt: dailyCnt,
-          optPlan: document.getElementById("optPlan")?.value.trim()||"",
-          ship: (document.querySelector('input[name="ship"]:checked')?.value||""),
-          prepay: (document.querySelector('input[name="prepay"]:checked')?.value||""),
-          courier: (document.querySelector('input[name="courier"]:checked')?.value||""),
-          billWork: (document.querySelector('input[name="billWork"]:checked')?.value||""),
-          billProd: (document.querySelector('input[name="billProd"]:checked')?.value||""),
-          accepted: false,
-          acceptedAt: null
-        };
-        
-        // Firebase에 직접 저장 (중복 방지)
-        if (window.db) {
-          try {
-            const docRef = doc(db, 'submissions', uniqueId);
-            await setDoc(docRef, rec);
-            console.log('✅ Firebase 직접 저장 완료:', uniqueId);
-          } catch (error) {
-            console.error('❌ Firebase 직접 저장 실패:', error);
-            // Firebase 실패 시 기존 방식으로 폴백
-            const arr = await loadSubs();
-            arr.unshift(rec);
-            await saveSubs(arr);
-          }
-        } else {
-          // Firebase 없을 때 기존 방식
-          const arr = await loadSubs();
-          arr.unshift(rec);
-          await saveSubs(arr);
-        }
-        
-        // 알림 추가 (비활성화 - 중복 방지)
-        console.log('🔔 신규 요청서 제출 감지:', companyName, companyCode);
-        console.log('⚠️ addSubmissionNotification 호출 비활성화 (중복 방지)');
-        
-        // 강제 푸시알림 표시 (폼 제출 시에만 - 정확한 데이터 사용)
-        // 관리자 화면이 열려있을 때만 알림 표시
-        if (sessionStorage.getItem("wp_is_admin") === "1") {
-          console.log('🔔 폼 제출 시 푸시알림 표시 시도');
-          console.log('📋 정확한 업체 정보:', companyName, companyCode);
-          
-          try {
-            const notificationTitle = '신규 작업요청건이 있습니다';
-            const notificationContent = `${companyName} (${companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
-            
-            console.log('📝 알림 내용 확인:', notificationContent);
-            
-            // 푸시알림 표시 (1개만)
-            showPushNotification(notificationTitle, notificationContent);
-            
-            // 상단 알림 아이콘에도 알림 추가 (1개만 - 현재 시간 사용)
-            if (window.addNotification) {
-              window.addNotification(notificationTitle, notificationContent, 'success', Date.now());
-              console.log('📝 폼 제출 시 상단 알림 아이콘에 알림 추가 완료');
-            }
-            
-            console.log('🔔 폼 제출 시 푸시알림 표시 완료');
-          } catch (error) {
-            console.error('❌ 폼 제출 시 푸시알림 표시 중 오류:', error);
-          }
-        } else {
-          console.log('🚫 관리자 화면이 아님 - 폼 제출 시 알림 표시 안함');
-        }
-        
-        alert("제출되었습니다. 관리자 확인 후 회신드리겠습니다. 감사합니다.");
-        rfForm.reset();
-        if(idOutput) idOutput.textContent = "ID 미발급";
-        if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); await showReqList(false); }
-        
-      } finally {
-        isSubmitting = false; // 제출 완료 후 플래그 해제
-        
-        // 제출 버튼 다시 활성화
-        const submitBtn = document.getElementById('rfSubmit');
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent = '제출하기';
-          submitBtn.style.opacity = '1';
-        }
-      }
-    }
 
     // Detail modal interactions
     const detailModal = document.getElementById("detailModal");
@@ -6239,6 +6101,7 @@ ${r.optPlan}
     window.db = db;
     window.collection = collection;
     window.doc = doc;
+    window.setDoc = setDoc;
     window.safeFirebaseOperation = safeFirebaseOperation;
     window.checkFirebaseConnection = checkFirebaseConnection;
     window.disableRealtimeListener = disableRealtimeListener;
