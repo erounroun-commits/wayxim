@@ -3368,10 +3368,27 @@ ${r.optPlan}
 
     // Handle form submission (제출하기)
     const rfForm = document.getElementById("rfForm");
+    const rfSubmit = document.getElementById("rfSubmit");
     console.log('📝 폼 이벤트 리스너 설정:', rfForm);
+    console.log('📝 제출 버튼 설정:', rfSubmit);
+    
+    // 폼 제출 이벤트 리스너
     rfForm?.addEventListener("submit", async (e)=>{
       console.log('🚀 폼 제출 이벤트 발생!');
       e.preventDefault();
+      await handleFormSubmission();
+    });
+    
+    // 버튼 클릭 이벤트 리스너 (백업)
+    rfSubmit?.addEventListener("click", async (e)=>{
+      console.log('🚀 제출 버튼 클릭 이벤트 발생!');
+      e.preventDefault();
+      await handleFormSubmission();
+    });
+    
+    // 실제 폼 처리 함수
+    async function handleFormSubmission() {
+      console.log('🔄 폼 처리 시작');
       if(!(rfForm instanceof HTMLFormElement)) return;
       if(!rfForm.checkValidity()){ rfForm.reportValidity(); return; }
       const companyName = companyNameInput?.value.trim()||"";
@@ -3416,7 +3433,7 @@ ${r.optPlan}
       rfForm.reset();
       if(idOutput) idOutput.textContent = "ID 미발급";
       if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); await showReqList(false); }
-    });
+    }
 
     // Detail modal interactions
     const detailModal = document.getElementById("detailModal");
