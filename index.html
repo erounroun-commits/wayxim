@@ -63,7 +63,7 @@
     .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#eef6fb;color:#2f5369;font-size:12px;font-weight:800}
     .badge.note{background:#fff6e6;color:#8a5a00}
     .hidden{display:none !important}
-    
+
     /* 로딩 팝업 스타일 */
     .loading-popup {
       position: fixed !important;
@@ -862,8 +862,8 @@
     async function showAdminHome(){
       showLoading();
       try {
-        const rows = await loadSubs();
-        const main = document.getElementById("adminMain");
+      const rows = await loadSubs();
+      const main = document.getElementById("adminMain");
       
       // Calculate statistics
       const today = new Date();
@@ -1822,9 +1822,9 @@ ${r.optPlan}
     async function showReqList(isAccepted){
       showLoading();
       try {
-        const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
-        const title = isAccepted ? "접수 완료건" : "신규요청건";
-        const main = document.getElementById("adminMain");
+      const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
+      const title = isAccepted ? "접수 완료건" : "신규요청건";
+      const main = document.getElementById("adminMain");
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">${title}`;
       
       // 신규요청건에만 모든 요청건 접수처리 버튼 추가
@@ -1949,8 +1949,8 @@ ${r.optPlan}
     async function showAllReqList(){
       showLoading();
       try {
-        const rows = await loadSubs();
-        const main = document.getElementById("adminMain");
+      const rows = await loadSubs();
+      const main = document.getElementById("adminMain");
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">전체요청건</h2>`;
       html += '<div class="scroll-x"><table class="admin-table">';
       html += '<thead><tr>'+
@@ -1994,6 +1994,8 @@ ${r.optPlan}
     }
 
     async function showVendorDashboard(){
+      showLoading();
+      try {
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
@@ -2158,9 +2160,14 @@ ${r.optPlan}
       
       // Draw new vendor chart
       drawNewVendorChart(chartData);
+      } finally {
+        hideLoading();
+      }
     }
 
     async function showVendorList(){
+      showLoading();
+      try {
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
@@ -2250,6 +2257,9 @@ ${r.optPlan}
           console.log('VENDOR LIST - 엑셀 다운로드 이벤트 리스너 바인딩 완료');
         }
       }, 100);
+      } finally {
+        hideLoading();
+      }
     }
 
     function drawNewVendorChart(data) {
@@ -2509,8 +2519,10 @@ ${r.optPlan}
     }
 
     async function showSettlementDashboard(){
-      const rows = await loadSubs();
-      const main = document.getElementById("adminMain");
+      showLoading();
+      try {
+        const rows = await loadSubs();
+        const main = document.getElementById("adminMain");
       
       // Calculate current month statistics
       const currentDate = new Date();
@@ -2702,11 +2714,16 @@ ${r.optPlan}
       html += `</div></div>`;
       
       main.innerHTML = html;
+      } finally {
+        hideLoading();
+      }
     }
 
     async function showMonthlySettlementList(){
-      const rows = await loadSubs();
-      const main = document.getElementById("adminMain");
+      showLoading();
+      try {
+        const rows = await loadSubs();
+        const main = document.getElementById("adminMain");
       
       // Generate year/month options: only current and previous month (>= 2025-10)
       const currentDate = new Date();
@@ -2800,12 +2817,17 @@ ${r.optPlan}
       
       // Initial load
       await updateMonthlyData();
+      } finally {
+        hideLoading();
+      }
     }
     
     // Weekly settlement list (similar to monthly, with Y/M/Week selectors)
     async function showWeeklySettlementList(){
-      const rows = await loadSubs();
-      const main = document.getElementById("adminMain");
+      showLoading();
+      try {
+        const rows = await loadSubs();
+        const main = document.getElementById("adminMain");
       const base = new Date(Date.UTC(2025,9,1)); // 2025-10-01 UTC ~ KST base
       const now = new Date();
       const currentYear = now.getFullYear();
@@ -3006,6 +3028,9 @@ ${r.optPlan}
         }
       }, 100);
       refreshWeeks();
+      } finally {
+        hideLoading();
+      }
     }
     
     async function updateMonthlyData(){
@@ -3341,8 +3366,8 @@ ${r.optPlan}
     async function showDataManagement(){
       showLoading();
       try {
-        const rows = await loadSubs();
-        const main = document.getElementById("adminMain");
+      const rows = await loadSubs();
+      const main = document.getElementById("adminMain");
       // pending edits bucket kept in memory until user clicks save
       window.wp_pending_edits = {};
       
@@ -3746,7 +3771,7 @@ ${r.optPlan}
                 console.log(`📝 Excel 행 ${index + 2} - ${normalizedHeader}: "${value}"`);
               });
               console.log(`📝 Excel 행 ${index + 2} 파싱 결과:`, obj);
-              return obj;
+        return obj;
             }).filter(obj => {
               // 빈 행 필터링 - 중요한 필드들이 모두 비어있으면 제외
               const hasContent = obj['업체명'] || obj['업체코드'] || obj['사업자번호'] || obj['카톡/번호'];
@@ -4164,7 +4189,7 @@ ${r.optPlan}
     
     // 즉시 실행 (DOM 로딩 완료 후)
     function setupFormListeners() {
-      const rfForm = document.getElementById("rfForm");
+    const rfForm = document.getElementById("rfForm");
       const rfSubmit = document.getElementById("rfSubmit");
       
       console.log('📝 폼 요소:', rfForm);
@@ -4183,7 +4208,7 @@ ${r.optPlan}
       // 폼 제출 이벤트 리스너
       rfForm.addEventListener("submit", async (e)=>{
         console.log('🚀 폼 제출 이벤트 발생!');
-        e.preventDefault();
+      e.preventDefault();
         await handleFormSubmission();
       });
       
@@ -4448,7 +4473,7 @@ ${r.optPlan}
       console.log('🔄 페이지 로드 - 알림 캐시 초기화');
       window.clearAllNotificationCache();
     }
-    
+
     if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); }
   </script>
 
@@ -4608,10 +4633,10 @@ ${r.optPlan}
         console.error('❌ 실시간 리스너 설정 실패:', error);
       }
     }
-    // 전역 변수로 db 접근 가능하게 설정
-    window.db = db;
-    window.collection = collection;
-    window.doc = doc;
+      // 전역 변수로 db 접근 가능하게 설정
+      window.db = db;
+      window.collection = collection;
+      window.doc = doc;
     
     // Firebase 초기화 후 실시간 리스너 설정 (활성화)
     if (window.db) {
@@ -4620,16 +4645,16 @@ ${r.optPlan}
     } else {
       console.log('❌ Firebase DB 초기화 실패');
     }
-    window.getDocs = getDocs;
-    window.addDoc = addDoc;
-    window.updateDoc = updateDoc;
-    window.deleteDoc = deleteDoc;
-    window.query = query;
-    window.orderBy = orderBy;
-    window.onSnapshot = onSnapshot;
-    window.where = where;
-    
-    console.log('Firebase initialized successfully!', db);
+      window.getDocs = getDocs;
+      window.addDoc = addDoc;
+      window.updateDoc = updateDoc;
+      window.deleteDoc = deleteDoc;
+      window.query = query;
+      window.orderBy = orderBy;
+      window.onSnapshot = onSnapshot;
+      window.where = where;
+      
+      console.log('Firebase initialized successfully!', db);
     
     // 알림 시스템 초기화
     let notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
@@ -4712,12 +4737,12 @@ ${r.optPlan}
       console.log('📊 읽지 않은 알림 수:', unreadCount);
       
       if (notificationBtn && notificationCount) {
-        if (unreadCount > 0) {
-          notificationCount.textContent = unreadCount;
-          notificationCount.style.display = 'flex';
+      if (unreadCount > 0) {
+        notificationCount.textContent = unreadCount;
+        notificationCount.style.display = 'flex';
           console.log('✅ 알림 카운트 표시:', unreadCount);
-        } else {
-          notificationCount.style.display = 'none';
+      } else {
+        notificationCount.style.display = 'none';
           console.log('📝 알림 카운트 숨김');
         }
         
@@ -4791,19 +4816,19 @@ ${r.optPlan}
         
         // 중복 방지 로직 완전 제거 (실제 신규 요청서는 항상 표시)
         console.log('🔔 푸시알림 표시 진행 (중복 방지 없음)');
-        
-        // 새 푸시 알림 생성
-        const notification = document.createElement('div');
-        notification.className = 'push-notification show';
+      
+      // 새 푸시 알림 생성
+      const notification = document.createElement('div');
+      notification.className = 'push-notification show';
         notification.style.cursor = 'pointer'; // 클릭 가능하도록 커서 변경
-        notification.innerHTML = `
-          <div class="push-notification-header">
-            <span class="push-notification-icon">🔔</span>
-            <span class="push-notification-title">${title}</span>
-          </div>
-          <div class="push-notification-content">${content}</div>
-          <div class="push-notification-time">${formatDateTime(Date.now())}</div>
-        `;
+      notification.innerHTML = `
+        <div class="push-notification-header">
+          <span class="push-notification-icon">🔔</span>
+          <span class="push-notification-title">${title}</span>
+        </div>
+        <div class="push-notification-content">${content}</div>
+        <div class="push-notification-time">${formatDateTime(Date.now())}</div>
+      `;
         
         // 푸시알림 클릭 시 신규요청건 탭으로 이동
         notification.addEventListener('click', () => {
@@ -4831,20 +4856,20 @@ ${r.optPlan}
           // 푸시알림 제거
           notification.remove();
         });
-        
-        document.body.appendChild(notification);
-        console.log('✅ 푸시 알림 DOM에 추가 완료');
-        
-        // 5초 후 자동 제거
+      
+      document.body.appendChild(notification);
+      console.log('✅ 푸시 알림 DOM에 추가 완료');
+      
+      // 5초 후 자동 제거
+      setTimeout(() => {
+        notification.classList.add('hide');
         setTimeout(() => {
-          notification.classList.add('hide');
-          setTimeout(() => {
-            if (notification.parentNode) {
-              notification.remove();
-              console.log('🗑️ 푸시 알림 자동 제거 완료');
-            }
-          }, 300);
-        }, 5000);
+          if (notification.parentNode) {
+            notification.remove();
+            console.log('🗑️ 푸시 알림 자동 제거 완료');
+          }
+        }, 300);
+      }, 5000);
         
         // 테스트용 알림음 (선택사항)
         if (typeof Audio !== 'undefined') {
