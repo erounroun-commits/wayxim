@@ -4374,22 +4374,28 @@ ${r.optPlan}
           const parseTs = v=> v? Date.parse(v): null;
           const toInt = v=> { const n=parseInt(String(v||'0'),10); return isNaN(n)?0:n; };
           
-          // 중복 데이터 감지 (업체명, 업체코드, 키워드 기준)
+          // 중복 데이터 감지 (업체코드, 업체명, 키워드, 총 진행건수, 일 진행건수 기준)
           const companyName = (obj['업체명'] || '').trim();
           const companyCode = (obj['업체코드'] || '').trim();
           const keywords = (obj['구매키워드'] || '').trim();
+          const totalCnt = toInt(obj['총진행건수'] != null ? obj['총진행건수'] : 0);
+          const dailyCnt = toInt(obj['일진행건수'] != null ? obj['일진행건수'] : 0);
           
           console.log('🔍 중복 감지 대상:', {
             업체명: companyName,
             업체코드: companyCode,
-            키워드: keywords
+            키워드: keywords,
+            총진행건수: totalCnt,
+            일진행건수: dailyCnt
           });
           
-          // 기존 데이터에서 중복 확인 (업체명, 업체코드, 키워드가 모두 동일한 경우)
+          // 기존 데이터에서 중복 확인 (업체코드, 업체명, 키워드, 총 진행건수, 일 진행건수가 모두 동일한 경우)
           const existingDuplicate = rows.find(existing => {
             const isDuplicate = existing.companyName === companyName && 
                                existing.companyCode === companyCode && 
                                existing.keywords === keywords &&
+                               existing.totalCnt === totalCnt &&
+                               existing.dailyCnt === dailyCnt &&
                                companyName !== '' && companyCode !== '' && keywords !== '';
             
             if (isDuplicate) {
@@ -4398,9 +4404,13 @@ ${r.optPlan}
                 기존업체명: existing.companyName,
                 기존업체코드: existing.companyCode,
                 기존키워드: existing.keywords,
+                기존총진행건수: existing.totalCnt,
+                기존일진행건수: existing.dailyCnt,
                 새업체명: companyName,
                 새업체코드: companyCode,
-                새키워드: keywords
+                새키워드: keywords,
+                새총진행건수: totalCnt,
+                새일진행건수: dailyCnt
               });
             }
             
@@ -4412,7 +4422,9 @@ ${r.optPlan}
               기존번호: existingDuplicate.no,
               업체명: companyName,
               업체코드: companyCode,
-              키워드: keywords
+              키워드: keywords,
+              총진행건수: totalCnt,
+              일진행건수: dailyCnt
             });
             rec = existingDuplicate;
             duplicateCount++;
@@ -4420,7 +4432,9 @@ ${r.optPlan}
             console.log('✅ 신규 데이터 - 새로 생성:', {
               업체명: companyName,
               업체코드: companyCode,
-              키워드: keywords
+              키워드: keywords,
+              총진행건수: totalCnt,
+              일진행건수: dailyCnt
             });
             newCount++;
           }
@@ -4589,8 +4603,23 @@ ${r.optPlan}
         console.log('✅ 데이터 저장 완료');
         
         // 저장 후 검증
-        const savedData = await loadSubs();
+        let savedData = await loadSubs();
         console.log('🔍 저장 후 데이터 검증, 건수:', savedData.length);
+        
+        // NO 순서 재정렬 (화면 표시 순서대로 1,2,3...)
+        console.log('🔄 NO 순서 재정렬 시작');
+        savedData = savedData.map((item, index) => ({
+          ...item,
+          no: index + 1
+        }));
+        
+        // 재정렬된 데이터 저장
+        await saveSubs(savedData);
+        console.log('✅ NO 순서 재정렬 완료 (1,2,3...)');
+        
+        // 최종 데이터 로드
+        savedData = await loadSubs();
+        console.log('🔍 최종 데이터 검증, 건수:', savedData.length);
         
         // 처리 결과 요약
         console.log('📊 처리 결과 요약:', {
@@ -4627,7 +4656,8 @@ ${r.optPlan}
         resultMessage += `📊 현재 상태:\n`;
         resultMessage += `🔵 접수 완료: ${acceptedCount}건\n`;
         resultMessage += `🟡 신규 요청: ${newRequestCount}건\n`;
-        resultMessage += `📈 전체: ${savedData.length}건`;
+        resultMessage += `📈 전체: ${savedData.length}건\n\n`;
+        resultMessage += `🔄 NO 순서가 1,2,3...으로 재정렬되었습니다.`;
         
         alert(resultMessage);
         
