@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>WAY PROJECT X 임반장</title>
   <style>
     :root{ --brand:#5086a7; --brand-accent:#3c6f8b; --accent:#18d1a1; --bg:#f7f8fc; --text:#222; --panel:#ffffff; --border:#e7ecf2; }
@@ -2700,16 +2703,34 @@ ${r.optPlan}
         const main = document.getElementById("adminMain");
       
       // Generate year/month options based on actual data
+      console.log('🔍 월별 정산 LIST - 데이터 분석 시작');
+      console.log('📊 전체 rows 수:', rows.length);
+      
       const yearMonthSet = new Set();
-      rows.forEach(row => {
+      rows.forEach((row, index) => {
         const submissionDate = new Date(row.submittedAt);
         const year = submissionDate.getFullYear();
         const month = submissionDate.getMonth() + 1;
-        yearMonthSet.add(`${year}-${String(month).padStart(2, '0')}`);
+        const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
+        yearMonthSet.add(yearMonth);
+        
+        // 처음 5개와 마지막 5개 데이터 로깅
+        if (index < 5 || index >= rows.length - 5) {
+          console.log(`📅 데이터 ${index + 1}:`, {
+            submittedAt: row.submittedAt,
+            parsedDate: submissionDate,
+            year: year,
+            month: month,
+            yearMonth: yearMonth
+          });
+        }
       });
+      
+      console.log('📅 발견된 년월들:', Array.from(yearMonthSet).sort());
       
       // Convert to array and sort (newest first)
       const yearMonthArray = Array.from(yearMonthSet).sort().reverse();
+      console.log('📅 정렬된 년월들 (최신순):', yearMonthArray);
       
       let yearMonthOptions = '';
       yearMonthArray.forEach(yearMonth => {
@@ -2719,6 +2740,8 @@ ${r.optPlan}
         const isSelected = yearMonthArray.indexOf(yearMonth) === 0 ? 'selected' : ''; // Select newest month by default
         yearMonthOptions += `<option value="${yearMonth}" ${isSelected}>${yearShort}년 ${monthNum}월</option>`;
       });
+      
+      console.log('📋 생성된 옵션들:', yearMonthOptions);
       
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">월별 정산 LIST</h2>`;
       
@@ -2806,16 +2829,34 @@ ${r.optPlan}
         const rows = await loadSubs();
         const main = document.getElementById("adminMain");
       // Generate year/month options based on actual data
+      console.log('🔍 주별 정산 LIST - 데이터 분석 시작');
+      console.log('📊 전체 rows 수:', rows.length);
+      
       const yearMonthSet = new Set();
-      rows.forEach(row => {
+      rows.forEach((row, index) => {
         const submissionDate = new Date(row.submittedAt);
         const year = submissionDate.getFullYear();
         const month = submissionDate.getMonth() + 1;
-        yearMonthSet.add(`${year}-${String(month).padStart(2, '0')}`);
+        const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
+        yearMonthSet.add(yearMonth);
+        
+        // 처음 5개와 마지막 5개 데이터 로깅
+        if (index < 5 || index >= rows.length - 5) {
+          console.log(`📅 데이터 ${index + 1}:`, {
+            submittedAt: row.submittedAt,
+            parsedDate: submissionDate,
+            year: year,
+            month: month,
+            yearMonth: yearMonth
+          });
+        }
       });
+      
+      console.log('📅 발견된 년월들:', Array.from(yearMonthSet).sort());
       
       // Convert to array and sort (newest first)
       const yearMonthArray = Array.from(yearMonthSet).sort().reverse();
+      console.log('📅 정렬된 년월들 (최신순):', yearMonthArray);
       
       // Year dropdown based on actual data
       const yearSet = new Set();
@@ -2824,6 +2865,7 @@ ${r.optPlan}
         yearSet.add(parseInt(year));
       });
       const yearArray = Array.from(yearSet).sort((a, b) => b - a); // newest first
+      console.log('📅 발견된 년도들:', yearArray);
       
       let yearOptions = '';
       yearArray.forEach(year => {
@@ -2838,11 +2880,16 @@ ${r.optPlan}
         .map(yearMonth => parseInt(yearMonth.split('-')[1]))
         .sort((a, b) => b - a); // newest first
       
+      console.log(`📅 선택된 년도 ${selectedYear}의 월들:`, monthsForYear);
+      
       let monthOptions = '';
       monthsForYear.forEach(month => {
         const isSelected = monthsForYear.indexOf(month) === 0 ? 'selected' : ''; // Select newest month by default
         monthOptions += `<option value="${String(month).padStart(2,'0')}" ${isSelected}>${month}월</option>`;
       });
+      
+      console.log('📋 생성된 년도 옵션들:', yearOptions);
+      console.log('📋 생성된 월 옵션들:', monthOptions);
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">주별 정산 LIST</h2>`;
       html += `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
         <select id="wlYear" class="select" style="width:120px;">${yearOptions}</select>
@@ -5064,6 +5111,79 @@ ${r.optPlan}
       console.error('Firebase initialization error:', error);
       window.firebaseReady = false;
     }
+    
+    // 디버깅 함수들
+    window.debugSettlementData = async function() {
+      console.log('🔍 정산 데이터 디버깅 시작...');
+      try {
+        const rows = await loadSubs();
+        console.log('📊 전체 데이터 수:', rows.length);
+        
+        // 날짜별 데이터 분석
+        const dateAnalysis = {};
+        rows.forEach((row, index) => {
+          const submissionDate = new Date(row.submittedAt);
+          const year = submissionDate.getFullYear();
+          const month = submissionDate.getMonth() + 1;
+          const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
+          
+          if (!dateAnalysis[yearMonth]) {
+            dateAnalysis[yearMonth] = [];
+          }
+          dateAnalysis[yearMonth].push({
+            index: index,
+            submittedAt: row.submittedAt,
+            companyName: row.companyName,
+            companyCode: row.companyCode
+          });
+        });
+        
+        console.log('📅 년월별 데이터 분석:', dateAnalysis);
+        
+        // 각 년월별 데이터 수
+        Object.keys(dateAnalysis).forEach(yearMonth => {
+          console.log(`📊 ${yearMonth}: ${dateAnalysis[yearMonth].length}건`);
+        });
+        
+        return dateAnalysis;
+      } catch (error) {
+        console.error('❌ 디버깅 중 오류:', error);
+        return null;
+      }
+    };
+    
+    window.testSettlementPeriods = function() {
+      console.log('🧪 정산 기간 테스트 시작...');
+      
+      // 월별 정산 LIST 테스트
+      console.log('📅 월별 정산 LIST 테스트:');
+      const monthlySelect = document.getElementById('yearMonthSelect');
+      if (monthlySelect) {
+        console.log('월별 정산 옵션들:', monthlySelect.innerHTML);
+        console.log('현재 선택된 값:', monthlySelect.value);
+      } else {
+        console.log('❌ 월별 정산 SELECT 요소를 찾을 수 없습니다.');
+      }
+      
+      // 주별 정산 LIST 테스트
+      console.log('📅 주별 정산 LIST 테스트:');
+      const weeklyYearSelect = document.getElementById('wlYear');
+      const weeklyMonthSelect = document.getElementById('wlMonth');
+      
+      if (weeklyYearSelect) {
+        console.log('주별 정산 년도 옵션들:', weeklyYearSelect.innerHTML);
+        console.log('현재 선택된 년도:', weeklyYearSelect.value);
+      } else {
+        console.log('❌ 주별 정산 년도 SELECT 요소를 찾을 수 없습니다.');
+      }
+      
+      if (weeklyMonthSelect) {
+        console.log('주별 정산 월 옵션들:', weeklyMonthSelect.innerHTML);
+        console.log('현재 선택된 월:', weeklyMonthSelect.value);
+      } else {
+        console.log('❌ 주별 정산 월 SELECT 요소를 찾을 수 없습니다.');
+      }
+    };
   </script>
 </body>
 </html>
