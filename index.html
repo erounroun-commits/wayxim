@@ -3485,13 +3485,53 @@ ${r.optPlan}
             
             // 헤더와 데이터 분리
             const headers = jsonData[0].map(h => String(h || '').trim());
-            console.log('📋 Excel 헤더:', headers);
+            console.log('📋 Excel 원본 헤더:', headers);
+            
+            // 헤더 정규화 (공백 제거 및 표준화)
+            const normalizedHeaders = headers.map(header => {
+              // 공백 제거
+              let normalized = header.replace(/\s+/g, '');
+              
+              // 특수 문자 정규화
+              if (normalized.includes('카톡') && normalized.includes('번호')) {
+                normalized = '카톡/번호';
+              } else if (normalized.includes('제품') && normalized.includes('URL')) {
+                normalized = '제품URL';
+              } else if (normalized.includes('구매') && normalized.includes('키워드')) {
+                normalized = '구매키워드';
+              } else if (normalized.includes('총') && normalized.includes('진행') && normalized.includes('건수')) {
+                normalized = '총진행건수';
+              } else if (normalized.includes('일') && normalized.includes('진행') && normalized.includes('건수')) {
+                normalized = '일진행건수';
+              } else if (normalized.includes('옵션') && normalized.includes('계획')) {
+                normalized = '옵션계획';
+              } else if (normalized.includes('제품') && normalized.includes('배송')) {
+                normalized = '제품배송';
+              } else if (normalized.includes('입금') && normalized.includes('대행')) {
+                normalized = '입금대행';
+              } else if (normalized.includes('택배') && normalized.includes('대행')) {
+                normalized = '택배대행';
+              } else if (normalized.includes('작업비') && normalized.includes('계산서')) {
+                normalized = '작업비계산서';
+              } else if (normalized.includes('상품금액') && normalized.includes('계산서')) {
+                normalized = '상품금액계산서';
+              } else if (normalized.includes('접수') && normalized.includes('상태')) {
+                normalized = '접수상태';
+              } else if (normalized.includes('접수') && normalized.includes('시간')) {
+                normalized = '접수시간';
+              }
+              
+              return normalized;
+            });
+            
+            console.log('📋 Excel 정규화된 헤더:', normalizedHeaders);
             
             const result = jsonData.slice(1).map((row, index) => {
               const obj = {};
-              headers.forEach((header, i) => {
+              normalizedHeaders.forEach((normalizedHeader, i) => {
                 const value = String(row[i] || '').trim();
-                obj[header] = value;
+                obj[normalizedHeader] = value;
+                console.log(`📝 Excel 행 ${index + 2} - ${normalizedHeader}: "${value}"`);
               });
               console.log(`📝 Excel 행 ${index + 2} 파싱 결과:`, obj);
               return obj;
@@ -3694,6 +3734,23 @@ ${r.optPlan}
           
           // 원본 CSV 데이터도 로깅
           console.log('📋 원본 CSV 데이터:', obj);
+          
+          // 데이터 매핑 디버깅
+          console.log('🔍 데이터 매핑 디버깅:');
+          console.log('📝 obj["업체명"]:', obj['업체명'], typeof obj['업체명']);
+          console.log('📝 obj["업체코드"]:', obj['업체코드'], typeof obj['업체코드']);
+          console.log('📝 obj["사업자번호"]:', obj['사업자번호'], typeof obj['사업자번호']);
+          console.log('📝 obj["카톡/번호"]:', obj['카톡/번호'], typeof obj['카톡/번호']);
+          
+          // 모든 키 확인
+          console.log('📝 obj의 모든 키:', Object.keys(obj));
+          
+          // 빈 값이 아닌 키들만 확인
+          const nonEmptyKeys = Object.keys(obj).filter(key => obj[key] && obj[key].trim() !== '');
+          console.log('📝 빈 값이 아닌 키들:', nonEmptyKeys);
+          nonEmptyKeys.forEach(key => {
+            console.log(`📝 ${key}: "${obj[key]}"`);
+          });
           
           if(rec){ Object.assign(rec, newRec); updated++; }
           else { rows.unshift(newRec); updated++; }
@@ -4524,34 +4581,37 @@ ${r.optPlan}
       console.log('💡 이제 다른 탭을 클릭하면 최신 데이터가 로드됩니다');
     };
     
-    // 샘플 Excel 파일 생성 함수 (디버깅용)
-    window.createSampleExcel = function() {
-      console.log('📊 샘플 Excel 파일 생성 가이드');
+    // 데이터 매핑 디버깅 함수 (디버깅용)
+    window.debugDataMapping = function() {
+      console.log('🔍 데이터 매핑 디버깅 시작');
       
-      if (!window.XLSX) {
-        alert('Excel 라이브러리가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      if (!window.wp_upload_rows || window.wp_upload_rows.length === 0) {
+        console.log('❌ 업로드된 데이터가 없습니다. 먼저 파일을 업로드해주세요.');
         return;
       }
       
-      const sampleData = [
-        ['번호', '제출시간', '업체코드', '업체명', '사업자번호', '카톡/번호', '제품URL', '구매키워드', '총진행건수', '일진행건수', '옵션계획', '제품배송', '입금대행', '택배대행', '작업비계산서', '상품금액계산서', '접수상태', '접수시간'],
-        ['1', '2025-10-26 01:45', 'WI01', '안뇽', '우', '어', 'https://nid.터', '39', '39', '투', 'Y', 'Y', 'N', 'N', 'N', 'N', ''],
-        ['2', '2025-10-26 01:48', 'CV31', '안녕1247', '아', '터', 'https://nid.o', '38', '28', 'ㄷ', 'Y', 'Y', 'N', 'N', 'N', 'N', ''],
-        ['3', '2025-10-26 01:50', 'GO85', '안녕하세요어', '어', '어', 'https://nid.디방', '48', '48', '라', 'Y', 'Y', 'N', 'N', 'N', 'N', '']
-      ];
+      console.log('📊 업로드된 데이터 수:', window.wp_upload_rows.length);
       
-      // 워크북 생성
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(sampleData);
-      
-      // 워크시트 추가
-      XLSX.utils.book_append_sheet(wb, ws, '데이터');
-      
-      // 파일 생성 및 다운로드
-      XLSX.writeFile(wb, 'sample_data.xlsx');
-      
-      console.log('✅ 샘플 Excel 파일 다운로드 완료');
-      console.log('💡 이 파일을 사용하여 테스트해보세요');
+      window.wp_upload_rows.forEach((row, index) => {
+        console.log(`📋 행 ${index + 1} 분석:`);
+        console.log('📝 모든 키:', Object.keys(row));
+        
+        // 빈 값이 아닌 키들만 확인
+        const nonEmptyKeys = Object.keys(row).filter(key => row[key] && String(row[key]).trim() !== '');
+        console.log('📝 빈 값이 아닌 키들:', nonEmptyKeys);
+        
+        nonEmptyKeys.forEach(key => {
+          console.log(`📝 ${key}: "${row[key]}"`);
+        });
+        
+        // 특정 필드들 확인
+        const importantFields = ['번호', '업체명', '업체코드', '사업자번호', '카톡/번호'];
+        importantFields.forEach(field => {
+          console.log(`📝 ${field}: "${row[field]}" (${typeof row[field]})`);
+        });
+        
+        console.log('---');
+      });
     };
       
       // Firebase 단계별 테스트
