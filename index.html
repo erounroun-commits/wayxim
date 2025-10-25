@@ -3432,20 +3432,20 @@ ${r.optPlan}
             console.log('🗑️ 기존 실시간 리스너 해제');
           }
           
-          // 새 리스너 설정
+          // 새 리스너 설정 (중복 방지 강화)
           window.realtimeUnsubscribe = window.onSnapshot(q, async (snapshot) => {
             console.log('📡 강제 재설정된 실시간 리스너 작동:', snapshot.docs.length, '건');
             
-            // 이전 데이터와 비교하여 신규 요청건 확인
-            const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
             const newSubmissions = snapshot.docs.map(doc => ({
               id: doc.id,
               ...doc.data()
             }));
             
-            // 신규 요청건이 있는지 확인
+            // 이전 데이터와 비교하여 진짜 신규 요청건만 확인
+            const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
             const hasNewRequests = newSubmissions.some(newSub => 
-              !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+              !previousSubmissions.some(prevSub => prevSub.id === newSub.id) &&
+              !window.initialSubmissionIds?.has(newSub.id) // 초기 데이터에 없던 것만 신규로 인식
             );
             
             console.log('🆕 강제 재설정된 리스너 - 신규 요청건 확인:', hasNewRequests);
@@ -3756,6 +3756,11 @@ ${r.optPlan}
     
     // 실시간 리스너 설정
     let realtimeUnsubscribe = null;
+    let isFirstLoad = true; // 첫 로드 여부 추적
+    let initialSubmissionIds = new Set(); // 초기 데이터 ID 저장
+    
+    // 전역으로 초기 데이터 ID 저장
+    window.initialSubmissionIds = initialSubmissionIds;
     
     function setupRealtimeListener() {
       if (!window.db) return;
@@ -3767,16 +3772,30 @@ ${r.optPlan}
         realtimeUnsubscribe = onSnapshot(q, async (snapshot) => {
           console.log('📡 실시간 데이터 업데이트:', snapshot.docs.length, '건');
           
-          // 이전 데이터와 비교하여 신규 요청건 확인
-          const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
           const newSubmissions = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           }));
           
-          // 신규 요청건이 있는지 확인
+          // 첫 로드인 경우 초기 데이터 ID 저장
+          if (isFirstLoad) {
+            console.log('🔄 첫 로드 - 초기 데이터 ID 저장');
+            initialSubmissionIds = new Set(newSubmissions.map(sub => sub.id));
+            window.initialSubmissionIds = initialSubmissionIds; // 전역 업데이트
+            isFirstLoad = false;
+            
+            // localStorage 업데이트 (알림 생성 없이)
+            localStorage.setItem("wp_submissions", JSON.stringify(newSubmissions));
+            console.log('📝 초기 데이터 저장 완료, 알림 생성 안함');
+            console.log('📊 초기 데이터 ID 수:', initialSubmissionIds.size);
+            return;
+          }
+          
+          // 이전 데이터와 비교하여 진짜 신규 요청건만 확인
+          const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
           const hasNewRequests = newSubmissions.some(newSub => 
-            !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+            !previousSubmissions.some(prevSub => prevSub.id === newSub.id) &&
+            !initialSubmissionIds.has(newSub.id) // 초기 데이터에 없던 것만 신규로 인식
           );
           
           console.log('🆕 신규 요청건 확인:', hasNewRequests);
@@ -3954,12 +3973,19 @@ ${r.optPlan}
       isAdmin: sessionStorage.getItem("wp_is_admin")
     });
     
-    // 관리자 로그인 시 알림 UI 초기화
+    // 기존 알림 모두 삭제 (중복 방지)
+    function clearAllExistingNotifications() {
+      console.log('🗑️ 기존 알림 모두 삭제');
+      notifications = [];
+      localStorage.setItem('wp_notifications', JSON.stringify([]));
+      updateNotificationUI();
+      console.log('✅ 기존 알림 삭제 완료');
+    }
+    
+    // 관리자 로그인 시 기존 알림 삭제
     if (sessionStorage.getItem("wp_is_admin") === "1") {
-      console.log('🔔 관리자 로그인 감지 - 알림 UI 초기화');
-      setTimeout(() => {
-        updateNotificationUI();
-      }, 500);
+      console.log('🔔 관리자 로그인 감지 - 기존 알림 삭제');
+      clearAllExistingNotifications();
     }
     
     function addNotification(title, content, type = 'info') {
