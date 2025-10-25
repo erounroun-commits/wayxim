@@ -1024,8 +1024,11 @@
       const notificationBtn = document.getElementById('notificationBtn');
       if (notificationBtn) {
         notificationBtn.style.display = 'block';
-        console.log('✅ 관리자 로그인 시 알림 버튼 표시');
-        updateNotificationUI();
+        if (window.updateNotificationUI) {
+          window.updateNotificationUI();
+        } else {
+          console.log('⚠️ updateNotificationUI 함수가 아직 정의되지 않음');
+        }
       } else {
         console.error('❌ 알림 버튼을 찾을 수 없음');
       }
@@ -3701,90 +3704,14 @@ ${r.optPlan}
       console.log('⚠️ 실시간 리스너는 중복 알림 방지를 위해 비활성화됨');
       return; // 함수 실행 중단
     }
-    // 실시간 리스너 코드 제거됨 (중복 방지)
-          
-          const allSubmissions = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          
-          // 첫 로드인 경우
-          if (isFirstLoad) {
-            console.log('🔄 첫 로드 - 초기 데이터 설정');
-            if (allSubmissions.length > 0) {
-              lastProcessedSubmissionId = allSubmissions[0].id; // 가장 최신 ID 저장
-              console.log('📊 마지막 처리 ID 설정:', lastProcessedSubmissionId);
-            }
-            localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
-            isFirstLoad = false;
-            console.log('📝 초기 데이터 저장 완료, 알림 생성 안함');
-            return;
-          }
-          
-          // 이전 데이터와 비교하여 진짜 신규 요청건만 확인
-          const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
-          const hasNewRequests = newSubmissions.some(newSub => 
-            !previousSubmissions.some(prevSub => prevSub.id === newSub.id) &&
-            !initialSubmissionIds.has(newSub.id) // 초기 데이터에 없던 것만 신규로 인식
-          );
-          
-          console.log('🆕 신규 요청건 확인:', hasNewRequests);
-          console.log('👨‍💼 관리자 상태:', sessionStorage.getItem("wp_is_admin"));
-          
-          // localStorage 업데이트
-          localStorage.setItem("wp_submissions", JSON.stringify(newSubmissions));
-          
-          // 관리자 페이지가 열려있다면 실시간 업데이트
-          if (sessionStorage.getItem("wp_is_admin") === "1") {
-            const currentSection = document.querySelector('[data-section].active')?.getAttribute('data-section');
-            
-            // 현재 활성화된 탭 업데이트
-            if (currentSection === 'req-new') {
-              await showReqList(false);
-            } else if (currentSection === 'req-accepted') {
-              await showReqList(true);
-            } else if (currentSection === 'req-all') {
-              await showAllReqList();
-            } else if (currentSection === 'home') {
-              await showAdminHome();
-            } else if (currentSection === 'vendor') {
-              await showVendorDashboard();
-            } else if (currentSection === 'vendor-list') {
-              await showVendorList();
-            } else if (currentSection === 'settle') {
-              await showSettlementDashboard();
-            } else if (currentSection === 'settle-weekly') {
-              await showWeeklySettlementList();
-            } else if (currentSection === 'settle-monthly') {
-              await showMonthlySettlementList();
-            }
-            
-            // 신규 요청건이 추가된 경우 강제 업데이트
-            if (hasNewRequests) {
-              console.log('🆕 신규 요청건 감지! 강제 업데이트 실행');
-              
-              // 푸시 알림 표시 (관리자 화면이 열려있을 때만)
-              const latestRequest = newSubmissions.find(newSub => 
-                !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
-              );
-              
-              console.log('🔍 최신 요청건:', latestRequest);
-              
-              if (latestRequest) {
-                console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
-                console.log('📋 알림 내용:', `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`);
-                console.log('👨‍💼 관리자 상태 재확인:', sessionStorage.getItem("wp_is_admin"));
-                
-                // 강제 푸시알림 표시 (중복 방지 없이)
-                const notificationTitle = '신규 작업요청건이 있습니다';
-                const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
-                
-                console.log('🔔 실시간 리스너에서 푸시알림 강제 표시 시도');
-                
-                // 방법 1: 직접 함수 호출
-                try {
-                  const notificationTitle = '신규 작업요청건이 있습니다';
-                  const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+    // 실시간 리스너 코드 완전 제거됨 (중복 방지)
+    
+    // Firebase 초기화 후 실시간 리스너 설정 (비활성화)
+    if (window.db) {
+      console.log('🚫 Firebase 초기화 완료 - 실시간 리스너 비활성화');
+    }
+    // 실시간 리스너 코드 완전 제거됨 (중복 방지)
+    // 실시간 리스너 코드 완전 제거됨 (중복 방지)
                   
                   // 푸시알림 표시
                   showPushNotification(notificationTitle, notificationContent);
