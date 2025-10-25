@@ -241,6 +241,42 @@
   background: #f8f9fa; 
   border-radius: 6px; 
 }
+.vendor-monthly-progress {
+  max-height: 300px;
+  overflow-x: auto;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.vendor-monthly-progress table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 400px;
+}
+
+.vendor-monthly-progress th,
+.vendor-monthly-progress td {
+  padding: 8px 12px;
+  text-align: center;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.vendor-monthly-progress th {
+  background-color: var(--bg-light);
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.vendor-monthly-progress td {
+  background-color: #fff;
+}
+
+.vendor-monthly-progress tr:nth-child(even) td {
+  background-color: #f8f9fa;
+}
+
 .vendor-requests-list { 
   max-height: 400px; 
   overflow-y: auto; 
@@ -739,6 +775,13 @@
         <div class="vendor-pricing-box">
           <div class="vendor-pricing-title">실행단가 / 제휴수수료</div>
           <div class="vendor-pricing-value" id="vendorPricing">3,000원 / 1,500원</div>
+        </div>
+      </div>
+
+      <div class="vendor-info-box">
+        <div class="vendor-info-title">월별 진행현황</div>
+        <div class="vendor-monthly-progress" id="vendorMonthlyProgress">
+          <div style="text-align:center;color:#6a7a89;padding:20px;">월별 진행현황이 없습니다.</div>
         </div>
       </div>
 
@@ -2435,6 +2478,9 @@ ${r.optPlan}
       const pricing = vendorType === '우수' ? '2,500원 / 1,000원' : '3,000원 / 1,500원';
       document.getElementById('vendorPricing').textContent = pricing;
       
+      // Update monthly progress table
+      updateMonthlyProgressTable(vendorRows);
+      
       // Update requests list
       const requestsList = document.getElementById('vendorRequestsList');
       if (vendorRows.length === 0) {
@@ -2517,6 +2563,71 @@ ${r.optPlan}
       }, { once:true });
     }
     
+    function updateMonthlyProgressTable(vendorRows) {
+      if (!vendorRows || vendorRows.length === 0) {
+        document.getElementById('vendorMonthlyProgress').innerHTML = 
+          '<div style="text-align:center;color:#6a7a89;padding:20px;">월별 진행현황이 없습니다.</div>';
+        return;
+      }
+      
+      // 월별 진행건수 계산
+      const monthlyData = {};
+      let firstMonth = null;
+      let lastMonth = null;
+      
+      vendorRows.forEach(row => {
+        const submissionDate = new Date(row.submittedAt);
+        const year = submissionDate.getFullYear();
+        const month = submissionDate.getMonth() + 1; // 1-12
+        const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
+        
+        if (!firstMonth || monthKey < firstMonth) {
+          firstMonth = monthKey;
+        }
+        if (!lastMonth || monthKey > lastMonth) {
+          lastMonth = monthKey;
+        }
+        
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = 0;
+        }
+        monthlyData[monthKey] += row.totalCnt;
+      });
+      
+      // 월별 데이터를 시간순으로 정렬
+      const sortedMonths = Object.keys(monthlyData).sort();
+      
+      if (sortedMonths.length === 0) {
+        document.getElementById('vendorMonthlyProgress').innerHTML = 
+          '<div style="text-align:center;color:#6a7a89;padding:20px;">월별 진행현황이 없습니다.</div>';
+        return;
+      }
+      
+      // 테이블 HTML 생성
+      let tableHtml = '<table>';
+      
+      // 헤더 행
+      tableHtml += '<thead><tr>';
+      tableHtml += '<th>월별</th>';
+      sortedMonths.forEach(monthKey => {
+        const [year, month] = monthKey.split('-');
+        tableHtml += `<th>${year}년 ${month}월</th>`;
+      });
+      tableHtml += '</tr></thead>';
+      
+      // 데이터 행
+      tableHtml += '<tbody><tr>';
+      tableHtml += '<td><strong>진행건수</strong></td>';
+      sortedMonths.forEach(monthKey => {
+        tableHtml += `<td><strong>${monthlyData[monthKey]}건</strong></td>`;
+      });
+      tableHtml += '</tr></tbody>';
+      
+      tableHtml += '</table>';
+      
+      document.getElementById('vendorMonthlyProgress').innerHTML = tableHtml;
+    }
+    
     function closeVendorModal() {
       document.getElementById('vendorModal').style.display = 'none';
     }
@@ -2550,27 +2661,46 @@ ${r.optPlan}
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
       
-      // Check last 2 months
-      let consecutiveMonths = 0;
-      for (let i = 1; i <= 2; i++) {
-        const checkDate = new Date(currentYear, currentMonth - i, 1);
-        const monthKey = `${checkDate.getFullYear()}-${pad(checkDate.getMonth() + 1)}`;
+      // Check if vendor was ever premium (한번 우수 VENDOR가 되면 계속 유지)
+      let wasEverPremium = false;
+      let maxConsecutiveMonths = 0;
+      
+      // 전체 기간에 대해 우수 VENDOR 달성 여부 확인
+      const allMonths = new Set();
+      vendorRows.forEach(r => {
+        const submissionDate = new Date(r.submittedAt);
+        const monthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
+        allMonths.add(monthKey);
+      });
+      
+      const sortedAllMonths = Array.from(allMonths).sort();
+      
+      // 연속된 2개월 이상 200건 달성 여부 확인
+      for (let i = 0; i < sortedAllMonths.length - 1; i++) {
+        const month1 = sortedAllMonths[i];
+        const month2 = sortedAllMonths[i + 1];
         
-        let monthCount = 0;
+        let month1Count = 0;
+        let month2Count = 0;
+        
         vendorRows.forEach(r => {
           const submissionDate = new Date(r.submittedAt);
           const submissionMonthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
-          if (submissionMonthKey === monthKey) {
-            monthCount += r.totalCnt;
+          if (submissionMonthKey === month1) {
+            month1Count += r.totalCnt;
+          }
+          if (submissionMonthKey === month2) {
+            month2Count += r.totalCnt;
           }
         });
         
-        if (monthCount >= 200) {
-          consecutiveMonths++;
+        if (month1Count >= 200 && month2Count >= 200) {
+          wasEverPremium = true;
+          break;
         }
       }
       
-      return consecutiveMonths >= 2 ? '우수' : '일반';
+      return wasEverPremium ? '우수' : '일반';
     }
 
     async function showSettlementDashboard(){
