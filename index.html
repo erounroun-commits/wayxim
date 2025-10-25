@@ -1033,6 +1033,59 @@
         console.error('❌ 알림 버튼을 찾을 수 없음');
       }
       
+      // 기존 알림 모두 제거
+      if (window.clearAllExistingNotifications) {
+        window.clearAllExistingNotifications();
+      }
+      
+      // 실시간 리스너 재설정 (관리자 로그인 시)
+      if (window.db && window.setupRealtimeListener) {
+        console.log('🔄 관리자 로그인 - 실시간 리스너 재설정');
+        window.setupRealtimeListener();
+      } else if (window.db) {
+        console.log('🔄 관리자 로그인 - setupRealtimeListener 함수 없음, 수동 설정');
+        // 수동으로 실시간 리스너 설정
+        try {
+          const submissionsRef = window.collection(window.db, 'submissions');
+          const q = window.query(submissionsRef, window.orderBy('submittedAt', 'desc'));
+          
+          const unsubscribe = window.onSnapshot(q, (snapshot) => {
+            console.log('📡 관리자 로그인 후 실시간 데이터:', snapshot.docs.length, '건');
+            if (snapshot.docs.length > 0) {
+              const allSubmissions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
+              const hasNewRequests = allSubmissions.some(newSub => 
+                !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+              );
+              
+              if (hasNewRequests) {
+                const latestRequest = allSubmissions.find(newSub => 
+                  !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
+                );
+                
+                if (latestRequest && window.showPushNotification) {
+                  const notificationTitle = '신규 작업요청건이 있습니다';
+                  const notificationContent = `${latestRequest.companyName} (${latestRequest.companyCode})에서 새로운 작업요청서가 제출되었습니다.`;
+                  
+                  console.log('🔔 관리자 로그인 후 푸시 알림:', notificationContent);
+                  window.showPushNotification(notificationTitle, notificationContent);
+                  
+                  if (window.addNotification) {
+                    window.addNotification(notificationTitle, notificationContent, 'success');
+                  }
+                }
+              }
+              
+              localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
+            }
+          });
+          
+          console.log('✅ 관리자 로그인 후 실시간 리스너 설정 완료');
+        } catch (error) {
+          console.error('❌ 관리자 로그인 후 실시간 리스너 설정 실패:', error);
+        }
+      }
+      
       // 기본 탭 활성화 (홈 탭)
       document.querySelectorAll("[data-section]").forEach(tab => {
         tab.classList.remove('active');
@@ -3794,16 +3847,18 @@ ${r.optPlan}
         console.error('❌ 실시간 리스너 설정 실패:', error);
       }
     }
-     // Firebase 초기화 후 실시간 리스너 설정 (활성화)
-     if (window.db) {
-      console.log('✅ Firebase 초기화 완료 - 실시간 리스너 활성화');
-      setupRealtimeListener(); // 활성화된 상태로 실행
-    }
-    
     // 전역 변수로 db 접근 가능하게 설정
     window.db = db;
     window.collection = collection;
     window.doc = doc;
+    
+    // Firebase 초기화 후 실시간 리스너 설정 (활성화)
+    if (window.db) {
+      console.log('✅ Firebase 초기화 완료 - 실시간 리스너 활성화');
+      setupRealtimeListener(); // 활성화된 상태로 실행
+    } else {
+      console.log('❌ Firebase DB 초기화 실패');
+    }
     window.getDocs = getDocs;
     window.addDoc = addDoc;
     window.updateDoc = updateDoc;
@@ -4084,6 +4139,7 @@ ${r.optPlan}
     window.addSubmissionNotification = addSubmissionNotification;
     window.showPushNotification = showPushNotification;
     window.testPushNotification = testPushNotification;
+    window.setupRealtimeListener = setupRealtimeListener;
       
       // Firebase 단계별 테스트
       console.log('Starting Firebase step-by-step test...');
