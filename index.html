@@ -4840,6 +4840,19 @@ ${r.optPlan}
           <button class="btn" onclick="confirmDeleteAll()" type="button" style="background:#8a2b2b;">전체 데이터 삭제</button>
         </div>
       </div>`;
+
+      // Company rename panel
+      html += `<div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;margin-bottom:20px;">
+        <h3 style="margin:0 0 12px;color:var(--brand);font-size:16px;">업체명 변경</h3>
+        <p style="margin:0 0 12px;color:#6a7a89;font-size:14px;">기존 업체명의 모든 데이터(업체명/업체코드)를 새 업체명 기준으로 일괄 변경합니다.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+          <input id="renameOldName" class="input" placeholder="기존 업체명" style="max-width:280px;">
+          <span class="pipe">→</span>
+          <input id="renameNewName" class="input" placeholder="새 업체명" style="max-width:280px;">
+          <button class="btn" id="applyCompanyRename" type="button">업체명 변경 적용</button>
+        </div>
+        <p class="muted" style="margin:8px 0 0;font-size:13px;color:#6a7a89;">주의: 변경 후 되돌리려면 다시 실행해야 합니다. 데이터는 삭제되지 않습니다.</p>
+      </div>`;
       
       // Recent data table
       html += `<div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
@@ -4906,6 +4919,8 @@ ${r.optPlan}
       `;
       const saveBtn = document.getElementById('dmSaveBtn');
       saveBtn?.addEventListener('click', ()=>{ applyPendingEdits(); });
+      const applyCompanyRenameBtn = document.getElementById('applyCompanyRename');
+      applyCompanyRenameBtn?.addEventListener('click', ()=>{ handleCompanyRename(); });
       } finally {
         hideLoading();
       }
@@ -5148,6 +5163,58 @@ ${r.optPlan}
       if(btn) btn.setAttribute('disabled','true');
       alert(updated+ '건 저장되었습니다.');
       await showDataManagement();
+    }
+
+    // 업체명 변경 핸들러
+    async function handleCompanyRename(){
+      const oldNameInput = document.getElementById('renameOldName');
+      const newNameInput = document.getElementById('renameNewName');
+      const oldName = (oldNameInput?.value||'').trim();
+      const newName = (newNameInput?.value||'').trim();
+      if(!oldName || !newName){ alert('기존 업체명과 새 업체명을 모두 입력해주세요.'); return; }
+      if(oldName === newName){ alert('기존 업체명과 새 업체명이 같습니다.'); return; }
+      if(!confirm(`정말로 "${oldName}" 을(를) "${newName}"(으)로 변경하시겠습니까?`)) return;
+
+      showLoading();
+      try{
+        const rows = await loadSubs();
+        const oldCode = await stableIdForName(oldName);
+        const newCode = await stableIdForName(newName);
+        if(!oldCode){ alert('기존 업체명으로 생성된 업체코드를 찾을 수 없습니다. 철자/공백을 확인해주세요.'); return; }
+        if(!newCode){ alert('새 업체명으로 업체코드를 생성하지 못했습니다. 다시 시도해주세요.'); return; }
+
+        let affected = 0; 
+        for(const r of rows){
+          if(r.companyCode === oldCode){
+            r.companyCode = newCode;
+            r.companyName = newName;
+            affected++;
+            // Firebase 동기화 시도
+            try{
+              if(window.db && r.id){
+                const docRef = window.doc(window.db, 'submissions', r.id);
+                await window.updateDoc(docRef, { companyCode:newCode, companyName:newName });
+              }
+            }catch(e){
+              console.warn('Firebase 업데이트 실패(무시하고 로컬 저장 진행):', e);
+            }
+          }
+        }
+
+        if(affected === 0){
+          alert('해당 업체명으로 연결된 데이터가 없습니다. 업체명을 다시 확인해주세요.');
+          return;
+        }
+
+        await saveSubs(rows);
+        alert(`업체명 변경 완료: ${affected}건 업데이트되었습니다.`);
+        await showDataManagement();
+      }catch(err){
+        console.error('업체명 변경 실패:', err);
+        alert('업체명 변경 중 오류가 발생했습니다: '+ err.message);
+      }finally{
+        hideLoading();
+      }
     }
 
     // Excel 파일 파싱 함수
