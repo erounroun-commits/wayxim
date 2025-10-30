@@ -5063,8 +5063,8 @@ ${r.optPlan}
       openDetail(buildDetailText(targetRow));
     }
     
-    function updateProgressCount(no, newCount){
-      const rows = loadSubs();
+    async function updateProgressCount(no, newCount){
+      const rows = await loadSubs();
       const targetRow = rows.find(r => r.no === no);
       
       if(!targetRow){
