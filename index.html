@@ -2581,6 +2581,27 @@
       closeMobileDetail('weeklyMobileFilterSheet');
     }
     
+    // VENDOR LIST 모바일 검색 열기/닫기
+    function openVendorMobileSearch() {
+      openMobileDetail('vendorMobileSearchSheet');
+    }
+    
+    function closeVendorMobileSearch() {
+      closeMobileDetail('vendorMobileSearchSheet');
+    }
+    
+    // VENDOR LIST 모바일 검색 실행 (전역 함수로 정의 - 나중에 showVendorList에서 재정의됨)
+    window.performVendorMobileSearch = function() {
+      // 이 함수는 showVendorList 함수 내에서 재정의됩니다
+      closeVendorMobileSearch();
+    };
+    
+    // VENDOR LIST 모바일 검색 초기화 (전역 함수로 정의 - 나중에 showVendorList에서 재정의됨)
+    window.resetVendorMobileSearch = function() {
+      // 이 함수는 showVendorList 함수 내에서 재정의됩니다
+      closeVendorMobileSearch();
+    };
+    
     // Y/N chip helper function
     function yn(value) {
       return `<span class="yn ${value === 'Y' ? 'y' : 'n'}">${value || 'N'}</span>`;
@@ -3133,26 +3154,187 @@ ${r.optPlan}
         }
       }
       
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">VENDOR LIST</h2>`;
-      html += `<div style="margin-bottom:8px;"><button class="btn ghost" id="vendorListExcel" type="button">엑셀 다운로드</button></div>`;
-      html += '<div class="vendor-list-table-scroll"><table class="admin-table">';
-      html += '<thead><tr>'+
-        '<th>NO</th>'+
-        '<th>업체코드</th>'+
-        '<th>업체명</th>'+
-        '<th>VENDOR 유형</th>'+
-        '<th>당월 진행건수</th>'+
-        '<th>누적 진행건수</th>'+
-        '<th>상세보기</th>'+
-      '</tr></thead><tbody>';
-
-      const vendorCodes = Object.keys(vendorStats).sort();
-      if(vendorCodes.length===0){
-        html += '<tr><td colspan="6" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
-      } else {
-        vendorCodes.forEach((code, idx)=>{
+      // 상단 영역 (모바일에서 sticky)
+      let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+        <div class="flex items-center justify-between mb-2 md:mb-0">
+          <h2 style="margin:0;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">VENDOR LIST</h2>
+          <!-- 모바일 전용 검색 버튼 -->
+          <button onclick="openVendorMobileSearch()" class="md:hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-semibold flex items-center gap-1" aria-label="검색">
+            <span>🔍</span>
+            <span>검색</span>
+          </button>
+        </div>
+        
+        <!-- 검색 필터 - 데스크탑만 표시 -->
+        <div class="vendor-desktop-filter" style="display:none;margin-bottom:12px;">
+          <style>
+            @media (min-width: 768px) {
+              .vendor-desktop-filter { display: flex !important; }
+            }
+          </style>
+          <input type="text" id="vendorSearchInput" class="input" placeholder="업체명 또는 업체코드로 검색" style="width:300px;margin-right:8px;">
+          <button id="vendorSearchBtn" class="btn" style="background:var(--brand);color:white;padding:8px 16px;border:none;border-radius:4px;cursor:pointer;">검색</button>
+          <button id="vendorSearchReset" class="btn ghost" style="margin-left:8px;">초기화</button>
+        </div>
+        
+        <!-- 엑셀 다운로드 버튼 - 데스크탑만 표시 -->
+        <div class="vendor-desktop-excel" style="display:none;margin-bottom:8px;">
+          <style>
+            @media (min-width: 768px) {
+              .vendor-desktop-excel { display: block !important; }
+            }
+          </style>
+          <button class="btn ghost" id="vendorListExcel" type="button">엑셀 다운로드</button>
+        </div>
+      </div>`;
+      
+      // 모바일 검색 시트
+      html += `<div id="vendorMobileSearchSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
+        <div class="p-4">
+          <div class="flex items-center justify-between mb-4 pb-4 border-b">
+            <h3 class="text-lg font-bold">검색</h3>
+            <button onclick="closeVendorMobileSearch()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+          </div>
+          <div class="mb-4">
+            <label class="block text-sm font-semibold mb-2 text-neutral-700">업체명 또는 업체코드</label>
+            <input type="text" id="vendorSearchInputMobile" class="input w-full px-3 py-3 border border-gray-300 rounded-md" placeholder="업체명 또는 업체코드로 검색">
+          </div>
+          <div class="flex gap-2">
+            <button onclick="performVendorMobileSearch()" class="flex-1 btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">검색</button>
+            <button onclick="resetVendorMobileSearch()" class="btn ghost px-4 py-3">초기화</button>
+          </div>
+        </div>
+      </div>`;
+      html += `<div id="vendorMobileSearchSheet-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden md:hidden" onclick="closeVendorMobileSearch()"></div>`;
+      
+      // Desktop Table - 데스크탑에서만 표시
+      html += `<div class="vendor-desktop-table" style="display:none;">
+        <style>
+          @media (min-width: 768px) {
+            .vendor-desktop-table { display: block !important; }
+          }
+        </style>
+        <div class="vendor-list-table-scroll"><table class="admin-table" id="vendorDesktopTable">
+          <thead><tr>
+            <th>NO</th>
+            <th>업체코드</th>
+            <th>업체명</th>
+            <th>VENDOR 유형</th>
+            <th>당월 진행건수</th>
+            <th>누적 진행건수</th>
+            <th>상세보기</th>
+          </tr></thead>
+          <tbody id="vendorDesktopTableBody">
+          </tbody>
+        </table></div>
+      </div>`;
+      
+      // Mobile List - 모바일에서만 표시
+      html += `<div id="vendorMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
+      
+      main.innerHTML = html;
+      
+      // 전체 vendorCodes 저장 (검색용)
+      const allVendorCodes = Object.keys(vendorStats).sort();
+      
+      // 초기 렌더링
+      renderVendorList(allVendorCodes, vendorStats);
+      
+      // 검색 기능
+      const searchInput = document.getElementById('vendorSearchInput');
+      const searchInputMobile = document.getElementById('vendorSearchInputMobile');
+      const searchBtn = document.getElementById('vendorSearchBtn');
+      const searchReset = document.getElementById('vendorSearchReset');
+      
+      // 검색 함수 (전역에서 접근 가능하도록)
+      window.performVendorSearch = function() {
+        const desktopTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        const mobileTerm = searchInputMobile ? searchInputMobile.value.trim().toLowerCase() : '';
+        const searchTerm = desktopTerm || mobileTerm;
+        
+        // 모바일과 데스크탑 입력 동기화
+        if (searchInput && searchInputMobile) {
+          if (desktopTerm) {
+            searchInputMobile.value = searchInput.value;
+          } else if (mobileTerm) {
+            searchInput.value = searchInputMobile.value;
+          }
+        }
+        
+        if (!searchTerm) {
+          renderVendorList(allVendorCodes, vendorStats);
+          return;
+        }
+        
+        const filteredCodes = allVendorCodes.filter(code => {
           const stats = vendorStats[code];
-          html += `<tr>`+
+          const codeMatch = code.toLowerCase().includes(searchTerm);
+          const nameMatch = stats.companyName.toLowerCase().includes(searchTerm);
+          return codeMatch || nameMatch;
+        });
+        
+        renderVendorList(filteredCodes, vendorStats);
+      };
+      
+      if (searchBtn) {
+        searchBtn.addEventListener('click', window.performVendorSearch);
+      }
+      
+      if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            window.performVendorSearch();
+          }
+        });
+        
+        // 실시간 검색 (입력 시마다)
+        searchInput.addEventListener('input', () => {
+          window.performVendorSearch();
+        });
+      }
+      
+      if (searchInputMobile) {
+        searchInputMobile.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            window.performVendorSearch();
+            closeVendorMobileSearch();
+          }
+        });
+      }
+      
+      if (searchReset) {
+        searchReset.addEventListener('click', () => {
+          if (searchInput) searchInput.value = '';
+          if (searchInputMobile) searchInputMobile.value = '';
+          renderVendorList(allVendorCodes, vendorStats);
+        });
+      }
+      
+      // 모바일 검색 함수 재정의
+      window.performVendorMobileSearch = function() {
+        window.performVendorSearch();
+        closeVendorMobileSearch();
+      };
+      
+      window.resetVendorMobileSearch = function() {
+        if (searchInput) searchInput.value = '';
+        if (searchInputMobile) searchInputMobile.value = '';
+        window.performVendorSearch();
+        closeVendorMobileSearch();
+      };
+      
+      // 렌더링 함수
+      function renderVendorList(vendorCodes, vendorStats) {
+        // Desktop Table
+        const desktopTbody = document.getElementById('vendorDesktopTableBody');
+        if (desktopTbody) {
+          if (vendorCodes.length === 0) {
+            desktopTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
+      } else {
+            let desktopHtml = '';
+            vendorCodes.forEach((code, idx) => {
+          const stats = vendorStats[code];
+              desktopHtml += `<tr>`+
             `<td>${idx+1}</td>`+
             `<td>${escapeHtml(code)}</td>`+
             `<td>${escapeHtml(stats.companyName)}</td>`+
@@ -3162,16 +3344,86 @@ ${r.optPlan}
             `<td><button class="btn ghost view-vendor-detail" data-code="${code}" type="button">상세보기</button></td>`+
           `</tr>`;
         });
+            desktopTbody.innerHTML = desktopHtml;
+          }
+        }
+        
+        // Mobile List
+        const mobileList = document.getElementById('vendorMobileList');
+        if (mobileList) {
+          if (vendorCodes.length === 0) {
+            mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">표시할 데이터가 없습니다.</div>';
+          } else {
+            let mobileHtml = '';
+            vendorCodes.forEach((code, idx) => {
+              const stats = vendorStats[code];
+              const detailId = `vendorDetail-${code}`;
+              mobileHtml += `
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${escapeHtml(stats.companyName)}</span>
+                          <span class="text-xs px-2 py-0.5 rounded ${stats.vendorType === '우수' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}">${stats.vendorType}</span>
+                        </div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(code)}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">당월: ${stats.monthlyCount}건 | 누적: ${stats.totalCount}건</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                
+                <!-- Mobile Detail Sheet -->
+                <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+                  <div class="p-4">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                      <h3 class="text-lg font-bold">상세 정보</h3>
+                      <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                    </div>
+                    <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                      <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${idx+1}</span></div>
+                        <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(code)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(stats.companyName)}</span></div>
+                        <div><span class="text-neutral-500">VENDOR 유형:</span> <span class="font-semibold">${stats.vendorType}</span></div>
+                        <div><span class="text-neutral-500">당월 진행건수:</span> <span class="font-semibold">${stats.monthlyCount}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">누적 진행건수:</span> <span class="font-semibold">${stats.totalCount}</span></div>
+                      </div>
+                      <div class="pt-4 border-t">
+                        <button onclick="closeMobileDetail('${detailId}'); document.querySelector('[data-code=\\'${code}\\']').click();" class="w-full btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">상세보기</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+              `;
+            });
+            mobileList.innerHTML = mobileHtml;
+          }
+        }
       }
-      html += '</tbody></table></div>';
-      main.innerHTML = html;
 
       // 이벤트 리스너를 즉시 바인딩
       setTimeout(() => {
         const excelBtn = document.getElementById('vendorListExcel');
         if (excelBtn) {
           excelBtn.addEventListener('click', ()=>{
-            const data = vendorCodes.map((code, i)=>{
+            // 현재 표시된 vendorCodes 가져오기 (검색 필터 적용)
+            const desktopTbody = document.getElementById('vendorDesktopTableBody');
+            const currentCodes = [];
+            if (desktopTbody) {
+              const rows = desktopTbody.querySelectorAll('tr');
+              rows.forEach(row => {
+                const codeCell = row.querySelector('td:nth-child(2)');
+                if (codeCell) {
+                  currentCodes.push(codeCell.textContent.trim());
+                }
+              });
+            }
+            
+            const codesToExport = currentCodes.length > 0 ? currentCodes : allVendorCodes;
+            const data = codesToExport.map((code, i)=>{
               const s = vendorStats[code];
               return {
                 'NO': i+1,
@@ -3832,10 +4084,10 @@ ${r.optPlan}
               .monthly-desktop-filter { display: block !important; }
             }
           </style>
-          <label style="display:block;font-weight:800;margin-bottom:8px;color:var(--brand);">년도/월 선택</label>
-          <select id="yearMonthSelect" class="select" style="width:200px;">
-            ${yearMonthOptions}
-          </select>
+        <label style="display:block;font-weight:800;margin-bottom:8px;color:var(--brand);">년도/월 선택</label>
+        <select id="yearMonthSelect" class="select" style="width:200px;">
+          ${yearMonthOptions}
+        </select>
         </div>
         
         <!-- 엑셀 다운로드 버튼 - 데스크탑만 표시 -->
@@ -4380,10 +4632,10 @@ ${r.optPlan}
               .weekly-desktop-filter { display: flex !important; }
             }
           </style>
-          <select id="wlYear" class="select" style="width:120px;">${yearOptions}</select>
-          <select id="wlMonth" class="select" style="width:120px;">${monthOptions}</select>
-          <select id="wlWeek" class="select" style="width:200px;"></select>
-          <button id="wlSearchBtn" class="btn" style="background:var(--brand);color:white;padding:8px 16px;border:none;border-radius:4px;cursor:pointer;">조회하기</button>
+        <select id="wlYear" class="select" style="width:120px;">${yearOptions}</select>
+        <select id="wlMonth" class="select" style="width:120px;">${monthOptions}</select>
+        <select id="wlWeek" class="select" style="width:200px;"></select>
+        <button id="wlSearchBtn" class="btn" style="background:var(--brand);color:white;padding:8px 16px;border:none;border-radius:4px;cursor:pointer;">조회하기</button>
         </div>
         
         <!-- 엑셀 다운로드 버튼 - 데스크탑만 표시 -->
@@ -4964,7 +5216,7 @@ ${r.optPlan}
         
         if (excelBtn) {
           excelBtn.addEventListener('click', async ()=>{
-            const val = document.getElementById('wlWeek').value;
+            const val = document.getElementById('wlWeek').value; 
             if (!val) {
               alert('주를 선택해주세요.');
               return;
