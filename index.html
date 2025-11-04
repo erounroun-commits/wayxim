@@ -2748,53 +2748,152 @@ ${r.optPlan}
       const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
       const title = isAccepted ? "접수 완료건" : "신규요청건";
       const main = document.getElementById("adminMain");
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">${title}`;
       
-      // 신규요청건에만 모든 요청건 접수처리 버튼 추가
+      // 상단 영역 (모바일에서 sticky)
+      let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+        <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">${title}`;
+      
+      // 신규요청건에만 모든 요청건 접수처리 버튼 추가 (데스크탑만 표시)
       if (!isAccepted && rows.length > 0) {
-        html += ` <button class="btn" id="bulkAcceptAll" style="margin-left:12px;padding:4px 12px;font-size:14px;background:var(--brand);color:white;border:none;border-radius:4px;">[모든 요청건 접수처리]</button>`;
+        html += ` <button class="req-desktop-bulk-btn btn" id="bulkAcceptAll" style="display:none;margin-left:12px;padding:4px 12px;font-size:14px;background:var(--brand);color:white;border:none;border-radius:4px;">
+          <style>
+            @media (min-width: 768px) {
+              .req-desktop-bulk-btn { display: inline-block !important; }
+            }
+          </style>
+          [모든 요청건 접수처리]
+        </button>`;
       }
       
-      html += `</h2>`;
-      html += '<div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table">';
-      html += '<thead><tr>'+
-        '<th rowspan="2">no.</th>'+
-        '<th rowspan="2">제출시간</th>'+
-        '<th colspan="4" class="company-info">업체 기본 정보</th>'+
-        '<th rowspan="2">구매키워드</th>'+
-        '<th rowspan="2">총/일</th>'+
-        (isAccepted ? '<th rowspan="2">접수 시간</th>' : '<th rowspan="2">접수 여부</th>')+
-        '<th rowspan="2">전문</th>'+
-      '</tr><tr>'+
-        '<th class="company-info">업체코드</th>'+
-        '<th class="company-info">업체명</th>'+
-        '<th class="company-info">사업자번호</th>'+
-        '<th class="company-info">카톡/번호</th>'+
-      '</tr></thead><tbody>';
-
-      if(rows.length===0){
-        html += '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
-      } else {
-        for(const r of rows){
-          html += `<tr data-no="${r.no}">`+
-            `<td>${r.no}</td>`+
-            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
-            `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td>${escapeHtml(r.companyName)}</td>`+
-            `<td>${escapeHtml(r.bizNo)}</td>`+
-            `<td>${escapeHtml(r.contact)}</td>`+
-            `<td>${escapeHtml(r.keywords)}</td>`+
-            `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
-            (isAccepted
-              ? `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
-              : `<td style="text-align:center"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""}></td>`
-            )+
-            `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
-          `</tr>`;
+      html += `</h2>
+      </div>`;
+      
+      // Desktop Table - 데스크탑에서만 표시
+      html += `<div class="req-desktop-table" style="display:none;">
+        <style>
+          @media (min-width: 768px) {
+            .req-desktop-table { display: block !important; }
+          }
+        </style>
+        <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+          <table class="admin-table">
+            <thead><tr>
+              <th rowspan="2">no.</th>
+              <th rowspan="2">제출시간</th>
+              <th colspan="4" class="company-info">업체 기본 정보</th>
+              <th rowspan="2">구매키워드</th>
+              <th rowspan="2">총/일</th>
+              ${isAccepted ? '<th rowspan="2">접수 시간</th>' : '<th rowspan="2">접수 여부</th>'}
+              <th rowspan="2">전문</th>
+            </tr><tr>
+              <th class="company-info">업체코드</th>
+              <th class="company-info">업체명</th>
+              <th class="company-info">사업자번호</th>
+              <th class="company-info">카톡/번호</th>
+            </tr></thead>
+            <tbody id="reqDesktopTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+      
+      // Mobile List - 모바일에서만 표시
+      html += `<div id="reqMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
+      
+      main.innerHTML = html;
+      
+      // 렌더링 함수
+      function renderReqList() {
+        // Desktop Table
+        const desktopTbody = document.getElementById('reqDesktopTableBody');
+        if (desktopTbody) {
+          if(rows.length===0){
+            desktopTbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
+          } else {
+            let desktopHtml = '';
+            for(const r of rows){
+              desktopHtml += `<tr data-no="${r.no}">`+
+                `<td>${r.no}</td>`+
+                `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
+                `<td>${escapeHtml(r.companyCode)}</td>`+
+                `<td>${escapeHtml(r.companyName)}</td>`+
+                `<td>${escapeHtml(r.bizNo)}</td>`+
+                `<td>${escapeHtml(r.contact)}</td>`+
+                `<td>${escapeHtml(r.keywords)}</td>`+
+                `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
+                (isAccepted
+                  ? `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
+                  : `<td style="text-align:center"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""}></td>`
+                )+
+                `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
+              `</tr>`;
+            }
+            desktopTbody.innerHTML = desktopHtml;
+          }
+        }
+        
+        // Mobile List
+        const mobileList = document.getElementById('reqMobileList');
+        if (mobileList) {
+          if(rows.length===0){
+            mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">표시할 데이터가 없습니다.</div>';
+          } else {
+            let mobileHtml = '';
+            for(const r of rows){
+              const detailId = `reqDetail-${r.no}`;
+              mobileHtml += `
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${escapeHtml(r.companyName)}</span>
+                          <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">NO.${r.no}</span>
+                        </div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(r.companyCode)}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">제출: ${formatCompactDateTime(r.submittedAt)}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">${escapeHtml(r.keywords)} | ${r.totalCnt}/${r.dailyCnt}</div>
+                        ${!isAccepted ? `<div class="mt-2"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""} onchange="event.stopPropagation();"> <span class="text-xs text-neutral-500">접수처리</span></div>` : ''}
+                        ${isAccepted && r.acceptedAt ? `<div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mt-1">접수: ${formatCompactDateTime(r.acceptedAt)}</div>` : ''}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                
+                <!-- Mobile Detail Sheet -->
+                <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+                  <div class="p-4">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                      <h3 class="text-lg font-bold">상세 정보</h3>
+                      <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                    </div>
+                    <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                      <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${r.no}</span></div>
+                        <div><span class="text-neutral-500">제출시간:</span> <span class="font-semibold">${formatCompactDateTime(r.submittedAt)}</span></div>
+                        <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(r.companyCode)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(r.companyName)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">사업자번호:</span> <span class="font-semibold">${escapeHtml(r.bizNo)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
+                        <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
+                        ${isAccepted ? `<div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>` : ''}
+                      </div>
+                      <div class="pt-4 border-t">
+                        <button onclick="closeMobileDetail('${detailId}'); document.querySelector('[data-no=\\'${r.no}\\'] .view-detail').click();" class="w-full btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">전문 보기</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+              `;
+            }
+            mobileList.innerHTML = mobileHtml;
+          }
         }
       }
-      html += '</tbody></table></div>';
-      main.innerHTML = html;
+      
+      renderReqList();
       
       // 모든 요청건 접수처리 버튼 이벤트 리스너 추가
       const bulkAcceptBtn = document.getElementById('bulkAcceptAll');
@@ -2910,43 +3009,135 @@ ${r.optPlan}
       try {
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">전체요청건</h2>`;
-      html += '<div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table">';
-      html += '<thead><tr>'+
-        '<th rowspan="2">no.</th>'+
-        '<th rowspan="2">제출시간</th>'+
-        '<th colspan="4" class="company-info">업체 기본 정보</th>'+
-        '<th rowspan="2">구매키워드</th>'+
-        '<th rowspan="2">총/일</th>'+
-        '<th rowspan="2">접수시간</th>'+
-        '<th rowspan="2">전문</th>'+
-      '</tr><tr>'+
-        '<th class="company-info">업체코드</th>'+
-        '<th class="company-info">업체명</th>'+
-        '<th class="company-info">사업자번호</th>'+
-        '<th class="company-info">카톡/번호</th>'+
-      '</tr></thead><tbody>';
-
-      if(rows.length===0){
-        html += '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
-      } else {
-        for(const r of rows){
-          html += `<tr data-no="${r.no}">`+
-            `<td>${r.no}</td>`+
-            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
-            `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td>${escapeHtml(r.companyName)}</td>`+
-            `<td>${escapeHtml(r.bizNo)}</td>`+
-            `<td>${escapeHtml(r.contact)}</td>`+
-            `<td>${escapeHtml(r.keywords)}</td>`+
-            `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
-            `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
-            `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
-          `</tr>`;
+      
+      // 상단 영역 (모바일에서 sticky)
+      let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+        <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">전체요청건</h2>
+      </div>`;
+      
+      // Desktop Table - 데스크탑에서만 표시
+      html += `<div class="req-desktop-table" style="display:none;">
+        <style>
+          @media (min-width: 768px) {
+            .req-desktop-table { display: block !important; }
+          }
+        </style>
+        <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+          <table class="admin-table">
+            <thead><tr>
+              <th rowspan="2">no.</th>
+              <th rowspan="2">제출시간</th>
+              <th colspan="4" class="company-info">업체 기본 정보</th>
+              <th rowspan="2">구매키워드</th>
+              <th rowspan="2">총/일</th>
+              <th rowspan="2">접수시간</th>
+              <th rowspan="2">전문</th>
+            </tr><tr>
+              <th class="company-info">업체코드</th>
+              <th class="company-info">업체명</th>
+              <th class="company-info">사업자번호</th>
+              <th class="company-info">카톡/번호</th>
+            </tr></thead>
+            <tbody id="reqAllDesktopTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+      
+      // Mobile List - 모바일에서만 표시
+      html += `<div id="reqAllMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
+      
+      main.innerHTML = html;
+      
+      // 렌더링 함수
+      function renderAllReqList() {
+        // Desktop Table
+        const desktopTbody = document.getElementById('reqAllDesktopTableBody');
+        if (desktopTbody) {
+          if(rows.length===0){
+            desktopTbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
+          } else {
+            let desktopHtml = '';
+            for(const r of rows){
+              desktopHtml += `<tr data-no="${r.no}">`+
+                `<td>${r.no}</td>`+
+                `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
+                `<td>${escapeHtml(r.companyCode)}</td>`+
+                `<td>${escapeHtml(r.companyName)}</td>`+
+                `<td>${escapeHtml(r.bizNo)}</td>`+
+                `<td>${escapeHtml(r.contact)}</td>`+
+                `<td>${escapeHtml(r.keywords)}</td>`+
+                `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
+                `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
+                `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
+              `</tr>`;
+            }
+            desktopTbody.innerHTML = desktopHtml;
+          }
+        }
+        
+        // Mobile List
+        const mobileList = document.getElementById('reqAllMobileList');
+        if (mobileList) {
+          if(rows.length===0){
+            mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">표시할 데이터가 없습니다.</div>';
+          } else {
+            let mobileHtml = '';
+            for(const r of rows){
+              const detailId = `reqAllDetail-${r.no}`;
+              mobileHtml += `
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${escapeHtml(r.companyName)}</span>
+                          <span class="text-xs px-2 py-0.5 rounded ${r.accepted ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${r.accepted ? '접수완료' : '신규'}</span>
+                          <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">NO.${r.no}</span>
+                        </div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(r.companyCode)}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">제출: ${formatCompactDateTime(r.submittedAt)}</div>
+                        ${r.acceptedAt ? `<div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">접수: ${formatCompactDateTime(r.acceptedAt)}</div>` : ''}
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">${escapeHtml(r.keywords)} | ${r.totalCnt}/${r.dailyCnt}</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                
+                <!-- Mobile Detail Sheet -->
+                <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+                  <div class="p-4">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                      <h3 class="text-lg font-bold">상세 정보</h3>
+                      <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                    </div>
+                    <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                      <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${r.no}</span></div>
+                        <div><span class="text-neutral-500">제출시간:</span> <span class="font-semibold">${formatCompactDateTime(r.submittedAt)}</span></div>
+                        <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(r.companyCode)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(r.companyName)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">사업자번호:</span> <span class="font-semibold">${escapeHtml(r.bizNo)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
+                        <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>
+                      </div>
+                      <div class="pt-4 border-t">
+                        <button onclick="closeMobileDetail('${detailId}'); document.querySelector('[data-no=\\'${r.no}\\'] .view-detail').click();" class="w-full btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">전문 보기</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+              `;
+            }
+            mobileList.innerHTML = mobileHtml;
+          }
         }
       }
-      html += '</tbody></table></div>';
-      main.innerHTML = html;
+      
+      renderAllReqList();
       } finally {
         hideLoading();
       }
@@ -3574,21 +3765,8 @@ ${r.optPlan}
       if (vendorRows.length === 0) {
         requestsList.innerHTML = '<div style="text-align:center;color:#6a7a89;padding:20px;">의뢰 내역이 없습니다.</div>';
       } else {
-        let listHtml = '<div class="scroll-x" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table">';
-        listHtml += '<thead><tr>'+
-          '<th rowspan="2">no.</th>'+
-          '<th rowspan="2">제출시간</th>'+
-          '<th colspan="4" class="company-info">업체 기본 정보</th>'+
-          '<th rowspan="2">구매키워드</th>'+
-          '<th rowspan="2">총/일</th>'+
-          '<th rowspan="2">접수시간</th>'+
-          '<th rowspan="2">전문</th>'+
-        '</tr><tr>'+
-          '<th class="company-info">업체코드</th>'+
-          '<th class="company-info">업체명</th>'+
-          '<th class="company-info">사업자번호</th>'+
-          '<th class="company-info">카톡/번호</th>'+
-        '</tr></thead><tbody>';
+        // Desktop Table
+        let listHtml = '<div class="vendor-requests-desktop" style="display:none;"><style>@media (min-width: 768px) { .vendor-requests-desktop { display: block !important; } }</style><div class="scroll-x" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table"><thead><tr><th rowspan="2">no.</th><th rowspan="2">제출시간</th><th colspan="4" class="company-info">업체 기본 정보</th><th rowspan="2">구매키워드</th><th rowspan="2">총/일</th><th rowspan="2">접수시간</th><th rowspan="2">전문</th></tr><tr><th class="company-info">업체코드</th><th class="company-info">업체명</th><th class="company-info">사업자번호</th><th class="company-info">카톡/번호</th></tr></thead><tbody>';
         
         vendorRows.forEach(r => {
           listHtml += `<tr data-no="${r.no}">`+
@@ -3605,7 +3783,59 @@ ${r.optPlan}
           `</tr>`;
         });
         
-        listHtml += '</tbody></table></div>';
+        listHtml += '</tbody></table></div></div>';
+        
+        // Mobile List
+        listHtml += '<div id="vendorRequestsMobileList" class="block md:hidden space-y-3 max-h-[400px] overflow-y-auto">';
+        vendorRows.forEach(r => {
+          const detailId = `vendorReqDetail-${r.no}`;
+          listHtml += `
+            <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+              <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">NO.${r.no}</span>
+                      <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">${escapeHtml(r.companyName)}</span>
+                    </div>
+                    <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">제출: ${formatCompactDateTime(r.submittedAt)}</div>
+                    <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(r.keywords)} | ${r.totalCnt}/${r.dailyCnt}</div>
+                    ${r.acceptedAt ? `<div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">접수: ${formatCompactDateTime(r.acceptedAt)}</div>` : ''}
+                  </div>
+                </div>
+              </button>
+            </div>
+            
+            <!-- Mobile Detail Sheet -->
+            <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[70] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+              <div class="p-4">
+                <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                  <h3 class="text-lg font-bold">상세 정보</h3>
+                  <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                </div>
+                <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                  <div class="grid grid-cols-2 gap-2">
+                    <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${r.no}</span></div>
+                    <div><span class="text-neutral-500">제출시간:</span> <span class="font-semibold">${formatCompactDateTime(r.submittedAt)}</span></div>
+                    <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(r.companyCode)}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(r.companyName)}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">사업자번호:</span> <span class="font-semibold">${escapeHtml(r.bizNo)}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
+                    <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>
+                  </div>
+                  <div class="pt-4 border-t">
+                    <button onclick="closeMobileDetail('${detailId}'); document.querySelector('[data-no=\\'${r.no}\\'] .view-detail').click();" class="w-full btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">전문 보기</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[65] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+          `;
+        });
+        listHtml += '</div>';
+        
         requestsList.innerHTML = listHtml;
       }
       
@@ -4250,10 +4480,13 @@ ${r.optPlan}
         // 출금 가능액 = 전체 수수료 - 총 출금액
         const availableAmount = totalCommission - totalWithdrawn;
         
-        let html = `<h2 style="margin:0 0 8px;color:var(--brand)">출금신청</h2>`;
+        // 상단 영역 (모바일에서 sticky)
+        let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+          <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">출금신청</h2>
+        </div>`;
         
-        // 상단 KPI 카드
-        html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+        // 상단 KPI 카드 (모바일에서 2열)
+        html += `<div class="grid grid-cols-2 md:grid-cols-2 gap-4 md:gap-5 mb-5 md:mb-5">
           <div class="stat-box">
             <div class="stat-title">출금 가능액</div>
             <div class="stat-value" id="availableAmount">${availableAmount.toLocaleString()}원</div>
@@ -4264,10 +4497,10 @@ ${r.optPlan}
           </div>
         </div>`;
         
-        // 출금신청 입력 폼
-        html += `<div style="background:var(--panel);padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
+        // 출금신청 입력 폼 (모바일에서 세로 배치)
+        html += `<div style="background:var(--panel);padding:16px md:padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
           <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">출금 신청</h3>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end;">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-3">
             <div>
               <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">은행명</label>
               <input type="text" id="withdrawalBank" class="input" placeholder="예: 국민은행" style="width:100%;">
@@ -4281,12 +4514,20 @@ ${r.optPlan}
               <input type="number" id="withdrawalAmount" class="input" placeholder="출금 가능액 이하" style="width:100%;" max="${availableAmount}">
             </div>
           </div>
-          <button id="submitWithdrawalBtn" class="btn" style="margin-top:16px;background:var(--brand);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer;">출금 신청</button>
+          <button id="submitWithdrawalBtn" class="btn w-full md:w-auto" style="margin-top:16px;background:var(--brand);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer;">출금 신청</button>
         </div>`;
         
         // 출금신청 리스트
-        html += `<div style="background:var(--panel);padding:20px;border-radius:8px;border:1px solid var(--border);">
-          <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">출금 신청 리스트</h3>
+        html += `<div style="background:var(--panel);padding:16px md:padding:20px;border-radius:8px;border:1px solid var(--border);">
+          <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">출금 신청 리스트</h3>`;
+        
+        // Desktop Table
+        html += `<div class="withdrawal-desktop-table" style="display:none;">
+          <style>
+            @media (min-width: 768px) {
+              .withdrawal-desktop-table { display: block !important; }
+            }
+          </style>
           <div class="scroll-x" style="max-height:600px;overflow-y:auto;">
             <table class="admin-table" id="withdrawalTable">
               <thead>
@@ -4302,6 +4543,10 @@ ${r.optPlan}
               </tbody>
             </table>
           </div>
+        </div>`;
+        
+        // Mobile List
+        html += `<div id="withdrawalMobileList" class="block md:hidden space-y-3"></div>
         </div>`;
         
         main.innerHTML = html;
@@ -4439,33 +4684,68 @@ ${r.optPlan}
     async function renderWithdrawalList() {
       const withdrawals = await loadWithdrawals();
       const tbody = document.getElementById('withdrawalTableBody');
+      const mobileList = document.getElementById('withdrawalMobileList');
       
-      if (!tbody) return;
-      
-      if (withdrawals.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6a7a89">출금신청 내역이 없습니다.</td></tr>';
-        return;
+      // Desktop Table
+      if (tbody) {
+        if (withdrawals.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6a7a89">출금신청 내역이 없습니다.</td></tr>';
+        } else {
+          let html = '';
+          withdrawals.forEach(w => {
+            const requestedDate = new Date(w.requestedAt);
+            const processedDate = w.processedAt ? new Date(w.processedAt) : null;
+            
+            html += `<tr data-id="${w.id}">
+              <td>${formatDateTime(requestedDate)}</td>
+              <td>${escapeHtml(w.bank)} / ${escapeHtml(w.account)}</td>
+              <td>${w.amount.toLocaleString()}원</td>
+              <td>
+                <input type="checkbox" ${w.status === 'completed' ? 'checked' : ''} 
+                       onchange="toggleWithdrawalStatus('${w.id}', this.checked)" 
+                       style="cursor:pointer;">
+              </td>
+              <td>${processedDate ? formatDateTime(processedDate) : '-'}</td>
+            </tr>`;
+          });
+          
+          tbody.innerHTML = html;
+        }
       }
       
-      let html = '';
-      withdrawals.forEach(w => {
-        const requestedDate = new Date(w.requestedAt);
-        const processedDate = w.processedAt ? new Date(w.processedAt) : null;
-        
-        html += `<tr data-id="${w.id}">
-          <td>${formatDateTime(requestedDate)}</td>
-          <td>${escapeHtml(w.bank)} / ${escapeHtml(w.account)}</td>
-          <td>${w.amount.toLocaleString()}원</td>
-          <td>
-            <input type="checkbox" ${w.status === 'completed' ? 'checked' : ''} 
-                   onchange="toggleWithdrawalStatus('${w.id}', this.checked)" 
-                   style="cursor:pointer;">
-          </td>
-          <td>${processedDate ? formatDateTime(processedDate) : '-'}</td>
-        </tr>`;
-      });
-      
-      tbody.innerHTML = html;
+      // Mobile List
+      if (mobileList) {
+        if (withdrawals.length === 0) {
+          mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">출금신청 내역이 없습니다.</div>';
+        } else {
+          let mobileHtml = '';
+          withdrawals.forEach(w => {
+            const requestedDate = new Date(w.requestedAt);
+            const processedDate = w.processedAt ? new Date(w.processedAt) : null;
+            
+            mobileHtml += `
+              <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden p-3">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${w.amount.toLocaleString()}원</span>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" ${w.status === 'completed' ? 'checked' : ''} 
+                           onchange="toggleWithdrawalStatus('${w.id}', this.checked)" 
+                           class="cursor-pointer">
+                    <span class="text-xs ${w.status === 'completed' ? 'text-green-600' : 'text-yellow-600'}">${w.status === 'completed' ? '처리완료' : '대기중'}</span>
+                  </label>
+                </div>
+                <div class="space-y-1 text-[clamp(11px,1.1vw,13px)] text-neutral-500">
+                  <div>신청일: ${formatDateTime(requestedDate)}</div>
+                  <div>입금정보: ${escapeHtml(w.bank)} / ${escapeHtml(w.account)}</div>
+                  ${processedDate ? `<div>처리일: ${formatDateTime(processedDate)}</div>` : ''}
+                </div>
+              </div>
+            `;
+          });
+          
+          mobileList.innerHTML = mobileHtml;
+        }
+      }
     }
     
     // 출금신청 상태 변경
