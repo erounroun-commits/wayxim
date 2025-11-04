@@ -3810,7 +3810,14 @@ ${r.optPlan}
       
       // 상단 영역 (모바일에서 sticky)
       let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
-        <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">월별 정산 LIST</h2>
+        <div class="flex items-center justify-between mb-2 md:mb-0">
+          <h2 style="margin:0;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">월별 정산 LIST</h2>
+          <!-- 모바일 전용 필터 버튼 -->
+          <button onclick="openMonthlyMobileFilter()" class="md:hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-semibold flex items-center gap-1" aria-label="필터">
+            <span>🔍</span>
+            <span>필터</span>
+          </button>
+        </div>
         
         <!-- Year/Month dropdown - 데스크탑만 표시 -->
         <div class="hidden md:block" style="margin-bottom:20px;">
@@ -3879,15 +3886,15 @@ ${r.optPlan}
       </div>`;
       
       // Mobile List - md 이하에서만 표시
-      html += `<div id="monthlyMobileList" class="block md:hidden space-y-3 px-4 pb-20"></div>`;
+      html += `<div id="monthlyMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
       
-      // 모바일 전용 조회 FAB 버튼
-      html += `<button id="monthlyMobileSearchBtn" class="fixed bottom-6 right-6 md:hidden z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg w-14 h-14 flex items-center justify-center text-xl font-bold" onclick="openMonthlyMobileFilter()" aria-label="조회하기">
-        🔍
-      </button>`;
+      // 모바일 전용 안내 멘트
+      html += `<div class="block md:hidden text-center text-neutral-500 text-sm px-4 py-3 pb-6">
+        검색필터를 통해 조회 희망하시는 날을 선택해주세요
+      </div>`;
       
       // 모바일 필터 시트
-      html += `<div id="monthlyMobileFilterSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-50 transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
+      html += `<div id="monthlyMobileFilterSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
         <div class="p-4">
           <div class="flex items-center justify-between mb-4 pb-4 border-b">
             <h3 class="text-lg font-bold">필터</h3>
@@ -3905,7 +3912,7 @@ ${r.optPlan}
           </div>
         </div>
       </div>`;
-      html += `<div id="monthlyMobileFilterSheet-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMonthlyMobileFilter()"></div>`;
+      html += `<div id="monthlyMobileFilterSheet-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden md:hidden" onclick="closeMonthlyMobileFilter()"></div>`;
       
       main.innerHTML = html;
       
@@ -4049,7 +4056,14 @@ ${r.optPlan}
       
       // 상단 영역 (모바일에서 sticky)
       let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
-        <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">주별 정산 LIST</h2>
+        <div class="flex items-center justify-between mb-2 md:mb-0">
+          <h2 style="margin:0;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">주별 정산 LIST</h2>
+          <!-- 모바일 전용 필터 버튼 -->
+          <button onclick="openWeeklyMobileFilter()" class="md:hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-semibold flex items-center gap-1" aria-label="필터">
+            <span>🔍</span>
+            <span>필터</span>
+          </button>
+        </div>
         
         <!-- 필터 영역 - 데스크탑만 표시 -->
         <div class="hidden md:flex gap-10 items-center" style="margin-bottom:12px;">
@@ -4103,15 +4117,15 @@ ${r.optPlan}
       </div>`;
       
       // Mobile List - md 이하에서만 표시
-      html += `<div id="wMobileList" class="block md:hidden space-y-3 px-4 pb-20"></div>`;
+      html += `<div id="wMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
       
-      // 모바일 전용 조회 FAB 버튼
-      html += `<button id="weeklyMobileSearchBtn" class="fixed bottom-6 right-6 md:hidden z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg w-14 h-14 flex items-center justify-center text-xl font-bold" onclick="openWeeklyMobileFilter()" aria-label="조회하기">
-        🔍
-      </button>`;
+      // 모바일 전용 안내 멘트
+      html += `<div class="block md:hidden text-center text-neutral-500 text-sm px-4 py-3 pb-6">
+        검색필터를 통해 조회 희망하시는 날을 선택해주세요
+      </div>`;
       
       // 모바일 필터 시트
-      html += `<div id="weeklyMobileFilterSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-50 transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
+      html += `<div id="weeklyMobileFilterSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
         <div class="p-4">
           <div class="flex items-center justify-between mb-4 pb-4 border-b">
             <h3 class="text-lg font-bold">필터</h3>
@@ -4137,7 +4151,7 @@ ${r.optPlan}
           </div>
         </div>
       </div>`;
-      html += `<div id="weeklyMobileFilterSheet-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeWeeklyMobileFilter()"></div>`;
+      html += `<div id="weeklyMobileFilterSheet-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden md:hidden" onclick="closeWeeklyMobileFilter()"></div>`;
       main.innerHTML = html;
 
       function buildWeeks(y,m){
@@ -4419,7 +4433,7 @@ ${r.optPlan}
                 </div>
                 
                 <!-- Mobile Detail Sheet -->
-                <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-50 transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+                <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
                   <div class="p-4">
                     <div class="flex items-center justify-between mb-4 pb-4 border-b">
                       <h3 class="text-lg font-bold">상세 정보</h3>
@@ -4445,7 +4459,7 @@ ${r.optPlan}
                     </div>
                   </div>
                 </div>
-                <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-40 hidden" onclick="closeMobileDetail('${detailId}')"></div>
+                <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
               `;
             });
             
@@ -4851,7 +4865,7 @@ ${r.optPlan}
             </div>
             
             <!-- Mobile Detail Sheet -->
-            <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-50 transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+            <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
               <div class="p-4">
                 <div class="flex items-center justify-between mb-4 pb-4 border-b">
                   <h3 class="text-lg font-bold">상세 정보</h3>
@@ -4877,7 +4891,7 @@ ${r.optPlan}
                 </div>
               </div>
             </div>
-            <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-40 hidden" onclick="closeMobileDetail('${detailId}')"></div>
+            <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
           `;
         }
       }
