@@ -3819,8 +3819,18 @@ ${r.optPlan}
           </button>
         </div>
         
+        <!-- 모바일 전용 안내 멘트 - 필터 버튼 바로 아래 -->
+        <div class="block md:hidden text-center text-neutral-500 text-sm px-4 mb-2">
+          검색필터를 통해 조회 희망하시는 날을 선택해주세요
+        </div>
+        
         <!-- Year/Month dropdown - 데스크탑만 표시 -->
-        <div class="hidden md:block" style="margin-bottom:20px;">
+        <div class="monthly-desktop-filter" style="display:none;margin-bottom:20px;">
+          <style>
+            @media (min-width: 768px) {
+              .monthly-desktop-filter { display: block !important; }
+            }
+          </style>
           <label style="display:block;font-weight:800;margin-bottom:8px;color:var(--brand);">년도/월 선택</label>
           <select id="yearMonthSelect" class="select" style="width:200px;">
             ${yearMonthOptions}
@@ -3828,7 +3838,12 @@ ${r.optPlan}
         </div>
         
         <!-- 엑셀 다운로드 버튼 - 데스크탑만 표시 -->
-        <div class="hidden md:block" style="margin-bottom:8px;">
+        <div class="monthly-desktop-excel" style="display:none;margin-bottom:8px;">
+          <style>
+            @media (min-width: 768px) {
+              .monthly-desktop-excel { display: block !important; }
+            }
+          </style>
           <button class="btn ghost" onclick="downloadMonthlyExcel()" type="button">엑셀 다운로드</button>
         </div>
       </div>`;
@@ -3887,11 +3902,6 @@ ${r.optPlan}
       
       // Mobile List - md 이하에서만 표시
       html += `<div id="monthlyMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
-      
-      // 모바일 전용 안내 멘트
-      html += `<div class="block md:hidden text-center text-neutral-500 text-sm px-4 py-3 pb-6">
-        검색필터를 통해 조회 희망하시는 날을 선택해주세요
-      </div>`;
       
       // 모바일 필터 시트
       html += `<div id="monthlyMobileFilterSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
@@ -4065,8 +4075,18 @@ ${r.optPlan}
           </button>
         </div>
         
+        <!-- 모바일 전용 안내 멘트 - 필터 버튼 바로 아래 -->
+        <div class="block md:hidden text-center text-neutral-500 text-sm px-4 mb-2">
+          검색필터를 통해 조회 희망하시는 날을 선택해주세요
+        </div>
+        
         <!-- 필터 영역 - 데스크탑만 표시 -->
-        <div class="hidden md:flex gap-10 items-center" style="margin-bottom:12px;">
+        <div class="weekly-desktop-filter" style="display:none;gap:10px;align-items:center;margin-bottom:12px;">
+          <style>
+            @media (min-width: 768px) {
+              .weekly-desktop-filter { display: flex !important; }
+            }
+          </style>
           <select id="wlYear" class="select" style="width:120px;">${yearOptions}</select>
           <select id="wlMonth" class="select" style="width:120px;">${monthOptions}</select>
           <select id="wlWeek" class="select" style="width:200px;"></select>
@@ -4074,7 +4094,12 @@ ${r.optPlan}
         </div>
         
         <!-- 엑셀 다운로드 버튼 - 데스크탑만 표시 -->
-        <div class="hidden md:block" style="margin-bottom:8px;">
+        <div class="weekly-desktop-excel" style="display:none;margin-bottom:8px;">
+          <style>
+            @media (min-width: 768px) {
+              .weekly-desktop-excel { display: block !important; }
+            }
+          </style>
           <button class="btn ghost" id="wExcel" type="button">엑셀 다운로드</button>
         </div>
       </div>`;
@@ -4118,11 +4143,6 @@ ${r.optPlan}
       
       // Mobile List - md 이하에서만 표시
       html += `<div id="wMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
-      
-      // 모바일 전용 안내 멘트
-      html += `<div class="block md:hidden text-center text-neutral-500 text-sm px-4 py-3 pb-6">
-        검색필터를 통해 조회 희망하시는 날을 선택해주세요
-      </div>`;
       
       // 모바일 필터 시트
       html += `<div id="weeklyMobileFilterSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
