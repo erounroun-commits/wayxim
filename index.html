@@ -15,6 +15,14 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
   <link rel="shortcut icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind CSS 기본 스타일 리셋 방지 및 정산 LIST 화면에만 적용
+    tailwind.config = {
+      corePlugins: {
+        preflight: false, // 기본 스타일 리셋 방지
+      }
+    }
+  </script>
   <style>
     :root{ --brand:#5086a7; --brand-accent:#3c6f8b; --accent:#18d1a1; --bg:#f7f8fc; --text:#222; --panel:#ffffff; --border:#e7ecf2; }
     *{box-sizing:border-box}
@@ -3834,8 +3842,15 @@ ${r.optPlan}
         </div>
       </div>`;
       
-      // Desktop Table - md 이상에서만 표시
-      html += `<div class="hidden md:block scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+      // Desktop Table - 데스크탑에서만 표시 (모바일에서 숨김)
+      html += `<div class="scroll-x" style="display:block;max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <style>
+          @media (max-width: 768px) {
+            #monthlyTable { display: none !important; }
+            #monthlyTableWrapper { display: none !important; }
+          }
+        </style>
+        <div id="monthlyTableWrapper">
         <table class="admin-table" id="monthlyTable">
           <thead>
             <tr>
@@ -3860,6 +3875,7 @@ ${r.optPlan}
           <tfoot id="monthlyTableFooter">
           </tfoot>
         </table>
+        </div>
       </div>`;
       
       // Mobile List - md 이하에서만 표시
@@ -4065,8 +4081,15 @@ ${r.optPlan}
         </div>
       </div>`;
       
-      // Desktop Table - md 이상에서만 표시
-      html += `<div class="hidden md:block scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+      // Desktop Table - 데스크탑에서만 표시 (모바일에서 숨김)
+      html += `<div class="scroll-x" style="display:block;max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <style>
+          @media (max-width: 768px) {
+            #wTable { display: none !important; }
+            #wTableWrapper { display: none !important; }
+          }
+        </style>
+        <div id="wTableWrapper">
         <table class="admin-table" id="wTable">
           <thead><tr>
             <th>NO</th><th>제출시간</th><th>업체코드</th><th>VENDOR 유형</th><th>업체명</th><th>사업자번호</th>
@@ -4076,6 +4099,7 @@ ${r.optPlan}
           <tbody id="wBody"></tbody>
           <tfoot id="wFoot"></tfoot>
         </table>
+        </div>
       </div>`;
       
       // Mobile List - md 이하에서만 표시
