@@ -4651,10 +4651,16 @@ ${r.optPlan}
         
         if (excelBtn) {
           excelBtn.addEventListener('click', async ()=>{
-            const val = document.getElementById('wlWeek').value; 
+            const val = document.getElementById('wlWeek').value;
+            if (!val) {
+              alert('주를 선택해주세요.');
+              return;
+            }
             const [s,e]=val.split('|');
             const sDate = new Date(s+'T00:00:00'); 
             const eDate = new Date(e+'T23:59:59');
+            // 이벤트 리스너 안에서 다시 데이터 로드
+            const rows = await loadSubs();
             const fil = rows.filter(r=>{ const d=new Date(r.submittedAt); return d>=sDate && d<=eDate; });
             if(fil.length===0){ alert('다운로드할 데이터가 없습니다.'); return; }
             const data = await Promise.all(fil.map(async r=>{ 
