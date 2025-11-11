@@ -738,7 +738,7 @@
               <span style="font-weight:900;color:var(--brand)">2,500원</span>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:#f6f9fc;border-radius:6px">
-              <span style="font-weight:800">빈박스 진행건</span>
+              <span style="font-weight:800">실배송 미진행건</span>
               <span style="font-weight:900;color:var(--brand)">+500원 추가</span>
             </div>
           </div>
@@ -2746,12 +2746,19 @@ ${r.optPlan}
       showLoading();
       try {
       const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
+      let sortOrder = 'desc'; // 기본값: 최신순(내림차순)
       const title = isAccepted ? "접수 완료건" : "신규요청건";
       const main = document.getElementById("adminMain");
       
       // 상단 영역 (모바일에서 sticky)
       let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
         <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">${title}`;
+      
+      // 정렬 토글 UI (접수 완료건, 신규요청건 공통 제공)
+      html += `
+        <button id="reqSortToggle" class="btn" style="margin-left:12px;padding:4px 10px;font-size:12px;background:#eef2f7;color:#22303d;border:1px solid var(--border);border-radius:4px;">
+          정렬: 최신순
+        </button>`;
       
       // 신규요청건에만 모든 요청건 접수처리 버튼 추가 (데스크탑만 표시)
       if (!isAccepted && rows.length > 0) {
@@ -2804,14 +2811,23 @@ ${r.optPlan}
       
       // 렌더링 함수
       function renderReqList() {
+        // 정렬 적용
+        const sorted = [...rows].sort((a, b) => {
+          // 접수 완료건은 acceptedAt 기준, 그 외는 submittedAt 기준
+          const key = isAccepted ? 'acceptedAt' : 'submittedAt';
+          const av = a[key] ?? 0;
+          const bv = b[key] ?? 0;
+          return sortOrder === 'desc' ? (bv - av) : (av - bv);
+        });
+        
         // Desktop Table
         const desktopTbody = document.getElementById('reqDesktopTableBody');
         if (desktopTbody) {
-          if(rows.length===0){
+          if(sorted.length===0){
             desktopTbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
           } else {
             let desktopHtml = '';
-            for(const r of rows){
+            for(const r of sorted){
               desktopHtml += `<tr data-no="${r.no}">`+
                 `<td>${r.no}</td>`+
                 `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
@@ -2835,11 +2851,11 @@ ${r.optPlan}
         // Mobile List
         const mobileList = document.getElementById('reqMobileList');
         if (mobileList) {
-          if(rows.length===0){
+          if(sorted.length===0){
             mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">표시할 데이터가 없습니다.</div>';
           } else {
             let mobileHtml = '';
-            for(const r of rows){
+            for(const r of sorted){
               const detailId = `reqDetail-${r.no}`;
               mobileHtml += `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -2894,6 +2910,16 @@ ${r.optPlan}
       }
       
       renderReqList();
+      
+      // 정렬 토글 이벤트
+      const sortBtn = document.getElementById('reqSortToggle');
+      if (sortBtn) {
+        sortBtn.addEventListener('click', () => {
+          sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+          sortBtn.textContent = `정렬: ${sortOrder === 'desc' ? '최신순' : '오름차순'}`;
+          renderReqList();
+        });
+      }
       
       // 모든 요청건 접수처리 버튼 이벤트 리스너 추가
       const bulkAcceptBtn = document.getElementById('bulkAcceptAll');
@@ -3008,11 +3034,15 @@ ${r.optPlan}
       showLoading();
       try {
       const rows = await loadSubs();
+      let sortOrder = 'desc'; // 기본값: 최신순(내림차순)
       const main = document.getElementById("adminMain");
       
       // 상단 영역 (모바일에서 sticky)
       let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
         <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">전체요청건</h2>
+        <button id="reqAllSortToggle" class="btn" style="margin-top:8px;padding:4px 10px;font-size:12px;background:#eef2f7;color:#22303d;border:1px solid var(--border);border-radius:4px;">
+          정렬: 최신순
+        </button>
       </div>`;
       
       // Desktop Table - 데스크탑에서만 표시
@@ -3051,14 +3081,21 @@ ${r.optPlan}
       
       // 렌더링 함수
       function renderAllReqList() {
+        // 전체요청건은 제출시간 기준 정렬
+        const sorted = [...rows].sort((a, b) => {
+          const av = a.submittedAt ?? 0;
+          const bv = b.submittedAt ?? 0;
+          return sortOrder === 'desc' ? (bv - av) : (av - bv);
+        });
+        
         // Desktop Table
         const desktopTbody = document.getElementById('reqAllDesktopTableBody');
         if (desktopTbody) {
-          if(rows.length===0){
+          if(sorted.length===0){
             desktopTbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
           } else {
             let desktopHtml = '';
-            for(const r of rows){
+            for(const r of sorted){
               desktopHtml += `<tr data-no="${r.no}">`+
                 `<td>${r.no}</td>`+
                 `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
@@ -3079,11 +3116,11 @@ ${r.optPlan}
         // Mobile List
         const mobileList = document.getElementById('reqAllMobileList');
         if (mobileList) {
-          if(rows.length===0){
+          if(sorted.length===0){
             mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">표시할 데이터가 없습니다.</div>';
           } else {
             let mobileHtml = '';
-            for(const r of rows){
+            for(const r of sorted){
               const detailId = `reqAllDetail-${r.no}`;
               mobileHtml += `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -3138,6 +3175,16 @@ ${r.optPlan}
       }
       
       renderAllReqList();
+      
+      // 정렬 토글 이벤트
+      const sortBtn = document.getElementById('reqAllSortToggle');
+      if (sortBtn) {
+        sortBtn.addEventListener('click', () => {
+          sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+          sortBtn.textContent = `정렬: ${sortOrder === 'desc' ? '최신순' : '오름차순'}`;
+          renderAllReqList();
+        });
+      }
       } finally {
         hideLoading();
       }
@@ -5974,7 +6021,7 @@ ${r.optPlan}
                 <span style="font-weight:900;color:var(--brand);">2,500원</span>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:#f6f9fc;border-radius:6px;">
-                <span style="font-weight:800;">빈박스 진행건</span>
+                <span style="font-weight:800;">실배송 미진행건</span>
                 <span style="font-weight:900;color:var(--brand);">+500원 추가</span>
               </div>
             </div>
