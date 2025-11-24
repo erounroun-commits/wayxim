@@ -4267,8 +4267,10 @@ ${r.optPlan}
     }
 
     function calcCommissionForSubmission(submission, vendorType) {
-      const type = vendorType === '우수' ? '우수' : '일반';
-      return type === '우수' ? 1000 : 1500;
+      const rate = vendorType === '우수' ? 1000 : 1500;
+      const cnt = parseInt(submission?.totalCnt, 10);
+      const totalCnt = isNaN(cnt) ? 0 : cnt;
+      return totalCnt * rate;
     }
 
     function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
@@ -4314,11 +4316,12 @@ ${r.optPlan}
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
       
-      let monthlyTotalRequests = currentMonthRequests.length;
+      let monthlyTotalRequests = 0;
       let monthlyPremiumRequests = 0;
+      let monthlyRegularRequests = 0;
       let monthlyPremiumFee = 0;
       let monthlyRegularFee = 0;
-      
+
       // Filter current month requests (날짜 필터링 개선)
       const currentMonthRequests = rows.filter(r => {
         if (!r.submittedAt) return false;
@@ -4328,24 +4331,26 @@ ${r.optPlan}
         // 정확한 년월 비교
         return submissionMonth === currentMonth && submissionYear === currentYear;
       });
-      
+
       console.log('📊 당월 필터링된 데이터 수:', currentMonthRequests.length);
       console.log('📅 현재 년월:', currentYear, '년', currentMonth + 1, '월');
       console.log('📊 당월 총 진행건수:', currentMonthRequests.reduce((sum, r) => sum + r.totalCnt, 0));
-      
+
       // Calculate statistics (병렬 처리로 최적화)
       for (const r of currentMonthRequests) {
         const vendorType = vendorTypes[r.companyCode] || '일반';
         const commission = calcCommissionForSubmission(r, vendorType);
-        
+        const cnt = parseInt(r.totalCnt, 10) || 0;
+        monthlyTotalRequests += cnt;
+
         if (vendorType === '우수') {
-          monthlyPremiumRequests += 1;
+          monthlyPremiumRequests += cnt;
           monthlyPremiumFee += commission;
         } else {
+          monthlyRegularRequests += cnt;
           monthlyRegularFee += commission;
         }
       }
-      const monthlyRegularRequests = monthlyTotalRequests - monthlyPremiumRequests;
       
       const totalMonthlyFee = monthlyPremiumFee + monthlyRegularFee;
       
@@ -5427,7 +5432,7 @@ ${r.optPlan}
         
         const vendorSet = new Set(fil.map(r=>r.companyCode));
         const vendorCount = vendorSet.size;
-        const totalRequests = fil.length;
+        const totalRequests = fil.reduce((a,b)=>a+(parseInt(b.totalCnt,10)||0),0);
         let totalUsage=0,totalComm=0;
         
         // 모든 비동기 작업을 순차적으로 처리
