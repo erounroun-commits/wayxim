@@ -4665,14 +4665,17 @@ ${r.optPlan}
       try {
         const main = document.getElementById("adminMain");
         
+        // 정산 관련 화면은 항상 최신 데이터 사용
+        clearVendorTypeCache();
+        
         // 전체 수수료 계산 (모든 작업요청서 기준)
         const rows = await loadSubs();
-        let totalCommission = 0;
-        for (const r of rows) {
-          const vendorType = await getVendorType(r.companyCode);
+        const vendorTypes = await getAllVendorTypes(rows, true);
+        const totalCommission = rows.reduce((sum, r) => {
+          const vendorType = vendorTypes[r.companyCode] || '일반';
           const commission = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
-          totalCommission += commission;
-        }
+          return sum + commission;
+        }, 0);
         
         // 출금신청 데이터 로드
         const withdrawals = await loadWithdrawals();
