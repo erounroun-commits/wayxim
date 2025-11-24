@@ -4126,15 +4126,31 @@ ${r.optPlan}
       return await getVendorTypeWithRows(vendorCode, rows);
     }
 
+    // 캐시 무효화 함수
+    function clearVendorTypeCache() {
+      vendorTypeCache = null;
+      vendorTypeCacheTimestamp = 0;
+      console.log('🔄 vendorType 캐시 무효화');
+    }
+
     // 모든 vendor type을 한 번에 계산하는 최적화된 함수
-    async function getAllVendorTypes(rows) {
+    async function getAllVendorTypes(rows, forceRefresh = false) {
+      // 강제 새로고침이 요청된 경우 캐시 무시
+      if (forceRefresh) {
+        console.log('🔄 vendorType 강제 새로고침 요청');
+        clearVendorTypeCache();
+      }
+      
       const now = Date.now();
       
       // 캐시가 유효한 경우 재사용
       if (vendorTypeCache && (now - vendorTypeCacheTimestamp) < VENDOR_TYPE_CACHE_DURATION) {
         // rows가 변경되었는지 확인 (간단한 길이 체크)
         if (vendorTypeCache.rowsLength === rows.length) {
+          console.log('📦 vendorType 캐시 사용 (길이:', rows.length, ')');
           return vendorTypeCache.types;
+        } else {
+          console.log('🔄 vendorType 캐시 무효화 (길이 변경:', vendorTypeCache.rowsLength, '->', rows.length, ')');
         }
       }
       
@@ -4241,11 +4257,13 @@ ${r.optPlan}
     async function showSettlementDashboard(){
       showLoading();
       try {
+      // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
+      clearVendorTypeCache();
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
-      // 모든 vendor type을 한 번에 계산 (최적화)
-      const vendorTypes = await getAllVendorTypes(rows);
+      // 모든 vendor type을 한 번에 계산 (강제 새로고침)
+      const vendorTypes = await getAllVendorTypes(rows, true);
       
       // Calculate current month statistics
       const currentDate = new Date();
@@ -4258,11 +4276,19 @@ ${r.optPlan}
       let monthlyPremiumFee = 0;
       let monthlyRegularFee = 0;
       
-      // Filter current month requests
+      // Filter current month requests (날짜 필터링 개선)
       const currentMonthRequests = rows.filter(r => {
+        if (!r.submittedAt) return false;
         const submissionDate = new Date(r.submittedAt);
-        return submissionDate.getMonth() === currentMonth && submissionDate.getFullYear() === currentYear;
+        const submissionYear = submissionDate.getFullYear();
+        const submissionMonth = submissionDate.getMonth(); // 0-based (0=1월, 11=12월)
+        // 정확한 년월 비교
+        return submissionMonth === currentMonth && submissionYear === currentYear;
       });
+      
+      console.log('📊 당월 필터링된 데이터 수:', currentMonthRequests.length);
+      console.log('📅 현재 년월:', currentYear, '년', currentMonth + 1, '월');
+      console.log('📊 당월 총 진행건수:', currentMonthRequests.reduce((sum, r) => sum + r.totalCnt, 0));
       
       // Calculate statistics (병렬 처리로 최적화)
       for (const r of currentMonthRequests) {
@@ -4979,6 +5005,8 @@ ${r.optPlan}
     async function showWeeklySettlementList(){
       showLoading();
       try {
+      // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
+      clearVendorTypeCache();
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       // Generate year/month options based on actual data
@@ -5307,6 +5335,8 @@ ${r.optPlan}
         console.log('🔍 주별 정산 - 날짜 필터링 시작');
         console.log('📅 선택된 주 범위:', s, '~', e);
         
+        // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
+        clearVendorTypeCache();
         // rows 데이터를 다시 가져오기
         const rows = await loadSubs();
         console.log('📊 전체 데이터 수:', rows.length);
@@ -5369,9 +5399,9 @@ ${r.optPlan}
         
         // 모든 비동기 작업을 순차적으로 처리
         try {
-          // 1단계: VENDOR 타입 조회 및 계산 (최적화)
+          // 1단계: VENDOR 타입 조회 및 계산 (강제 새로고침)
           console.log('🔄 1단계: VENDOR 타입 조회 및 계산 시작');
-          const vendorTypes = await getAllVendorTypes(rows);
+          const vendorTypes = await getAllVendorTypes(rows, true);
           const vendorResults = fil.map(r => {
             const vt = vendorTypes[r.companyCode] || '일반';
             const usage = r.totalCnt*(vt==='우수'?2500:3000);
@@ -5793,6 +5823,8 @@ ${r.optPlan}
       console.log('🔍 월별 정산 - 날짜 필터링 시작');
       console.log('📅 선택된 년월:', year, '년', month, '월');
       
+      // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
+      clearVendorTypeCache();
       const rows = await loadSubs();
       const selectedMonthRequests = rows.filter(r => {
         const submissionDate = new Date(r.submittedAt);
@@ -5808,8 +5840,8 @@ ${r.optPlan}
       console.log('📊 월별 필터링된 데이터 수:', selectedMonthRequests.length);
       console.log('📊 월별 필터링된 데이터:', selectedMonthRequests.map(r => ({ no: r.no, submittedAt: r.submittedAt, companyName: r.companyName })));
       
-      // 모든 vendor type을 한 번에 계산 (최적화)
-      const vendorTypes = await getAllVendorTypes(rows);
+      // 모든 vendor type을 한 번에 계산 (강제 새로고침)
+      const vendorTypes = await getAllVendorTypes(rows, true);
       
       // Calculate summary
       const vendorSet = new Set(selectedMonthRequests.map(r => r.companyCode));
@@ -7476,6 +7508,14 @@ ${r.optPlan}
             // localStorage 업데이트
             localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
             
+            // 신규 데이터가 감지되면 vendorType 캐시 무효화 (정산관리 탭 실시간 반영)
+            if (newRequests.length > 0) {
+              console.log('🔄 신규 데이터 감지 - vendorType 캐시 무효화');
+              if (typeof clearVendorTypeCache === 'function') {
+                clearVendorTypeCache();
+              }
+            }
+            
             // 관리자 화면에서만 푸시 알림 표시 (정말 신규인 경우만)
             if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
               console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
@@ -7755,6 +7795,14 @@ ${r.optPlan}
             );
             
             console.log('🆕 Firebase 모듈 내 신규 요청건 개수:', newRequests.length);
+            
+            // 신규 데이터가 감지되면 vendorType 캐시 무효화 (정산관리 탭 실시간 반영)
+            if (newRequests.length > 0) {
+              console.log('🔄 Firebase 모듈 내 신규 데이터 감지 - vendorType 캐시 무효화');
+              if (typeof clearVendorTypeCache === 'function') {
+                clearVendorTypeCache();
+              }
+            }
             
             // 관리자 화면에서만 푸시 알림 표시
             if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
