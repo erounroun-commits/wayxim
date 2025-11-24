@@ -3762,7 +3762,9 @@ ${r.optPlan}
 
     // Vendor detail modal functions
     async function openVendorModal(vendorCode) {
+      clearVendorTypeCache();
       const rows = await loadSubs();
+      const vendorTypes = await getAllVendorTypes(rows, true);
       const vendorRows = rows.filter(r => r.companyCode === vendorCode);
       
       if (vendorRows.length === 0) return;
@@ -3790,7 +3792,7 @@ ${r.optPlan}
       });
       
       // Determine vendor type automatically
-      const vendorType = await getVendorType(vendorCode);
+      const vendorType = vendorTypes[vendorCode] || '일반';
       const remainingCount = Math.max(0, 200 - monthlyCount);
       
       // Update modal content
@@ -5988,6 +5990,7 @@ ${r.optPlan}
       const selectedValue = document.getElementById('yearMonthSelect').value;
       const [year, month] = selectedValue.split('-');
       
+      clearVendorTypeCache();
       const rows = await loadSubs();
       const selectedMonthRequests = rows.filter(r => {
         const submissionDate = new Date(r.submittedAt);
@@ -5999,8 +6002,9 @@ ${r.optPlan}
         return;
       }
       
-      const data = await Promise.all(selectedMonthRequests.map(async r => {
-        const vendorType = await getVendorType(r.companyCode);
+      const vendorTypes = await getAllVendorTypes(rows, true);
+      const data = selectedMonthRequests.map(r => {
+        const vendorType = vendorTypes[r.companyCode] || '일반';
         const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
         const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
         
@@ -6020,7 +6024,7 @@ ${r.optPlan}
           '총 이용 단가': usageFee,
           '총 제휴 수수료': commissionFee
         };
-      }));
+      });
       
       // Add SUM row
       const sumUsageFee = data.reduce((sum, row) => sum + row['총 이용 단가'], 0);
