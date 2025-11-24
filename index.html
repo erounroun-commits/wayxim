@@ -857,6 +857,9 @@
         </div>
       </aside>
 
+      <div class="admin-debug-tools" style="display:flex;justify-content:flex-end;margin:0 0 12px;">
+        <button class="btn ghost" id="debugVendorCsvBtn" type="button">디버그: VENDOR CSV 다운로드</button>
+      </div>
       <main class="main" id="adminMain" aria-live="polite">
         <h2 style="margin:0 0 8px;color:var(--brand)">관리자 초기 화면</h2>
         <p style="margin:0 0 16px;color:#4b5b6b">좌측 메뉴에서 항목을 선택하면 이 영역에 내용이 표시됩니다.</p>
@@ -2121,6 +2124,12 @@
       } else {
         console.error('clearAllNotifications 함수를 찾을 수 없음');
       }
+    });
+    
+    const vendorCsvBtn = document.getElementById('debugVendorCsvBtn');
+    vendorCsvBtn?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await downloadVendorSubmissionCsv();
     });
     
     // 팝업 외부 클릭 시 닫기
@@ -6156,6 +6165,56 @@ ${r.optPlan}
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+
+    async function downloadVendorSubmissionCsv() {
+      try {
+        showLoading();
+        const rows = await loadSubs();
+        if (!rows || rows.length === 0) {
+          alert('다운로드할 데이터가 없습니다.');
+          return;
+        }
+        const vendorTypes = await getAllVendorTypes(rows, true);
+        const records = rows.map(r => {
+          const vendorType = vendorTypes[r.companyCode] || '일반';
+          const commission = (r.totalCnt || 0) * (vendorType === '우수' ? 1000 : 1500);
+          return {
+            id: r.id || '',
+            vendorId: r.companyCode || '',
+            status: r.accepted ? 'accepted' : 'pending',
+            vendorType,
+            submittedAt: r.submittedAt ? formatDateTime(r.submittedAt) : '',
+            commission,
+            productPrice: r.productPrice != null ? r.productPrice : ''
+          };
+        });
+        
+        const headers = Object.keys(records[0]);
+        const csvContent = [
+          headers.join(','),
+          ...records.map(row =>
+            headers.map(header => {
+              const value = row[header] ?? '';
+              return `"${value.toString().replace(/"/g, '""')}"`;
+            }).join(',')
+          )
+        ].join('\n');
+        
+        const filename = `vendor_submissions_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (error) {
+        console.error('❌ VENDOR CSV 다운로드 실패:', error);
+        alert('CSV 다운로드 중 오류가 발생했습니다. 콘솔을 확인해주세요.');
+      } finally {
+        hideLoading();
+      }
     }
 
     function showRateInfo(){
