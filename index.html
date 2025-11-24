@@ -4256,6 +4256,48 @@ ${r.optPlan}
       return typesMap;
     }
 
+    function getSubsForVendor(allSubs = [], vendorId = null) {
+      return (allSubs || []).filter(sub => {
+        if (!sub) return false;
+        const matchesVendor = vendorId ? ((sub.vendorId && sub.vendorId === vendorId) || (sub.companyCode === vendorId)) : true;
+        const notDeleted = sub.isDeleted !== true;
+        const notTest = sub.isTest !== true;
+        return matchesVendor && notDeleted && notTest;
+      });
+    }
+
+    function calcCommissionForSubmission(submission, vendorType) {
+      const type = vendorType === '우수' ? '우수' : '일반';
+      return type === '우수' ? 1000 : 1500;
+    }
+
+    function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
+      const subs = getSubsForVendor(submissions, vendorId);
+      const totalCommission = subs.reduce((sum, sub) => {
+        const vType = vendorTypes[sub.companyCode] || vendorTypes[sub.vendorId] || '일반';
+        return sum + calcCommissionForSubmission(sub, vType);
+      }, 0);
+      const relevantWithdrawals = (withdrawals || []).filter(w => {
+        const matchesVendor = vendorId ? ((w.vendorId && w.vendorId === vendorId) || (!w.vendorId && !vendorId)) : true;
+        return matchesVendor && w.status === 'completed';
+      });
+      const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+      const result = {
+        totalCommission,
+        totalWithdrawn,
+        availableAmount: totalCommission - totalWithdrawn,
+        subsCount: subs.length
+      };
+      console.log('[DEBUG][settlement]', {
+        vendorId: vendorId || 'ALL',
+        subsCount: result.subsCount,
+        totalCommission: result.totalCommission,
+        totalWithdrawn: result.totalWithdrawn,
+        availableAmount: result.availableAmount
+      });
+      return result;
+    }
+
     async function showSettlementDashboard(){
       showLoading();
       try {
@@ -4272,9 +4314,8 @@ ${r.optPlan}
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
       
-      let monthlyTotalRequests = 0;
+      let monthlyTotalRequests = currentMonthRequests.length;
       let monthlyPremiumRequests = 0;
-      let monthlyRegularRequests = 0;
       let monthlyPremiumFee = 0;
       let monthlyRegularFee = 0;
       
@@ -4295,16 +4336,16 @@ ${r.optPlan}
       // Calculate statistics (병렬 처리로 최적화)
       for (const r of currentMonthRequests) {
         const vendorType = vendorTypes[r.companyCode] || '일반';
-        monthlyTotalRequests += r.totalCnt;
+        const commission = calcCommissionForSubmission(r, vendorType);
         
         if (vendorType === '우수') {
-          monthlyPremiumRequests += r.totalCnt;
-          monthlyPremiumFee += r.totalCnt * 1000; // 우수 VENDOR 제휴수수료: 1,000원
+          monthlyPremiumRequests += 1;
+          monthlyPremiumFee += commission;
         } else {
-          monthlyRegularRequests += r.totalCnt;
-          monthlyRegularFee += r.totalCnt * 1500; // 일반 VENDOR 제휴수수료: 1,500원
+          monthlyRegularFee += commission;
         }
       }
+      const monthlyRegularRequests = monthlyTotalRequests - monthlyPremiumRequests;
       
       const totalMonthlyFee = monthlyPremiumFee + monthlyRegularFee;
       
@@ -4343,7 +4384,7 @@ ${r.optPlan}
       } else {
         for (const r of currentMonthRequests) {
           const vendorType = vendorTypes[r.companyCode] || '일반';
-          const fee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+          const fee = calcCommissionForSubmission(r, vendorType);
           html += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
@@ -4392,7 +4433,7 @@ ${r.optPlan}
         html += '<tr><td colspan="5" style="text-align:center;color:#6a7a89">우수 VENDOR 진행 요청이 없습니다.</td></tr>';
       } else {
         premiumRequests.forEach(r => {
-          const fee = r.totalCnt * 1000;
+          const fee = calcCommissionForSubmission(r, '우수');
           html += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
@@ -4422,7 +4463,8 @@ ${r.optPlan}
         html += '<tr><td colspan="5" style="text-align:center;color:#6a7a89">일반 VENDOR 진행 요청이 없습니다.</td></tr>';
       } else {
         regularRequests.forEach(r => {
-          const fee = r.totalCnt * 1500;
+          const vendorType = vendorTypes[r.companyCode] || '일반';
+          const fee = calcCommissionForSubmission(r, vendorType);
           html += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
@@ -4670,25 +4712,11 @@ ${r.optPlan}
         // 정산 관련 화면은 항상 최신 데이터 사용
         clearVendorTypeCache();
         
-        // 전체 수수료 계산 (모든 작업요청서 기준)
         const rows = await loadSubs();
-        const vendorTypes = await getAllVendorTypes(rows, true);
-        const totalCommission = rows.reduce((sum, r) => {
-          const vendorType = vendorTypes[r.companyCode] || '일반';
-          const commission = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
-          return sum + commission;
-        }, 0);
-        
-        // 출금신청 데이터 로드
         const withdrawals = await loadWithdrawals();
-        
-        // 총 출금액 계산 (처리 완료된 것만)
-        const totalWithdrawn = withdrawals
-          .filter(w => w.status === 'completed')
-          .reduce((sum, w) => sum + (w.amount || 0), 0);
-        
-        // 출금 가능액 = 전체 수수료 - 총 출금액
-        const availableAmount = totalCommission - totalWithdrawn;
+        const vendorTypes = await getAllVendorTypes(rows, true);
+        const settlement = calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
+        const { totalCommission, totalWithdrawn, availableAmount } = settlement;
         
         // 상단 영역 (모바일에서 sticky)
         let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
@@ -5399,7 +5427,7 @@ ${r.optPlan}
         
         const vendorSet = new Set(fil.map(r=>r.companyCode));
         const vendorCount = vendorSet.size;
-        const totalRequests = fil.reduce((a,b)=>a+b.totalCnt,0);
+        const totalRequests = fil.length;
         let totalUsage=0,totalComm=0;
         
         // 모든 비동기 작업을 순차적으로 처리
@@ -5410,7 +5438,7 @@ ${r.optPlan}
           const vendorResults = fil.map(r => {
             const vt = vendorTypes[r.companyCode] || '일반';
             const usage = r.totalCnt*(vt==='우수'?2500:3000);
-            const comm = r.totalCnt*(vt==='우수'?1000:1500);
+            const comm = calcCommissionForSubmission(r, vt);
             return { r, vt, usage, comm };
           });
           
@@ -5450,7 +5478,7 @@ ${r.optPlan}
             const tableResults = fil.map(r => {
               const vt = vendorTypes[r.companyCode] || '일반';
               const u = r.totalCnt*(vt==='우수'?2500:3000);
-              const c = r.totalCnt*(vt==='우수'?1000:1500);
+              const c = calcCommissionForSubmission(r, vt);
               sumU+=u; 
               sumC+=c;
               return { r, vt, u, c };
@@ -5726,9 +5754,9 @@ ${r.optPlan}
             // 모든 vendor type을 한 번에 계산 (최적화)
             const vendorTypes = await getAllVendorTypes(rows);
             const data = fil.map(r=>{ 
-              const vt = vendorTypes[r.companyCode] || '일반'; 
-              const u = r.totalCnt*(vt==='우수'?2500:3000); 
-              const c = r.totalCnt*(vt==='우수'?1000:1500);
+              const vt = vendorTypes[r.companyCode] || '일반';
+              const u = r.totalCnt*(vt==='우수'?2500:3000);
+              const c = calcCommissionForSubmission(r, vt);
               return { 'NO':r.no,'제출시간':formatDateTime(r.submittedAt),'업체코드':r.companyCode,'VENDOR 유형':vt,'업체명':r.companyName,'사업자번호':r.bizNo,'카톡/번호':r.contact,'구매 키워드':r.keywords,'총 진행건수':r.totalCnt,'접수 시간':r.acceptedAt?formatDateTime(r.acceptedAt):'','건당 이용 단가': vt==='우수'?'2,500원':'3,000원','건당 제휴 수수료': vt==='우수'?'1,000원':'1,500원','총 이용 단가':u,'총 제휴 수수료':c }; 
             });
             const headers = Object.keys(data[0]);
@@ -5859,7 +5887,7 @@ ${r.optPlan}
       for (const r of selectedMonthRequests) {
         const vendorType = vendorTypes[r.companyCode] || '일반';
         const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000); // 우수 2,500 / 일반 3,000
-        const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+        const commissionFee = calcCommissionForSubmission(r, vendorType);
         
         totalUsageFee += usageFee;
         totalCommissionFee += commissionFee;
@@ -5891,7 +5919,7 @@ ${r.optPlan}
         for (const r of selectedMonthRequests) {
           const vendorType = vendorTypes[r.companyCode] || '일반';
           const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
-          const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+          const commissionFee = calcCommissionForSubmission(r, vendorType);
           
           sumUsageFee += usageFee;
           sumCommissionFee += commissionFee;
@@ -6006,7 +6034,7 @@ ${r.optPlan}
       const data = selectedMonthRequests.map(r => {
         const vendorType = vendorTypes[r.companyCode] || '일반';
         const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
-        const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+        const commissionFee = calcCommissionForSubmission(r, vendorType);
         
         return {
           'NO': r.no,
@@ -6090,7 +6118,7 @@ ${r.optPlan}
       if (type === 'all') {
         data = currentMonthRequests.map(r => {
           const vendorType = vendorTypes[r.companyCode] || '일반';
-          const fee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+          const fee = calcCommissionForSubmission(r, vendorType);
           return {
             '번호': r.no,
             '업체코드': r.companyCode,
@@ -6108,7 +6136,7 @@ ${r.optPlan}
           return vendorType === '우수';
         });
         data = premiumRequests.map(r => {
-          const fee = r.totalCnt * 1000;
+          const fee = calcCommissionForSubmission(r, '우수');
           return {
             '번호': r.no,
             '업체코드': r.companyCode,
@@ -6125,7 +6153,7 @@ ${r.optPlan}
           return vendorType === '일반';
         });
         data = regularRequests.map(r => {
-          const fee = r.totalCnt * 1500;
+          const fee = calcCommissionForSubmission(r, '일반');
           return {
             '번호': r.no,
             '업체코드': r.companyCode,
@@ -6173,7 +6201,7 @@ ${r.optPlan}
         const vendorTypes = await getAllVendorTypes(rows, true);
         const records = rows.map(r => {
           const vendorType = vendorTypes[r.companyCode] || '일반';
-          const commission = (r.totalCnt || 0) * (vendorType === '우수' ? 1000 : 1500);
+          const commission = calcCommissionForSubmission(r, vendorType);
           return {
             id: r.id || '',
             vendorId: r.companyCode || '',
