@@ -7644,10 +7644,14 @@ ${r.optPlan}
               console.log('📋 가장 최신 신규 요청건:', { id: latestNewRequest.id, companyName: latestNewRequest.companyName, submittedAt: latestNewRequest.submittedAt });
               
               if (latestNewRequest) {
-                // 중복 알림 방지: 이미 같은 ID로 알림이 있는지 확인
-                const existingNotification = notifications.find(n => 
-                  n.content.includes(latestNewRequest.id) || 
-                  (n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000) // 5초 이내 동일 시간
+                // localStorage에서 최신 알림 상태 확인
+                const currentNotifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+                
+                // 중복 알림 방지: 이미 같은 내용과 시간의 알림이 있는지 확인 (read 상태와 관계없이)
+                const existingNotification = currentNotifications.find(n => 
+                  n.title === '신규 작업요청건이 있습니다' &&
+                  n.content.includes(latestNewRequest.companyName) &&
+                  Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
                 );
                 
                 if (existingNotification) {
@@ -7661,7 +7665,7 @@ ${r.optPlan}
                 console.log('📝 실시간 리스너 알림 내용:', notificationContent);
                 console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
                 
-                // 푸시 알림 표시
+                // 푸시 알림 표시 (새로 추가된 알림에만)
                 if (window.showPushNotification) {
                   console.log('📱 실시간 리스너 푸시 알림 표시 시도');
                   window.showPushNotification(notificationTitle, notificationContent);
@@ -7928,10 +7932,25 @@ ${r.optPlan}
               });
               
               if (latestNewRequest) {
+                // localStorage에서 최신 알림 상태 확인
+                const currentNotifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+                
+                // 중복 알림 방지: 이미 같은 내용과 시간의 알림이 있는지 확인 (read 상태와 관계없이)
+                const existingNotification = currentNotifications.find(n => 
+                  n.title === '신규 작업요청건이 있습니다' &&
+                  n.content.includes(latestNewRequest.companyName) &&
+                  Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                );
+                
+                if (existingNotification) {
+                  console.log('🚫 Firebase 모듈 내 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id);
+                  return;
+                }
+                
                 const notificationTitle = '신규 작업요청건이 있습니다';
                 const notificationContent = `${latestNewRequest.companyName}에서 새로운 작업요청서가 접수되었습니다.`;
                 
-                // 푸시 알림 표시
+                // 푸시 알림 표시 (새로 추가된 알림에만)
                 if (window.showPushNotification) {
                   console.log('📱 Firebase 모듈 내 푸시 알림 표시');
                   window.showPushNotification(notificationTitle, notificationContent);
@@ -8041,8 +8060,17 @@ ${r.optPlan}
     // 알림 시스템 초기화
     let notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
     let notificationId = parseInt(localStorage.getItem('wp_notification_id') || '0');
+    
+    // localStorage에서 불러온 알림들의 read 상태를 확실히 보장
+    notifications = notifications.map(n => ({
+      ...n,
+      read: n.read === true || n.read === 'true' // read 상태 확실히 boolean으로 변환
+    }));
+    localStorage.setItem('wp_notifications', JSON.stringify(notifications));
+    
     console.log('🔔 알림 시스템 초기화:', {
       notificationsCount: notifications.length,
+      unreadCount: notifications.filter(n => !n.read).length,
       notificationId: notificationId,
       isAdmin: sessionStorage.getItem("wp_is_admin")
     });
@@ -8071,9 +8099,29 @@ ${r.optPlan}
         return;
       }
       
+      // localStorage에서 최신 상태 다시 불러오기 (다른 탭에서 변경되었을 수 있음)
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
+      
       // 실제 제출 시간이 있으면 사용, 없으면 현재 시간 사용
       const notificationTimestamp = actualTimestamp || Date.now();
       
+      // 중복 알림 체크: 같은 내용과 시간(5초 이내)의 알림이 이미 있는지 확인
+      const isDuplicate = notifications.some(n => 
+        n.title === title && 
+        n.content === content && 
+        Math.abs(n.timestamp - notificationTimestamp) < 5000
+      );
+      
+      if (isDuplicate) {
+        console.log('🚫 중복 알림 방지 - 이미 존재하는 알림');
+        return;
+      }
+      
+      // 읽음 처리된 알림은 제외하고 새 알림만 추가
       const notification = {
         id: ++notificationId,
         title,
@@ -8088,6 +8136,7 @@ ${r.optPlan}
       localStorage.setItem('wp_notification_id', notificationId.toString());
       
       console.log('📝 알림 저장 완료, 총 알림 수:', notifications.length);
+      console.log('📝 읽지 않은 알림 수:', notifications.filter(n => !n.read).length);
       console.log('📅 알림 시간:', new Date(notificationTimestamp).toLocaleString());
       
       // UI 업데이트 강제 실행
@@ -8109,6 +8158,13 @@ ${r.optPlan}
         return;
       }
       
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
+      
       const notificationBtn = document.getElementById('notificationBtn');
       const notificationCount = document.getElementById('notificationCount');
       
@@ -8116,8 +8172,11 @@ ${r.optPlan}
       console.log('📊 알림 카운트:', notificationCount);
       console.log('📊 전체 알림 수:', notifications.length);
       
-      const unreadCount = notifications.filter(n => !n.read).length;
+      // read=true인 알림은 확실히 제외
+      const unreadNotifications = notifications.filter(n => n.read !== true && n.read !== 'true');
+      const unreadCount = unreadNotifications.length;
       console.log('📊 읽지 않은 알림 수:', unreadCount);
+      console.log('📊 읽은 알림 수:', notifications.length - unreadCount);
       
       if (notificationBtn && notificationCount) {
         if (unreadCount > 0) {
@@ -8146,11 +8205,19 @@ ${r.optPlan}
       const popup = document.getElementById('notificationPopup');
       const list = document.getElementById('notificationList');
       
-      // 읽지 않은 알림만 필터링
-      const unreadNotifications = notifications.filter(n => !n.read);
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
+      
+      // read=true인 알림은 확실히 제외하고 읽지 않은 알림만 필터링
+      const unreadNotifications = notifications.filter(n => n.read !== true && n.read !== 'true');
       
       console.log('📊 전체 알림 수:', notifications.length);
       console.log('📊 읽지 않은 알림 수:', unreadNotifications.length);
+      console.log('📊 읽은 알림 수:', notifications.length - unreadNotifications.length);
       
       if (unreadNotifications.length === 0) {
         list.innerHTML = '<div class="notification-empty">읽지 않은 알림이 없습니다.</div>';
@@ -8173,6 +8240,13 @@ ${r.optPlan}
     
     function handleNotificationClick(id) {
       console.log('🔔 알림 클릭 - ID:', id);
+      
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
       
       // 알림을 읽음으로 표시
       markAsRead(id);
@@ -8209,18 +8283,42 @@ ${r.optPlan}
     }
     
     function markAsRead(id) {
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
+      
       const notification = notifications.find(n => n.id === id);
       if (notification) {
         notification.read = true;
+        // 클라이언트 배열과 localStorage 모두 업데이트
         localStorage.setItem('wp_notifications', JSON.stringify(notifications));
         updateNotificationUI();
         showNotificationPopup(); // 리스트 새로고침
+        console.log('✅ 알림 읽음 처리 완료:', id);
       }
     }
     
     function clearAllNotifications() {
-      notifications.forEach(n => n.read = true);
+      console.log('🗑️ 모든 알림 읽음 처리 시작');
+      
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      
+      // 모든 알림을 읽음으로 표시
+      notifications = notifications.map(n => ({
+        ...n,
+        read: true
+      }));
+      
+      // 클라이언트 배열과 localStorage 모두 업데이트
       localStorage.setItem('wp_notifications', JSON.stringify(notifications));
+      
+      console.log('✅ 모든 알림 읽음 처리 완료, 총 알림 수:', notifications.length);
+      console.log('✅ 읽지 않은 알림 수:', notifications.filter(n => !n.read).length);
+      
       updateNotificationUI();
       hideNotificationPopup();
     }
