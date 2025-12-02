@@ -2748,7 +2748,7 @@ ${r.optPlan}
       const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
       // 모든 vendor type을 한 번에 계산 (건당 제휴 수수료 표시용)
       const vendorTypes = await getAllVendorTypes(rows, true);
-      let sortOrder = 'desc'; // 기본값: 최신순(내림차순)
+      let sortOrder = 'desc'; // 기본값: 제출시간 최신순(내림차순)
       const title = isAccepted ? "접수 완료건" : "신규요청건";
       const main = document.getElementById("adminMain");
       
@@ -2759,7 +2759,7 @@ ${r.optPlan}
       // 정렬 토글 UI (접수 완료건, 신규요청건 공통 제공)
       html += `
         <button id="reqSortToggle" class="btn" style="margin-left:12px;padding:4px 10px;font-size:12px;background:#eef2f7;color:#22303d;border:1px solid var(--border);border-radius:4px;">
-          정렬: 최신순
+          정렬: 제출시간(최신순)
         </button>`;
       
       // 신규요청건에만 모든 요청건 접수처리 버튼 추가 (데스크탑만 표시)
@@ -2814,12 +2814,10 @@ ${r.optPlan}
       
       // 렌더링 함수
       function renderReqList() {
-        // 정렬 적용
+        // 정렬 적용 - 모든 경우 제출시간(submittedAt) 기준
         const sorted = [...rows].sort((a, b) => {
-          // 접수 완료건은 acceptedAt 기준, 그 외는 submittedAt 기준
-          const key = isAccepted ? 'acceptedAt' : 'submittedAt';
-          const av = a[key] ?? 0;
-          const bv = b[key] ?? 0;
+          const av = a.submittedAt ?? 0;
+          const bv = b.submittedAt ?? 0;
           return sortOrder === 'desc' ? (bv - av) : (av - bv);
         });
         
@@ -2926,7 +2924,7 @@ ${r.optPlan}
       if (sortBtn) {
         sortBtn.addEventListener('click', () => {
           sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
-          sortBtn.textContent = `정렬: ${sortOrder === 'desc' ? '최신순' : '오름차순'}`;
+          sortBtn.textContent = `정렬: 제출시간(${sortOrder === 'desc' ? '최신순' : '오래된순'})`;
           renderReqList();
         });
       }
@@ -3046,14 +3044,14 @@ ${r.optPlan}
       const rows = await loadSubs();
       // 모든 vendor type을 한 번에 계산 (건당 제휴 수수료 표시용)
       const vendorTypes = await getAllVendorTypes(rows, true);
-      let sortOrder = 'desc'; // 기본값: 최신순(내림차순)
+      let sortOrder = 'desc'; // 기본값: 제출시간 최신순(내림차순)
       const main = document.getElementById("adminMain");
       
       // 상단 영역 (모바일에서 sticky)
       let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
         <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">전체요청건</h2>
         <button id="reqAllSortToggle" class="btn" style="margin-top:8px;padding:4px 10px;font-size:12px;background:#eef2f7;color:#22303d;border:1px solid var(--border);border-radius:4px;">
-          정렬: 최신순
+          정렬: 제출시간(최신순)
         </button>
       </div>`;
       
@@ -3201,7 +3199,7 @@ ${r.optPlan}
       if (sortBtn) {
         sortBtn.addEventListener('click', () => {
           sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
-          sortBtn.textContent = `정렬: ${sortOrder === 'desc' ? '최신순' : '오름차순'}`;
+          sortBtn.textContent = `정렬: 제출시간(${sortOrder === 'desc' ? '최신순' : '오래된순'})`;
           renderAllReqList();
         });
       }
