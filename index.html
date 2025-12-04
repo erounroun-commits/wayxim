@@ -1760,180 +1760,166 @@
     function drawRequestsChart(data) {
       const container = document.getElementById('requestsChart');
       if (!container || data.length === 0) return;
-      
+
       console.log('📊 요청 차트 그리기 시작');
-      
+
       const maxRequests = Math.max(...data.map(d => d.requests));
       const chartWidth = container.offsetWidth - 32;
       const chartHeight = container.offsetHeight - 32;
-      
-      // 각 막대가 차지할 공간 계산 (좌우 여백 포함)
-      const padding = 40; // 좌우 여백
-      const availableWidth = chartWidth - padding * 2;
-      const slotWidth = availableWidth / data.length; // 각 막대가 차지할 슬롯 너비
-      const barWidth = Math.min(80, slotWidth * 0.6); // 막대 너비는 슬롯의 60%
-      const barSpacing = slotWidth - barWidth; // 막대 사이 간격
-      
-      // 막대그래프와 선 그래프가 겹치도록 같은 영역 사용
-      const chartAreaHeight = chartHeight - 60; // 하단 여백 40px + 상단 여백 20px
-      const chartAreaTop = 20; // 상단 여백
-      
-      // Create SVG for combined chart (bars + line)
+
+      // 막대·선 그래프가 함께 사용하는 영역 (위 여백 20, 아래 여백 40)
+      const topPadding = 20;
+      const bottomPadding = 40;
+      const chartAreaHeight = chartHeight - topPadding - bottomPadding;
+
+      // 각 월의 중심 간격
+      const segment = chartWidth / (data.length + 1);
+      const maxBarWidth = 40;
+      const barWidth = Math.min(maxBarWidth, segment * 0.6);
+
       let chartHtml = `
         <svg width="100%" height="100%" viewBox="0 0 ${chartWidth} ${chartHeight}" style="overflow: visible;">
           <defs>
             <linearGradient id="requestsBarGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style="stop-color:var(--brand);stop-opacity:0.6" />
-              <stop offset="100%" style="stop-color:var(--brand);stop-opacity:0.3" />
+              <stop offset="0%" style="stop-color:var(--brand);stop-opacity:0.8" />
+              <stop offset="100%" style="stop-color:var(--brand);stop-opacity:0.4" />
             </linearGradient>
           </defs>
       `;
-      
-      // Draw bars for requests
+
+      // 막대 그리기
+      const barTops = [];
       data.forEach((d, i) => {
-        // 각 막대를 슬롯의 중앙에 배치
-        const x = padding + (i * slotWidth) + (barSpacing / 2);
+        const centerX = segment * (i + 1);
+        const x = centerX - barWidth / 2;
         const barHeight = maxRequests > 0 ? (d.requests / maxRequests) * chartAreaHeight : 0;
-        const y = chartAreaTop + chartAreaHeight - barHeight;
-        
+        const y = topPadding + chartAreaHeight - barHeight;
+        barTops.push({ x: centerX, y });
+
         chartHtml += `
-          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" 
+          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}"
                 fill="url(#requestsBarGradient)" rx="4" ry="4"/>
-          <text x="${x + barWidth/2}" y="${y - 8}" text-anchor="middle" 
+          <text x="${centerX}" y="${y - 8}" text-anchor="middle"
                 font-size="13" font-weight="700" fill="var(--brand)">${d.requests}</text>
         `;
       });
-      
-      // Draw line graph (막대그래프와 같은 영역에 겹치도록)
+
+      // 막대 상단을 따라 선 그래프 겹치게 그리기
       let linePath = '';
-      data.forEach((d, i) => {
-        // 선 그래프 점도 막대와 같은 x 위치에 배치, 막대 상단에 위치
-        const x = padding + (i * slotWidth) + (barSpacing / 2) + barWidth/2;
-        const lineHeight = maxRequests > 0 ? (d.requests / maxRequests) * chartAreaHeight : 0;
-        const y = chartAreaTop + chartAreaHeight - lineHeight; // 막대 상단과 같은 y 위치
-        
+      barTops.forEach((p, i) => {
         if (i === 0) {
-          linePath += `M ${x} ${y}`;
+          linePath += `M ${p.x} ${p.y}`;
         } else {
-          linePath += ` L ${x} ${y}`;
+          linePath += ` L ${p.x} ${p.y}`;
         }
-        
-        // 선 그래프 점 표시
+      });
+
+      chartHtml += `
+        <path d="${linePath}" stroke="var(--accent)" stroke-width="3"
+              fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+      `;
+
+      // 선 그래프 점 + 값
+      data.forEach((d, i) => {
+        const { x, y } = barTops[i];
         chartHtml += `
           <circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" stroke="#fff" stroke-width="2"/>
-          <text x="${x}" y="${y - 12}" text-anchor="middle" 
+          <text x="${x}" y="${y - 14}" text-anchor="middle"
                 font-size="11" font-weight="700" fill="var(--accent)">${d.requests}</text>
         `;
       });
-      
-      chartHtml += `
-        <path d="${linePath}" stroke="var(--accent)" stroke-width="3" 
-              fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-      `;
-      
-      // Draw month labels
+
+      // 월 라벨
       data.forEach((d, i) => {
-        // 월 레이블도 막대 중앙에 배치
-        const x = padding + (i * slotWidth) + (barSpacing / 2) + barWidth/2;
+        const centerX = segment * (i + 1);
         const monthNumber = d.month.split('-')[1];
-        
         chartHtml += `
-          <text x="${x}" y="${chartHeight - 15}" text-anchor="middle" 
+          <text x="${centerX}" y="${chartHeight - 10}" text-anchor="middle"
                 font-size="11" fill="#6a7a89" font-weight="600">${monthNumber}월</text>
         `;
       });
-      
+
       chartHtml += '</svg>';
       container.innerHTML = chartHtml;
       console.log('📊 요청 차트 그리기 완료');
     }
-    
+
     function drawVendorsChart(data) {
       const container = document.getElementById('vendorsChart');
       if (!container || data.length === 0) return;
-      
+
       console.log('📊 벤더 차트 그리기 시작');
-      
+
       const maxVendors = Math.max(...data.map(d => d.vendors));
       const chartWidth = container.offsetWidth - 32;
       const chartHeight = container.offsetHeight - 32;
-      
-      // 각 막대가 차지할 공간 계산 (좌우 여백 포함)
-      const padding = 40; // 좌우 여백
-      const availableWidth = chartWidth - padding * 2;
-      const slotWidth = availableWidth / data.length; // 각 막대가 차지할 슬롯 너비
-      const barWidth = Math.min(80, slotWidth * 0.6); // 막대 너비는 슬롯의 60%
-      const barSpacing = slotWidth - barWidth; // 막대 사이 간격
-      
-      // 막대그래프와 선 그래프가 겹치도록 같은 영역 사용
-      const chartAreaHeight = chartHeight - 60; // 하단 여백 40px + 상단 여백 20px
-      const chartAreaTop = 20; // 상단 여백
-      
-      // Create SVG for combined chart (bars + line)
+
+      const topPadding = 20;
+      const bottomPadding = 40;
+      const chartAreaHeight = chartHeight - topPadding - bottomPadding;
+
+      const segment = chartWidth / (data.length + 1);
+      const maxBarWidth = 40;
+      const barWidth = Math.min(maxBarWidth, segment * 0.6);
+
       let chartHtml = `
         <svg width="100%" height="100%" viewBox="0 0 ${chartWidth} ${chartHeight}" style="overflow: visible;">
           <defs>
             <linearGradient id="vendorsBarGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style="stop-color:var(--accent);stop-opacity:0.6" />
-              <stop offset="100%" style="stop-color:var(--accent);stop-opacity:0.3" />
+              <stop offset="0%" style="stop-color:var(--accent);stop-opacity:0.8" />
+              <stop offset="100%" style="stop-color:var(--accent);stop-opacity:0.4" />
             </linearGradient>
           </defs>
       `;
-      
-      // Draw bars for vendors
+
+      const barTops = [];
       data.forEach((d, i) => {
-        // 각 막대를 슬롯의 중앙에 배치
-        const x = padding + (i * slotWidth) + (barSpacing / 2);
+        const centerX = segment * (i + 1);
+        const x = centerX - barWidth / 2;
         const barHeight = maxVendors > 0 ? (d.vendors / maxVendors) * chartAreaHeight : 0;
-        const y = chartAreaTop + chartAreaHeight - barHeight;
-        
+        const y = topPadding + chartAreaHeight - barHeight;
+        barTops.push({ x: centerX, y });
+
         chartHtml += `
-          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" 
+          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}"
                 fill="url(#vendorsBarGradient)" rx="4" ry="4"/>
-          <text x="${x + barWidth/2}" y="${y - 8}" text-anchor="middle" 
+          <text x="${centerX}" y="${y - 8}" text-anchor="middle"
                 font-size="13" font-weight="700" fill="var(--accent)">${d.vendors}</text>
         `;
       });
-      
-      // Draw line graph (막대그래프와 같은 영역에 겹치도록)
+
       let linePath = '';
-      data.forEach((d, i) => {
-        // 선 그래프 점도 막대와 같은 x 위치에 배치, 막대 상단에 위치
-        const x = padding + (i * slotWidth) + (barSpacing / 2) + barWidth/2;
-        const lineHeight = maxVendors > 0 ? (d.vendors / maxVendors) * chartAreaHeight : 0;
-        const y = chartAreaTop + chartAreaHeight - lineHeight; // 막대 상단과 같은 y 위치
-        
+      barTops.forEach((p, i) => {
         if (i === 0) {
-          linePath += `M ${x} ${y}`;
+          linePath += `M ${p.x} ${p.y}`;
         } else {
-          linePath += ` L ${x} ${y}`;
+          linePath += ` L ${p.x} ${p.y}`;
         }
-        
-        // 선 그래프 점 표시
+      });
+
+      chartHtml += `
+        <path d="${linePath}" stroke="var(--brand)" stroke-width="3"
+              fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+      `;
+
+      data.forEach((d, i) => {
+        const { x, y } = barTops[i];
         chartHtml += `
           <circle cx="${x}" cy="${y}" r="5" fill="var(--brand)" stroke="#fff" stroke-width="2"/>
-          <text x="${x}" y="${y - 12}" text-anchor="middle" 
+          <text x="${x}" y="${y - 14}" text-anchor="middle"
                 font-size="11" font-weight="700" fill="var(--brand)">${d.vendors}</text>
         `;
       });
-      
-      chartHtml += `
-        <path d="${linePath}" stroke="var(--brand)" stroke-width="3" 
-              fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-      `;
-      
-      // Draw month labels
+
       data.forEach((d, i) => {
-        // 월 레이블도 막대 중앙에 배치
-        const x = padding + (i * slotWidth) + (barSpacing / 2) + barWidth/2;
+        const centerX = segment * (i + 1);
         const monthNumber = d.month.split('-')[1];
-        
         chartHtml += `
-          <text x="${x}" y="${chartHeight - 15}" text-anchor="middle" 
+          <text x="${centerX}" y="${chartHeight - 10}" text-anchor="middle"
                 font-size="11" fill="#6a7a89" font-weight="600">${monthNumber}월</text>
         `;
       });
-      
+
       chartHtml += '</svg>';
       container.innerHTML = chartHtml;
       console.log('📊 벤더 차트 그리기 완료');
