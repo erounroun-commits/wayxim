@@ -1796,11 +1796,10 @@
         const y = topPadding + chartAreaHeight - barHeight;
         barTops.push({ x: centerX, y });
 
+        // 막대만 그리고, 숫자 라벨은 선 그래프 쪽에서 한 번만 표시
         chartHtml += `
           <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}"
                 fill="url(#requestsBarGradient)" rx="4" ry="4"/>
-          <text x="${centerX}" y="${y - 8}" text-anchor="middle"
-                font-size="13" font-weight="700" fill="var(--brand)">${d.requests}</text>
         `;
       });
 
@@ -1822,10 +1821,11 @@
       // 선 그래프 점 + 값
       data.forEach((d, i) => {
         const { x, y } = barTops[i];
+        // 선 그래프 점 + 숫자만 표시 (막대 숫자 라벨은 제거)
         chartHtml += `
           <circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" stroke="#fff" stroke-width="2"/>
           <text x="${x}" y="${y - 14}" text-anchor="middle"
-                font-size="11" font-weight="700" fill="var(--accent)">${d.requests}</text>
+                font-size="13" font-weight="700" fill="var(--accent)">${d.requests}</text>
         `;
       });
 
@@ -1880,11 +1880,10 @@
         const y = topPadding + chartAreaHeight - barHeight;
         barTops.push({ x: centerX, y });
 
+        // 막대만 그리고, 숫자 라벨은 선 그래프 쪽에서 한 번만 표시
         chartHtml += `
           <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}"
                 fill="url(#vendorsBarGradient)" rx="4" ry="4"/>
-          <text x="${centerX}" y="${y - 8}" text-anchor="middle"
-                font-size="13" font-weight="700" fill="var(--accent)">${d.vendors}</text>
         `;
       });
 
@@ -1904,10 +1903,11 @@
 
       data.forEach((d, i) => {
         const { x, y } = barTops[i];
+        // 선 그래프 점 + 숫자만 표시 (막대 숫자 라벨은 제거)
         chartHtml += `
           <circle cx="${x}" cy="${y}" r="5" fill="var(--brand)" stroke="#fff" stroke-width="2"/>
           <text x="${x}" y="${y - 14}" text-anchor="middle"
-                font-size="11" font-weight="700" fill="var(--brand)">${d.vendors}</text>
+                font-size="13" font-weight="700" fill="var(--brand)">${d.vendors}</text>
         `;
       });
 
