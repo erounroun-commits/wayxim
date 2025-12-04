@@ -1774,11 +1774,9 @@
       const barWidth = Math.min(80, slotWidth * 0.6); // 막대 너비는 슬롯의 60%
       const barSpacing = slotWidth - barWidth; // 막대 사이 간격
       
-      // 차트 영역 분리: 막대그래프 영역(하단 60%), 선 그래프 영역(상단 40%)
-      const barAreaHeight = chartHeight * 0.55;
-      const lineAreaHeight = chartHeight * 0.35;
-      const barAreaTop = chartHeight - barAreaHeight - 50;
-      const lineAreaTop = 20;
+      // 막대그래프와 선 그래프가 겹치도록 같은 영역 사용
+      const chartAreaHeight = chartHeight - 60; // 하단 여백 40px + 상단 여백 20px
+      const chartAreaTop = 20; // 상단 여백
       
       // Create SVG for combined chart (bars + line)
       let chartHtml = `
@@ -1791,12 +1789,12 @@
           </defs>
       `;
       
-      // Draw bars for requests (하단 영역)
+      // Draw bars for requests
       data.forEach((d, i) => {
         // 각 막대를 슬롯의 중앙에 배치
         const x = padding + (i * slotWidth) + (barSpacing / 2);
-        const barHeight = maxRequests > 0 ? (d.requests / maxRequests) * barAreaHeight : 0;
-        const y = barAreaTop + barAreaHeight - barHeight;
+        const barHeight = maxRequests > 0 ? (d.requests / maxRequests) * chartAreaHeight : 0;
+        const y = chartAreaTop + chartAreaHeight - barHeight;
         
         chartHtml += `
           <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" 
@@ -1806,14 +1804,13 @@
         `;
       });
       
-      // Draw line graph (상단 영역, 별도 스케일)
+      // Draw line graph (막대그래프와 같은 영역에 겹치도록)
       let linePath = '';
-      const lineMax = maxRequests;
       data.forEach((d, i) => {
-        // 선 그래프 점도 막대와 같은 x 위치에 배치
+        // 선 그래프 점도 막대와 같은 x 위치에 배치, 막대 상단에 위치
         const x = padding + (i * slotWidth) + (barSpacing / 2) + barWidth/2;
-        const lineHeight = lineMax > 0 ? (d.requests / lineMax) * lineAreaHeight : 0;
-        const y = lineAreaTop + lineAreaHeight - lineHeight;
+        const lineHeight = maxRequests > 0 ? (d.requests / maxRequests) * chartAreaHeight : 0;
+        const y = chartAreaTop + chartAreaHeight - lineHeight; // 막대 상단과 같은 y 위치
         
         if (i === 0) {
           linePath += `M ${x} ${y}`;
@@ -1868,11 +1865,9 @@
       const barWidth = Math.min(80, slotWidth * 0.6); // 막대 너비는 슬롯의 60%
       const barSpacing = slotWidth - barWidth; // 막대 사이 간격
       
-      // 차트 영역 분리: 막대그래프 영역(하단 60%), 선 그래프 영역(상단 40%)
-      const barAreaHeight = chartHeight * 0.55;
-      const lineAreaHeight = chartHeight * 0.35;
-      const barAreaTop = chartHeight - barAreaHeight - 50;
-      const lineAreaTop = 20;
+      // 막대그래프와 선 그래프가 겹치도록 같은 영역 사용
+      const chartAreaHeight = chartHeight - 60; // 하단 여백 40px + 상단 여백 20px
+      const chartAreaTop = 20; // 상단 여백
       
       // Create SVG for combined chart (bars + line)
       let chartHtml = `
@@ -1885,12 +1880,12 @@
           </defs>
       `;
       
-      // Draw bars for vendors (하단 영역)
+      // Draw bars for vendors
       data.forEach((d, i) => {
         // 각 막대를 슬롯의 중앙에 배치
         const x = padding + (i * slotWidth) + (barSpacing / 2);
-        const barHeight = maxVendors > 0 ? (d.vendors / maxVendors) * barAreaHeight : 0;
-        const y = barAreaTop + barAreaHeight - barHeight;
+        const barHeight = maxVendors > 0 ? (d.vendors / maxVendors) * chartAreaHeight : 0;
+        const y = chartAreaTop + chartAreaHeight - barHeight;
         
         chartHtml += `
           <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" 
@@ -1900,14 +1895,13 @@
         `;
       });
       
-      // Draw line graph (상단 영역, 별도 스케일)
+      // Draw line graph (막대그래프와 같은 영역에 겹치도록)
       let linePath = '';
-      const lineMax = maxVendors;
       data.forEach((d, i) => {
-        // 선 그래프 점도 막대와 같은 x 위치에 배치
+        // 선 그래프 점도 막대와 같은 x 위치에 배치, 막대 상단에 위치
         const x = padding + (i * slotWidth) + (barSpacing / 2) + barWidth/2;
-        const lineHeight = lineMax > 0 ? (d.vendors / lineMax) * lineAreaHeight : 0;
-        const y = lineAreaTop + lineAreaHeight - lineHeight;
+        const lineHeight = maxVendors > 0 ? (d.vendors / maxVendors) * chartAreaHeight : 0;
+        const y = chartAreaTop + chartAreaHeight - lineHeight; // 막대 상단과 같은 y 위치
         
         if (i === 0) {
           linePath += `M ${x} ${y}`;
