@@ -1495,10 +1495,10 @@
               console.error('❌ window.showPushNotification 함수를 찾을 수 없음');
             }
             
-            // 상단 알림 아이콘에도 알림 추가
+            // 상단 알림 아이콘에도 알림 추가 (요청건 ID 포함)
             if (window.addNotification) {
               console.log('🔔 상단 알림 아이콘에 알림 추가 시도');
-              window.addNotification(notificationTitle, notificationContent, 'success', rec.submittedAt);
+              window.addNotification(notificationTitle, notificationContent, 'success', rec.submittedAt, rec.id);
             } else {
               console.error('❌ window.addNotification 함수를 찾을 수 없음');
             }
@@ -1952,14 +1952,9 @@
         console.error('❌ 알림 버튼을 찾을 수 없음');
       }
       
-      // 기존 알림 모두 제거 (강화)
-      if (window.clearAllExistingNotifications) {
-        window.clearAllExistingNotifications();
-      }
-      
-      // 추가 알림 초기화 (완전 삭제)
-      if (window.clearAllNotificationCache) {
-        window.clearAllNotificationCache();
+      // 읽지 않은 알림만 제거 (읽음 처리된 알림은 유지)
+      if (window.clearUnreadNotifications) {
+        window.clearUnreadNotifications();
       }
       
       // 알림 UI 강제 업데이트
@@ -2015,26 +2010,41 @@
                 });
                 
                 if (latestNewRequest && window.showPushNotification) {
-                  // 읽음 처리된 알림 확인: 이미 읽음 처리된 알림이 있으면 재알림 생성 안함
-                  const readNotification = notifications.find(n => 
-                    n.title === '신규 작업요청건이 있습니다' &&
-                    n.timestamp && 
-                    Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
-                    (n.read === true || n.read === 'true') // 읽음 처리된 알림
+                  // 읽음 처리된 알림 확인: 요청건 ID로 먼저 확인 (가장 정확)
+                  let readNotification = notifications.find(n => 
+                    n.submissionId === latestNewRequest.id &&
+                    (n.read === true || n.read === 'true')
                   );
                   
+                  // 요청건 ID로 찾지 못한 경우, 시간으로 확인
+                  if (!readNotification) {
+                    readNotification = notifications.find(n => 
+                      n.title === '신규 작업요청건이 있습니다' &&
+                      n.timestamp && 
+                      Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
+                      (n.read === true || n.read === 'true') // 읽음 처리된 알림
+                    );
+                  }
+                  
                   if (readNotification) {
-                    console.log('🚫 관리자 로그인 후 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id);
+                    console.log('🚫 관리자 로그인 후 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id, '요청건 ID:', latestNewRequest.id);
                     return;
                   }
                   
-                  // 중복 알림 방지: 이미 같은 시간으로 알림이 있는지 확인
-                  const existingNotification = notifications.find(n => 
-                    n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                  // 중복 알림 방지: 요청건 ID로 먼저 확인
+                  let existingNotification = notifications.find(n => 
+                    n.submissionId === latestNewRequest.id
                   );
                   
+                  // 요청건 ID로 찾지 못한 경우, 시간으로 확인
+                  if (!existingNotification) {
+                    existingNotification = notifications.find(n => 
+                      n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                    );
+                  }
+                  
                   if (existingNotification) {
-                    console.log('🚫 관리자 로그인 후 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id);
+                    console.log('🚫 관리자 로그인 후 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id, '요청건 ID:', latestNewRequest.id);
                     return;
                   }
                   
@@ -2046,7 +2056,7 @@
                   window.showPushNotification(notificationTitle, notificationContent);
                   
                   if (window.addNotification) {
-                    window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
+                    window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt, latestNewRequest.id);
                   }
                 }
               } else {
@@ -7686,28 +7696,43 @@ ${r.optPlan}
                 // localStorage에서 최신 알림 상태 확인
                 const currentNotifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
                 
-                // 읽음 처리된 알림 확인: 이미 읽음 처리된 알림이 있으면 재알림 생성 안함
-                const readNotification = currentNotifications.find(n => 
-                  n.title === '신규 작업요청건이 있습니다' &&
-                  n.content.includes(latestNewRequest.companyName) &&
-                  Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
-                  (n.read === true || n.read === 'true') // 읽음 처리된 알림
+                // 읽음 처리된 알림 확인: 요청건 ID로 먼저 확인 (가장 정확)
+                let readNotification = currentNotifications.find(n => 
+                  n.submissionId === latestNewRequest.id &&
+                  (n.read === true || n.read === 'true')
                 );
                 
+                // 요청건 ID로 찾지 못한 경우, 내용과 시간으로 확인
+                if (!readNotification) {
+                  readNotification = currentNotifications.find(n => 
+                    n.title === '신규 작업요청건이 있습니다' &&
+                    n.content.includes(latestNewRequest.companyName) &&
+                    Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
+                    (n.read === true || n.read === 'true') // 읽음 처리된 알림
+                  );
+                }
+                
                 if (readNotification) {
-                  console.log('🚫 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id);
+                  console.log('🚫 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id, '요청건 ID:', latestNewRequest.id);
                   return;
                 }
                 
-                // 중복 알림 방지: 이미 같은 내용과 시간의 알림이 있는지 확인 (읽지 않은 알림)
-                const existingNotification = currentNotifications.find(n => 
-                  n.title === '신규 작업요청건이 있습니다' &&
-                  n.content.includes(latestNewRequest.companyName) &&
-                  Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                // 중복 알림 방지: 요청건 ID로 먼저 확인
+                let existingNotification = currentNotifications.find(n => 
+                  n.submissionId === latestNewRequest.id
                 );
                 
+                // 요청건 ID로 찾지 못한 경우, 내용과 시간으로 확인
+                if (!existingNotification) {
+                  existingNotification = currentNotifications.find(n => 
+                    n.title === '신규 작업요청건이 있습니다' &&
+                    n.content.includes(latestNewRequest.companyName) &&
+                    Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                  );
+                }
+                
                 if (existingNotification) {
-                  console.log('🚫 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id);
+                  console.log('🚫 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id, '요청건 ID:', latestNewRequest.id);
                   return;
                 }
                 
@@ -7725,10 +7750,10 @@ ${r.optPlan}
                   console.error('❌ 실시간 리스너에서 window.showPushNotification 함수를 찾을 수 없음');
                 }
                 
-                // 상단 알림 아이콘에도 알림 추가 (실제 제출 시간 사용)
+                // 상단 알림 아이콘에도 알림 추가 (실제 제출 시간 사용, 요청건 ID 포함)
                 if (window.addNotification) {
                   console.log('🔔 실시간 리스너 상단 알림 아이콘에 알림 추가 시도');
-                  window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
+                  window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt, latestNewRequest.id);
                   console.log('📝 실시간 리스너 상단 알림 아이콘에 알림 추가 완료');
                 } else {
                   console.error('❌ 실시간 리스너에서 window.addNotification 함수를 찾을 수 없음');
@@ -7987,28 +8012,43 @@ ${r.optPlan}
                 // localStorage에서 최신 알림 상태 확인
                 const currentNotifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
                 
-                // 읽음 처리된 알림 확인: 이미 읽음 처리된 알림이 있으면 재알림 생성 안함
-                const readNotification = currentNotifications.find(n => 
-                  n.title === '신규 작업요청건이 있습니다' &&
-                  n.content.includes(latestNewRequest.companyName) &&
-                  Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
-                  (n.read === true || n.read === 'true') // 읽음 처리된 알림
+                // 읽음 처리된 알림 확인: 요청건 ID로 먼저 확인 (가장 정확)
+                let readNotification = currentNotifications.find(n => 
+                  n.submissionId === latestNewRequest.id &&
+                  (n.read === true || n.read === 'true')
                 );
                 
+                // 요청건 ID로 찾지 못한 경우, 내용과 시간으로 확인
+                if (!readNotification) {
+                  readNotification = currentNotifications.find(n => 
+                    n.title === '신규 작업요청건이 있습니다' &&
+                    n.content.includes(latestNewRequest.companyName) &&
+                    Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
+                    (n.read === true || n.read === 'true') // 읽음 처리된 알림
+                  );
+                }
+                
                 if (readNotification) {
-                  console.log('🚫 Firebase 모듈 내 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id);
+                  console.log('🚫 Firebase 모듈 내 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id, '요청건 ID:', latestNewRequest.id);
                   return;
                 }
                 
-                // 중복 알림 방지: 이미 같은 내용과 시간의 알림이 있는지 확인 (읽지 않은 알림)
-                const existingNotification = currentNotifications.find(n => 
-                  n.title === '신규 작업요청건이 있습니다' &&
-                  n.content.includes(latestNewRequest.companyName) &&
-                  Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                // 중복 알림 방지: 요청건 ID로 먼저 확인
+                let existingNotification = currentNotifications.find(n => 
+                  n.submissionId === latestNewRequest.id
                 );
                 
+                // 요청건 ID로 찾지 못한 경우, 내용과 시간으로 확인
+                if (!existingNotification) {
+                  existingNotification = currentNotifications.find(n => 
+                    n.title === '신규 작업요청건이 있습니다' &&
+                    n.content.includes(latestNewRequest.companyName) &&
+                    Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                  );
+                }
+                
                 if (existingNotification) {
-                  console.log('🚫 Firebase 모듈 내 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id);
+                  console.log('🚫 Firebase 모듈 내 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id, '요청건 ID:', latestNewRequest.id);
                   return;
                 }
                 
@@ -8021,10 +8061,10 @@ ${r.optPlan}
                   window.showPushNotification(notificationTitle, notificationContent);
                 }
                 
-                // 상단 알림 아이콘에도 알림 추가
+                // 상단 알림 아이콘에도 알림 추가 (요청건 ID 포함)
                 if (window.addNotification) {
                   console.log('🔔 Firebase 모듈 내 상단 알림 아이콘에 알림 추가');
-                  window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
+                  window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt, latestNewRequest.id);
                 }
                 
                 window.lastProcessedSubmissionId = latestNewRequest.id;
@@ -8140,22 +8180,22 @@ ${r.optPlan}
       isAdmin: sessionStorage.getItem("wp_is_admin")
     });
     
-    // 기존 알림 모두 삭제 (중복 방지)
-    function clearAllExistingNotifications() {
-      console.log('🗑️ 기존 알림 모두 삭제');
-      notifications = [];
-      localStorage.setItem('wp_notifications', JSON.stringify([]));
+    // 읽지 않은 알림만 삭제 (읽음 처리된 알림은 유지하여 재알림 방지)
+    function clearUnreadNotifications() {
+      console.log('🗑️ 읽지 않은 알림만 삭제');
+      notifications = notifications.filter(n => n.read === true || n.read === 'true');
+      localStorage.setItem('wp_notifications', JSON.stringify(notifications));
       updateNotificationUI();
-      console.log('✅ 기존 알림 삭제 완료');
+      console.log('✅ 읽지 않은 알림 삭제 완료, 읽음 처리된 알림 유지:', notifications.length, '개');
     }
     
-    // 관리자 로그인 시 기존 알림 삭제
+    // 관리자 로그인 시 읽지 않은 알림만 삭제 (읽음 처리된 알림은 유지)
     if (sessionStorage.getItem("wp_is_admin") === "1") {
-      console.log('🔔 관리자 로그인 감지 - 기존 알림 삭제');
-      clearAllExistingNotifications();
+      console.log('🔔 관리자 로그인 감지 - 읽지 않은 알림만 삭제');
+      clearUnreadNotifications();
     }
     
-    function addNotification(title, content, type = 'info', actualTimestamp = null) {
+    function addNotification(title, content, type = 'info', actualTimestamp = null, submissionId = null) {
       console.log('📝 새 알림 추가:', title, content, type);
       
       // 관리자 화면이 아니면 알림 추가 안함
@@ -8174,28 +8214,49 @@ ${r.optPlan}
       // 실제 제출 시간이 있으면 사용, 없으면 현재 시간 사용
       const notificationTimestamp = actualTimestamp || Date.now();
       
-      // 읽음 처리된 알림 확인: 이미 읽음 처리된 알림이 있으면 재알림 생성 안함
-      const readNotification = notifications.find(n => 
-        n.title === title && 
-        n.content === content && 
-        Math.abs(n.timestamp - notificationTimestamp) < 5000 && // 5초 이내 동일 시간
-        (n.read === true || n.read === 'true') // 읽음 처리된 알림
-      );
+      // 읽음 처리된 알림 확인: 요청건 ID가 있으면 ID로, 없으면 내용과 시간으로 확인
+      let readNotification = null;
+      if (submissionId) {
+        // 요청건 ID로 읽음 처리된 알림 확인 (가장 정확)
+        readNotification = notifications.find(n => 
+          n.submissionId === submissionId &&
+          (n.read === true || n.read === 'true')
+        );
+      }
+      
+      if (!readNotification) {
+        // 요청건 ID가 없거나 찾지 못한 경우, 내용과 시간으로 확인
+        readNotification = notifications.find(n => 
+          n.title === title && 
+          n.content === content && 
+          Math.abs(n.timestamp - notificationTimestamp) < 5000 && // 5초 이내 동일 시간
+          (n.read === true || n.read === 'true') // 읽음 처리된 알림
+        );
+      }
       
       if (readNotification) {
-        console.log('🚫 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id);
+        console.log('🚫 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id, '요청건 ID:', submissionId);
         return;
       }
       
       // 중복 알림 체크: 같은 내용과 시간(5초 이내)의 알림이 이미 있는지 확인 (읽지 않은 알림)
-      const isDuplicate = notifications.some(n => 
-        n.title === title && 
-        n.content === content && 
-        Math.abs(n.timestamp - notificationTimestamp) < 5000
-      );
+      let isDuplicate = false;
+      if (submissionId) {
+        // 요청건 ID로 중복 확인
+        isDuplicate = notifications.some(n => n.submissionId === submissionId);
+      }
+      
+      if (!isDuplicate) {
+        // 요청건 ID가 없거나 찾지 못한 경우, 내용과 시간으로 확인
+        isDuplicate = notifications.some(n => 
+          n.title === title && 
+          n.content === content && 
+          Math.abs(n.timestamp - notificationTimestamp) < 5000
+        );
+      }
       
       if (isDuplicate) {
-        console.log('🚫 중복 알림 방지 - 이미 존재하는 알림');
+        console.log('🚫 중복 알림 방지 - 이미 존재하는 알림 (요청건 ID:', submissionId, ')');
         return;
       }
       
@@ -8206,7 +8267,8 @@ ${r.optPlan}
         content,
         type,
         timestamp: notificationTimestamp,
-        read: false
+        read: false,
+        submissionId: submissionId || null // 요청건 ID 저장 (재알림 방지용)
       };
       
       notifications.unshift(notification);
@@ -8503,6 +8565,7 @@ ${r.optPlan}
     window.handleNotificationClick = handleNotificationClick;
     window.markAsRead = markAsRead;
     window.clearAllNotifications = clearAllNotifications;
+    window.clearUnreadNotifications = clearUnreadNotifications;
     window.addSubmissionNotification = addSubmissionNotification;
     window.showPushNotification = showPushNotification;
     window.setupRealtimeListener = setupRealtimeListener;
