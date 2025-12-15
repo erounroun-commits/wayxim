@@ -5356,6 +5356,10 @@ ${r.optPlan}
 
       function pad2(n){ return String(n).padStart(2,'0'); }
       function fmt(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+      // 주차 셀렉트박스 라벨용: "15일 ~ 21일" 형태
+      function fmtWeekLabel(startDate, endDate){ 
+        return `${startDate.getDate()}일 ~ ${endDate.getDate()}일`; 
+      }
 
       async function refreshWeeks(){
         const y = parseInt(document.getElementById('wlYear').value,10);
@@ -5419,12 +5423,13 @@ ${r.optPlan}
           console.log(`📅 현재 년월이 아니므로 첫 번째 주 선택`);
         }
         
-        sel.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmt(w.start)} ~ ${fmt(w.end)}</option>`).join('');
+        // 값(value)은 그대로 "YYYY-MM-DD|YYYY-MM-DD" 유지, 화면에 보이는 라벨만 "15일 ~ 21일"로 변경
+        sel.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmtWeekLabel(w.start, w.end)}</option>`).join('');
         
         // 모바일 주 선택도 동기화
         const mobileWeekSelect = document.getElementById('wlWeekMobile');
         if (mobileWeekSelect) {
-          mobileWeekSelect.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmt(w.start)} ~ ${fmt(w.end)}</option>`).join('');
+          mobileWeekSelect.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmtWeekLabel(w.start, w.end)}</option>`).join('');
         }
         
         await updateWeekly();
