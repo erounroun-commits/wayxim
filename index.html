@@ -4196,106 +4196,11 @@ ${r.optPlan}
     // 제출 시점 기준 vendorType 계산 함수 (모든 업체에 대해 안정적으로 작동)
     // 핵심: 현재 submission을 제외하고, 제출 시점 이전의 submission만 고려
     async function getVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions, currentSubmissionId = null) {
-      if (!vendorCode || !submittedAt) {
-        return '일반';
-      }
-      
+      // [전체 벤더 공통 로직] NEW 로직 사용
+      // simulateGetVendorTypeAtSubmissionTime을 호출하여 동일한 로직 적용
+      // async 래퍼 유지 (기존 호출 코드와의 호환성)
       try {
-        const submissionTime = new Date(submittedAt);
-        if (isNaN(submissionTime.getTime())) {
-          console.warn('[WARN][vendorType-at-time] 잘못된 submittedAt:', submittedAt);
-          return '일반';
-        }
-        
-        // companyCode 정규화
-        const normalizedVendorCode = String(vendorCode).trim();
-        
-        // 제출 시점 이전의 submission만 필터링 (현재 submission 제외)
-        // 핵심: 현재 submission은 제외하고, 그 이전의 submission만 고려
-        // 같은 시점에 제출된 다른 submission도 제외 (현재 submission의 vendorType 결정에 영향을 주면 안 됨)
-        const submissionsBeforeThis = allSubmissions.filter(s => {
-          if (!s.submittedAt || !s.companyCode) return false;
-          
-          // 현재 submission 제외 (ID, no로 비교)
-          // 핵심: 현재 submission은 제외하여 제출 시점 기준 계산이 정확하게 이루어지도록 함
-          if (currentSubmissionId) {
-            // ID로 비교
-            if (s.id && String(s.id) === String(currentSubmissionId)) {
-              return false;
-            }
-            // no로 비교
-            if (s.no && String(s.no) === String(currentSubmissionId)) {
-              return false;
-            }
-          }
-          
-          // companyCode 정규화하여 비교
-          const sCompanyCode = String(s.companyCode).trim();
-          if (sCompanyCode !== normalizedVendorCode) return false;
-          
-          const sTime = new Date(s.submittedAt);
-          if (isNaN(sTime.getTime())) return false;
-          
-          // 제출 시점 이전만 포함 (같은 시점 제외)
-          // 핵심: 현재 submission이 제출되는 시점에서, 그 시점까지의 이전 submission만 고려
-          return sTime < submissionTime;
-        });
-        
-        if (submissionsBeforeThis.length === 0) {
-          return '일반';
-        }
-        
-        // 제출 시점 기준으로 월별 건수 계산
-        const monthCounts = {};
-        submissionsBeforeThis.forEach(s => {
-          try {
-            const sDate = new Date(s.submittedAt);
-            if (isNaN(sDate.getTime())) return;
-            
-            const monthKey = `${sDate.getFullYear()}-${pad(sDate.getMonth() + 1)}`;
-            if (!monthCounts[monthKey]) {
-              monthCounts[monthKey] = 0;
-            }
-            
-            // totalCnt 안전하게 파싱 (calcCommissionForSubmission과 동일한 로직)
-            let totalCnt = 0;
-            if (s.totalCnt != null) {
-              if (typeof s.totalCnt === 'number') {
-                totalCnt = s.totalCnt;
-              } else if (Array.isArray(s.totalCnt)) {
-                totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
-              } else if (typeof s.totalCnt === 'object') {
-                totalCnt = 0;
-              } else {
-                const strValue = String(s.totalCnt);
-                const firstNumber = strValue.split(/[\/\s]/)[0];
-                const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-                totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-              }
-            }
-            
-            monthCounts[monthKey] += totalCnt;
-          } catch (err) {
-            console.warn('[WARN][vendorType-at-time] submission 처리 오류:', err, s);
-          }
-        });
-        
-        // 연속된 2개월 이상 200건 달성 여부 확인
-        const sortedMonths = Object.keys(monthCounts).sort();
-        
-        for (let i = 0; i < sortedMonths.length - 1; i++) {
-          const month1 = sortedMonths[i];
-          const month2 = sortedMonths[i + 1];
-          
-          const month1Count = monthCounts[month1] || 0;
-          const month2Count = monthCounts[month2] || 0;
-          
-          if (month1Count >= 200 && month2Count >= 200) {
-            return '우수';
-          }
-        }
-        
-        return '일반';
+        return simulateGetVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions, currentSubmissionId);
       } catch (error) {
         console.error('[ERROR][vendorType-at-time]', {
           vendorCode,
@@ -4530,32 +4435,28 @@ ${r.optPlan}
     }
 
     function calcCommissionForSubmission(submission, vendorType) {
+      // [전체 벤더 공통 로직] NEW 로직 사용
+      // simulateCalcCommissionForSubmission을 호출하여 동일한 로직 적용
+      const commission = simulateCalcCommissionForSubmission(submission, vendorType);
+      
+      // 디버깅: 계산 과정 상세 로그 (기존 호환성 유지)
       const rate = vendorType === '우수' ? 1000 : 1500;
-      // totalCnt를 안전하게 숫자로 변환 (문자열, 숫자, null, undefined 모두 처리)
       let totalCnt = 0;
       if (submission?.totalCnt != null) {
-        // 배열이나 객체인 경우 처리
-        if (Array.isArray(submission.totalCnt)) {
-          console.warn('[WARN][commission-calc] totalCnt가 배열입니다:', submission.totalCnt);
+        if (typeof submission.totalCnt === 'number') {
+          totalCnt = submission.totalCnt;
+        } else if (Array.isArray(submission.totalCnt)) {
           totalCnt = submission.totalCnt.length > 0 ? Number(submission.totalCnt[0]) || 0 : 0;
         } else if (typeof submission.totalCnt === 'object') {
-          console.warn('[WARN][commission-calc] totalCnt가 객체입니다:', submission.totalCnt);
           totalCnt = 0;
         } else {
-          // 숫자 또는 문자열 처리
-          // "200/100" 같은 형태는 첫 번째 숫자만 추출
           const strValue = String(submission.totalCnt);
-          // 슬래시나 공백으로 구분된 경우 첫 번째 숫자만 추출
           const firstNumber = strValue.split(/[\/\s]/)[0];
-          const cnt = typeof submission.totalCnt === 'number' 
-            ? submission.totalCnt 
-            : parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-          totalCnt = isNaN(cnt) || cnt < 0 ? 0 : cnt;
+          const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+          totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
         }
       }
       
-      // 디버깅: 계산 과정 상세 로그 (항상 출력)
-      const calculatedCommission = totalCnt * rate;
       console.log('[DEBUG][commission-calc]', {
         no: submission?.no,
         companyName: submission?.companyName,
@@ -4566,165 +4467,107 @@ ${r.optPlan}
         totalCntIsArray: Array.isArray(submission?.totalCnt),
         vendorType: vendorType,
         rate: rate,
-        commission: calculatedCommission,
-        calculation: `${totalCnt} × ${rate} = ${calculatedCommission}`
+        commission: commission,
+        calculation: `${totalCnt} × ${rate} = ${commission}`
       });
       
-      
-      return totalCnt * rate;
+      return commission;
     }
 
     async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
-      // 출금가능액 계산: 접수 여부와 관계없이 모든 submission 포함
-      // 신규 요청서도 포함되어야 하며, 접수되면 추가로 증액됨
+      // [전체 벤더 공통 로직] NEW 계산 로직 적용
+      // 모든 벤더에 대해 시뮬레이션 로직과 동일한 계산 방식 사용
       console.log('[DEBUG][settlement-start]', {
         totalSubmissions: submissions.length,
         vendorId: vendorId || 'ALL',
-        vendorTypesCount: Object.keys(vendorTypes).length
+        vendorTypesCount: Object.keys(vendorTypes).length,
+        logic: 'NEW (전체 벤더 공통)'
       });
       
-      const subs = getSubsForVendor(submissions, vendorId, false);
+      // 1. 벤더별 필터링 (삭제/테스트 제외)
+      const filteredSubs = submissions.filter(sub => {
+        if (!sub) return false;
+        
+        // 삭제/테스트 제외
+        if (sub.isDeleted === true || sub.isTest === true) return false;
+        
+        // 벤더 필터링
+        if (vendorId) {
+          const matchesVendor = (sub.vendorId && sub.vendorId === vendorId) || 
+                                (sub.companyCode && sub.companyCode === vendorId);
+          return matchesVendor;
+        }
+        
+        return true;
+      });
       
       console.log('[DEBUG][settlement-filtered]', {
-        filteredCount: subs.length,
-        excludedCount: submissions.length - subs.length
+        filteredCount: filteredSubs.length,
+        excludedCount: submissions.length - filteredSubs.length
       });
       
-      // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
-      // 핵심: submissions를 제출 시점 순으로 정렬하여 순차 처리
-      const sortedSubs = [...subs].sort((a, b) => {
+      // 2. 제출 시점 순으로 정렬
+      const sortedSubs = [...filteredSubs].sort((a, b) => {
         const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
         const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
         return timeA - timeB;
       });
       
+      // 3. 각 submission의 수수료 계산
       let totalCommission = 0;
+      
       for (const sub of sortedSubs) {
-        // companyCode 정규화 (공백 제거, 대소문자 통일)
-        const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
-        const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
+        // vendorTypeAtSubmission이 있으면 우선 사용
+        let vendorType = '일반';
         
-        // 핵심: 저장된 vendorTypeAtSubmission을 우선 사용
-        // 제출 시점에 확정된 vendorType이 저장되어 있으면 그것을 사용
-        // 저장된 값이 없으면 제출 시점 기준으로 계산 (하위 호환성)
-        let vType = '일반';
-        
-        // 핵심: 저장된 vendorTypeAtSubmission을 절대 우선 사용
-        // 제출 시점에 확정된 vendorType이 저장되어 있으면 그것을 무조건 사용
-        // 이후 로직에서 덮어쓰지 않도록 주의
-        let hasSavedVendorType = false;
-        
-        if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
-          vType = sub.vendorTypeAtSubmission;
-          hasSavedVendorType = true;
-          
-        }
-        // 저장된 값이 없는 경우에만 제출 시점 기준 계산 (하위 호환성)
-        else if (normalizedCompanyCode && sub.submittedAt) {
-          try {
-            // 제출 시점 기준으로 vendorType 계산
-            // 주의: submissions 전체를 전달하여 제출 시점 순으로 정렬된 submission만 고려
-            // 현재 submission의 ID를 전달하여 제외 (제출 시점 기준 확정)
-            // 핵심: sortedSubs가 아닌 원본 submissions를 전달하여 정확한 제출 시점 기준 계산
-            const calculatedVType = await getVendorTypeAtSubmissionTime(
-              normalizedCompanyCode, 
-              sub.submittedAt, 
-              submissions, // 원본 submissions 전체 사용 (현재 submission 포함, 내부에서 제외됨)
-              sub.id || sub.no || String(sub.submittedAt) // ID가 없으면 submittedAt으로 대체
-            );
-            
-            // 제출 시점 기준 계산 결과 사용
-            vType = calculatedVType;
-            
-          } catch (error) {
-            console.error('[ERROR][vendorType-calculation]', {
-              no: sub.no,
-              companyCode: normalizedCompanyCode,
-              error: error.message,
-              stack: error.stack
-            });
-            // 오류 발생 시 제출 시점 기준 계산 실패이므로 '일반'으로 설정
-            vType = '일반';
-          }
-        } else if (normalizedCompanyCode && !hasSavedVendorType) {
-          // submittedAt이 없고 저장된 값도 없는 경우에만 현재 vendorType 사용
-          vType = vendorTypes[normalizedCompanyCode] || '일반';
+        if (sub.vendorTypeAtSubmission && 
+            (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
+          vendorType = sub.vendorTypeAtSubmission;
+        } else if (sub.companyCode && sub.submittedAt) {
+          // 저장된 값이 없으면 제출 시점 기준 계산 (NEW 로직 사용)
+          vendorType = simulateGetVendorTypeAtSubmissionTime(
+            sub.companyCode,
+            sub.submittedAt,
+            submissions, // 전체 submissions 전달
+            sub.id || sub.no || null
+          );
         }
         
-        // 핵심: 저장된 vendorTypeAtSubmission이 있으면 절대 덮어쓰지 않음
-        // vendorId나 대소문자 매칭은 저장된 값이 없을 때만 시도
-        if (!hasSavedVendorType) {
-          // vendorId로도 시도 (companyCode로 찾지 못한 경우)
-          if (vType === '일반' && normalizedVendorId) {
-            vType = vendorTypes[normalizedVendorId] || '일반';
-          }
-          
-          // 대소문자 무시 매칭 시도 (companyCode 매칭 실패 시)
-          // 주의: 저장된 vendorTypeAtSubmission이 있으면 절대 실행하지 않음
-          if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0 && !hasSavedVendorType) {
-            const matchedKey = Object.keys(vendorTypes).find(key => 
-              key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
-            );
-            if (matchedKey) {
-              vType = vendorTypes[matchedKey];
-              console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
-                no: sub.no,
-                companyCode: sub.companyCode,
-                original: sub.companyCode,
-                normalized: normalizedCompanyCode,
-                matched: matchedKey,
-                vendorType: vType,
-                hasSavedVendorType: hasSavedVendorType
-              });
-            }
-          }
-        }
+        // 수수료 계산 (NEW 로직 사용)
+        const commission = simulateCalcCommissionForSubmission(sub, vendorType);
+        totalCommission += commission;
         
-        const commission = calcCommissionForSubmission(sub, vType);
-        
-        // 디버깅: 각 submission의 계산 상세 로그
-        const expectedComm = sub.totalCnt ? (vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500) : 0;
-        const commissionMatch = commission === expectedComm ? '✅' : '❌ MISMATCH';
-        
+        // 디버깅 로그
         console.log('[DEBUG][settlement-detail]', {
           no: sub.no,
           companyCode: sub.companyCode,
-          companyCodeNormalized: normalizedCompanyCode,
-          submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null,
-          companyCodeInVendorTypes: normalizedCompanyCode in vendorTypes,
-          vendorId: sub.vendorId,
-          vendorIdNormalized: normalizedVendorId,
           companyName: sub.companyName,
-          accepted: sub.accepted,
-          isDeleted: sub.isDeleted,
-          isTest: sub.isTest,
+          submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null,
           totalCnt: sub.totalCnt,
-          totalCntType: typeof sub.totalCnt,
-          totalCntIsArray: Array.isArray(sub.totalCnt),
-          vendorType: vType,
-          vendorTypeSource: (normalizedCompanyCode && sub.submittedAt && vType !== '일반') ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'),
-          rate: vType === '우수' ? 1000 : 1500,
+          vendorType: vendorType,
+          vendorTypeSource: sub.vendorTypeAtSubmission ? 'saved' : 'calculated',
+          rate: vendorType === '우수' ? 1000 : 1500,
           commission: commission,
-          expectedCommission: expectedComm,
-          commissionMatch: commissionMatch,
-          difference: commission - expectedComm,
-          accumulatedSum: totalCommission + commission,
-          calculation: `${sub.totalCnt} × ${vType === '우수' ? 1000 : 1500} = ${expectedComm}`
+          accumulatedSum: totalCommission
         });
-        
-        
-        totalCommission += commission;
       }
+      
+      // 4. 출금액 계산 (completed 상태만)
       const relevantWithdrawals = (withdrawals || []).filter(w => {
-        const matchesVendor = vendorId ? ((w.vendorId && w.vendorId === vendorId) || (!w.vendorId && !vendorId)) : true;
+        const matchesVendor = vendorId ? 
+          ((w.vendorId && w.vendorId === vendorId) || (w.companyCode && w.companyCode === vendorId)) : 
+          true;
         return matchesVendor && w.status === 'completed';
       });
+      
       const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+      
+      // 5. 출금가능액 계산
       const result = {
         totalCommission,
         totalWithdrawn,
         availableAmount: totalCommission - totalWithdrawn,
-        subsCount: subs.length
+        subsCount: sortedSubs.length
       };
       
       console.log('[DEBUG][settlement]', {
@@ -4732,8 +4575,10 @@ ${r.optPlan}
         subsCount: result.subsCount,
         totalCommission: result.totalCommission,
         totalWithdrawn: result.totalWithdrawn,
-        availableAmount: result.availableAmount
+        availableAmount: result.availableAmount,
+        logic: 'NEW (전체 벤더 공통)'
       });
+      
       return result;
     }
 
