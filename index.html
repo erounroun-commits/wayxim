@@ -1546,6 +1546,11 @@
         vendorTypeAtSubmission = '일반';
       }
 
+      // 핵심: 제출 시점의 단가를 확정하여 저장
+      // vendorTypeAtSubmission에 따라 단가를 확정 저장
+      // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
+      const fixedUnitFee = vendorTypeAtSubmission === '우수' ? 1000 : 1500;
+
       const rec = {
         id: uniqueId,
         no: displayNo,
@@ -1568,7 +1573,10 @@
         acceptedAt: null,
         // 핵심: 제출 시점의 vendorType을 확정하여 저장
         // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
-        vendorTypeAtSubmission: vendorTypeAtSubmission
+        vendorTypeAtSubmission: vendorTypeAtSubmission,
+        // 핵심: 제출 시점의 단가를 확정하여 저장
+        // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
+        fixedUnitFee: fixedUnitFee
       };
       
       console.log('[DEBUG][submit-product-rec]', {
@@ -4622,7 +4630,20 @@ ${r.optPlan}
     }
 
     function calcCommissionForSubmission(submission, vendorType) {
-      const rate = vendorType === '우수' ? 1000 : 1500;
+      // 핵심: 저장된 fixedUnitFee가 있으면 그것을 우선 사용
+      // 접수 시점에 확정된 단가를 사용하여 이후 벤더 등급 변경에 영향받지 않음
+      let rate;
+      let rateSource;
+      
+      if (submission?.fixedUnitFee != null && (submission.fixedUnitFee === 1000 || submission.fixedUnitFee === 1500)) {
+        rate = submission.fixedUnitFee;
+        rateSource = 'fixedUnitFee';
+      } else {
+        // fixedUnitFee가 없으면 vendorType 기준으로 계산 (하위 호환성)
+        rate = vendorType === '우수' ? 1000 : 1500;
+        rateSource = 'vendorType';
+      }
+      
       // totalCnt를 안전하게 숫자로 변환 (문자열, 숫자, null, undefined 모두 처리)
       let totalCnt = 0;
       if (submission?.totalCnt != null) {
@@ -4657,7 +4678,9 @@ ${r.optPlan}
         totalCntType: typeof submission?.totalCnt,
         totalCntIsArray: Array.isArray(submission?.totalCnt),
         vendorType: vendorType,
+        fixedUnitFee: submission?.fixedUnitFee || 'N/A',
         rate: rate,
+        rateSource: rateSource,
         commission: calculatedCommission,
         calculation: `${totalCnt} × ${rate} = ${calculatedCommission}`
       });
@@ -4671,9 +4694,11 @@ ${r.optPlan}
           totalCntRaw: submission?.totalCnt,
           totalCntParsed: totalCnt,
           vendorType: vendorType,
+          fixedUnitFee: submission?.fixedUnitFee || 'N/A',
           rate: rate,
+          rateSource: rateSource,
           commission: calculatedCommission,
-          expectedCommission: totalCnt === 200 ? (vendorType === '우수' ? 200000 : 300000) : 'N/A'
+          expectedCommission: totalCnt === 200 ? (rate === 1000 ? 200000 : 300000) : 'N/A'
         });
       }
       
@@ -7774,6 +7799,11 @@ ${r.optPlan}
             }
           }
           
+          // 핵심: 제출 시점의 단가를 확정하여 저장
+          // vendorTypeAtSubmission에 따라 단가를 확정 저장
+          // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
+          const fixedUnitFee = vendorTypeAtSubmission === '우수' ? 1000 : 1500;
+          
           const newRec = {
             id: rec ? rec.id : `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Firebase 문서 ID 추가
             no: newNo,
@@ -7795,7 +7825,9 @@ ${r.optPlan}
             accepted: obj['접수상태'] != null ? parseBool(obj['접수상태']) : (rec? rec.accepted : false),
             acceptedAt: obj['접수시간'] ? parseTs(obj['접수시간']) : (rec? rec.acceptedAt : null),
             // 핵심: 제출 시점의 vendorType을 확정하여 저장
-            vendorTypeAtSubmission: vendorTypeAtSubmission
+            vendorTypeAtSubmission: vendorTypeAtSubmission,
+            // 핵심: 제출 시점의 단가를 확정하여 저장
+            fixedUnitFee: fixedUnitFee
           };
           
           console.log('📋 매핑된 데이터 상세:', {
