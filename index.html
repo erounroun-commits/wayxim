@@ -9300,6 +9300,471 @@ ${r.optPlan}
         console.log('❌ 월별 정산 월 선택 요소를 찾을 수 없습니다.');
       }
     };
+    
+    // ============================================
+    // [1단계] 시뮬레이션 로직 - 순수 함수 구현
+    // ============================================
+    
+    /**
+     * 순수 함수: 제출 시점 기준 벤더 타입 판정
+     * @param {string} vendorCode - 업체 코드
+     * @param {number|string|Date} submittedAt - 제출 시점 (timestamp 또는 Date)
+     * @param {Array} allSubmissions - 모든 submission 배열 (제출 시점 이전의 것만 고려)
+     * @param {string|number} currentSubmissionId - 현재 submission ID (제외용)
+     * @returns {string} '우수' 또는 '일반'
+     */
+    function simulateGetVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions = [], currentSubmissionId = null) {
+      // 입력 검증
+      if (!vendorCode || !submittedAt) {
+        return '일반';
+      }
+      
+      // submittedAt을 timestamp로 변환
+      let submissionTime;
+      if (typeof submittedAt === 'number') {
+        submissionTime = new Date(submittedAt);
+      } else if (submittedAt instanceof Date) {
+        submissionTime = submittedAt;
+      } else {
+        submissionTime = new Date(submittedAt);
+      }
+      
+      if (isNaN(submissionTime.getTime())) {
+        return '일반';
+      }
+      
+      // companyCode 정규화
+      const normalizedVendorCode = String(vendorCode).trim();
+      
+      // 제출 시점 이전의 submission만 필터링 (현재 submission 제외)
+      const submissionsBeforeThis = allSubmissions.filter(s => {
+        if (!s.submittedAt || !s.companyCode) return false;
+        
+        // 현재 submission 제외 (ID 또는 no로 비교)
+        if (currentSubmissionId) {
+          if (s.id && String(s.id) === String(currentSubmissionId)) return false;
+          if (s.no && String(s.no) === String(currentSubmissionId)) return false;
+        }
+        
+        // companyCode 정규화하여 비교
+        const sCompanyCode = String(s.companyCode).trim();
+        if (sCompanyCode !== normalizedVendorCode) return false;
+        
+        // 제출 시점 이전만 포함 (같은 시점 제외)
+        const sTime = new Date(s.submittedAt);
+        if (isNaN(sTime.getTime())) return false;
+        
+        return sTime < submissionTime;
+      });
+      
+      // 이전 submission이 없으면 일반
+      if (submissionsBeforeThis.length === 0) {
+        return '일반';
+      }
+      
+      // 월별 건수 집계 (달력월 기준)
+      const monthCounts = {};
+      submissionsBeforeThis.forEach(s => {
+        try {
+          const sDate = new Date(s.submittedAt);
+          if (isNaN(sDate.getTime())) return;
+          
+          const year = sDate.getFullYear();
+          const month = sDate.getMonth() + 1;
+          const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+          
+          if (!monthCounts[monthKey]) {
+            monthCounts[monthKey] = 0;
+          }
+          
+          // totalCnt 안전하게 파싱
+          let totalCnt = 0;
+          if (s.totalCnt != null) {
+            if (typeof s.totalCnt === 'number') {
+              totalCnt = s.totalCnt;
+            } else if (Array.isArray(s.totalCnt)) {
+              totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
+            } else if (typeof s.totalCnt === 'object') {
+              totalCnt = 0;
+            } else {
+              const strValue = String(s.totalCnt);
+              const firstNumber = strValue.split(/[\/\s]/)[0];
+              const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+              totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+            }
+          }
+          
+          monthCounts[monthKey] += totalCnt;
+        } catch (err) {
+          // 오류 발생 시 해당 submission 건너뛰기
+        }
+      });
+      
+      // 연속된 2개월 이상 200건 달성 여부 확인
+      const sortedMonths = Object.keys(monthCounts).sort();
+      
+      for (let i = 0; i < sortedMonths.length - 1; i++) {
+        const month1 = sortedMonths[i];
+        const month2 = sortedMonths[i + 1];
+        
+        const month1Count = monthCounts[month1] || 0;
+        const month2Count = monthCounts[month2] || 0;
+        
+        // 연속 2개월 각각 200건 이상 달성
+        if (month1Count >= 200 && month2Count >= 200) {
+          // 달성한 날짜 확인 (마지막 submission의 날짜)
+          let lastSubmissionDate = null;
+          submissionsBeforeThis.forEach(s => {
+            const sDate = new Date(s.submittedAt);
+            if (!isNaN(sDate.getTime())) {
+              const year = sDate.getFullYear();
+              const month = sDate.getMonth() + 1;
+              const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+              
+              if (monthKey === month2) {
+                if (!lastSubmissionDate || sDate > lastSubmissionDate) {
+                  lastSubmissionDate = sDate;
+                }
+              }
+            }
+          });
+          
+          // 현재 제출 시점이 달성일 이후인지 확인 (다음날부터 우수 단가)
+          if (lastSubmissionDate && submissionTime > lastSubmissionDate) {
+            // 다음날인지 확인 (날짜만 비교)
+            const lastDate = new Date(lastSubmissionDate.getFullYear(), lastSubmissionDate.getMonth(), lastSubmissionDate.getDate());
+            const currentDate = new Date(submissionTime.getFullYear(), submissionTime.getMonth(), submissionTime.getDate());
+            
+            if (currentDate > lastDate) {
+              return '우수'; // 다음날부터 우수 단가
+            }
+          }
+          
+          // 달성한 당일은 일반 단가
+          return '일반';
+        }
+      }
+      
+      return '일반';
+    }
+    
+    /**
+     * 순수 함수: submission의 수수료 계산
+     * @param {Object} submission - submission 객체
+     * @param {string} vendorType - 벤더 타입 ('우수' 또는 '일반')
+     * @returns {number} 수수료 (원)
+     */
+    function simulateCalcCommissionForSubmission(submission, vendorType) {
+      // 단가 결정
+      const rate = vendorType === '우수' ? 1000 : 1500;
+      
+      // totalCnt 안전하게 파싱
+      let totalCnt = 0;
+      if (submission?.totalCnt != null) {
+        if (typeof submission.totalCnt === 'number') {
+          totalCnt = submission.totalCnt;
+        } else if (Array.isArray(submission.totalCnt)) {
+          totalCnt = submission.totalCnt.length > 0 ? Number(submission.totalCnt[0]) || 0 : 0;
+        } else if (typeof submission.totalCnt === 'object') {
+          totalCnt = 0;
+        } else {
+          const strValue = String(submission.totalCnt);
+          const firstNumber = strValue.split(/[\/\s]/)[0];
+          const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+          totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+        }
+      }
+      
+      return totalCnt * rate;
+    }
+    
+    /**
+     * 순수 함수: 출금가능액 계산 (시뮬레이션 로직)
+     * @param {Array} submissions - 모든 submission 배열
+     * @param {Array} withdrawals - 모든 withdrawal 배열
+     * @param {string|null} vendorId - 벤더 ID (null이면 전체)
+     * @returns {Object} { totalCommission, totalWithdrawn, availableAmount }
+     */
+    function simulateCalcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null) {
+      // 1. 벤더별 필터링
+      const filteredSubs = submissions.filter(sub => {
+        if (!sub) return false;
+        
+        // 삭제/테스트 제외
+        if (sub.isDeleted === true || sub.isTest === true) return false;
+        
+        // 벤더 필터링
+        if (vendorId) {
+          const matchesVendor = (sub.vendorId && sub.vendorId === vendorId) || 
+                                (sub.companyCode && sub.companyCode === vendorId);
+          return matchesVendor;
+        }
+        
+        return true;
+      });
+      
+      // 2. 제출 시점 순으로 정렬
+      const sortedSubs = [...filteredSubs].sort((a, b) => {
+        const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+        const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+        return timeA - timeB;
+      });
+      
+      // 3. 각 submission의 수수료 계산
+      let totalCommission = 0;
+      
+      for (const sub of sortedSubs) {
+        // vendorTypeAtSubmission이 있으면 우선 사용
+        let vendorType = '일반';
+        
+        if (sub.vendorTypeAtSubmission && 
+            (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
+          vendorType = sub.vendorTypeAtSubmission;
+        } else if (sub.companyCode && sub.submittedAt) {
+          // 저장된 값이 없으면 제출 시점 기준 계산
+          vendorType = simulateGetVendorTypeAtSubmissionTime(
+            sub.companyCode,
+            sub.submittedAt,
+            submissions, // 전체 submissions 전달
+            sub.id || sub.no || null
+          );
+        }
+        
+        // 수수료 계산
+        const commission = simulateCalcCommissionForSubmission(sub, vendorType);
+        totalCommission += commission;
+      }
+      
+      // 4. 출금액 계산 (completed 상태만)
+      const relevantWithdrawals = (withdrawals || []).filter(w => {
+        const matchesVendor = vendorId ? 
+          ((w.vendorId && w.vendorId === vendorId) || (!w.vendorId && !vendorId)) : 
+          true;
+        return matchesVendor && w.status === 'completed';
+      });
+      
+      const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+      
+      // 5. 출금가능액 계산
+      const availableAmount = totalCommission - totalWithdrawn;
+      
+      return {
+        totalCommission,
+        totalWithdrawn,
+        availableAmount
+      };
+    }
+    
+    /**
+     * [2단계] 단위 테스트 작성
+     * AD91(주식회사 천호) 시나리오 테스트
+     */
+    function runUnitTests() {
+      console.log('🧪 [2단계] 단위 테스트 시작');
+      console.log('='.repeat(60));
+      
+      let allTestsPassed = true;
+      const testResults = [];
+      
+      // 테스트 케이스: AD91 시나리오
+      function testAD91Scenario() {
+        console.log('\n📋 테스트 케이스: AD91(주식회사 천호) 시나리오');
+        console.log('-'.repeat(60));
+        
+        // 초기 상태 설정
+        // 사용자 시나리오:
+        // - 현재 총 출금액: 9,854,500원
+        // - 현재 출금가능액: 696,500원
+        // - 총 수수료 = 9,854,500 + 696,500 = 10,551,000원
+        
+        // 2025년 11월 220건 제출 (일반 벤더 = 220 * 1500 = 330,000원)
+        // 나머지 수수료: 10,551,000 - 330,000 = 10,221,000원
+        // 이를 여러 submission으로 구성 (일반 벤더 기준: 10,221,000 / 1500 = 6,814건)
+        
+        const initialSubmissions = [
+          {
+            id: 'sub-001',
+            no: 1,
+            companyCode: 'AD91',
+            companyName: '주식회사 천호',
+            totalCnt: 220,
+            submittedAt: '2025-11-15T10:00:00.000Z',
+            vendorTypeAtSubmission: '일반',
+            isDeleted: false,
+            isTest: false
+          },
+          {
+            id: 'sub-002',
+            no: 2,
+            companyCode: 'AD91',
+            companyName: '주식회사 천호',
+            totalCnt: 6814,
+            submittedAt: '2025-11-20T10:00:00.000Z',
+            vendorTypeAtSubmission: '일반',
+            isDeleted: false,
+            isTest: false
+          }
+        ];
+        
+        // 출금 내역: 9,854,500원
+        const withdrawals = [{
+          id: 'withdrawal-001',
+          vendorId: 'AD91',
+          amount: 9854500,
+          status: 'completed'
+        }];
+        
+        // 초기 상태 계산
+        const initialResult = simulateCalcSettlementForVendor(
+          initialSubmissions,
+          withdrawals,
+          'AD91'
+        );
+        
+        console.log('📊 초기 상태:');
+        console.log('  - 총 수수료:', initialResult.totalCommission.toLocaleString(), '원');
+        console.log('  - 총 출금액:', initialResult.totalWithdrawn.toLocaleString(), '원');
+        console.log('  - 출금가능액:', initialResult.availableAmount.toLocaleString(), '원');
+        
+        // 검증: 초기 출금가능액이 696,500원인지 확인
+        const expectedInitialAvailableAmount = 696500;
+        const initialTestPassed = Math.abs(initialResult.availableAmount - expectedInitialAvailableAmount) < 1;
+        
+        if (!initialTestPassed) {
+          console.error('❌ 초기 출금가능액 검증 실패');
+          console.error('  예상:', expectedInitialAvailableAmount.toLocaleString(), '원');
+          console.error('  실제:', initialResult.availableAmount.toLocaleString(), '원');
+          console.error('  차이:', Math.abs(initialResult.availableAmount - expectedInitialAvailableAmount).toLocaleString(), '원');
+        } else {
+          console.log('✅ 초기 출금가능액 검증 통과:', initialResult.availableAmount.toLocaleString(), '원');
+        }
+        
+        // 2026-01-06에 200건 추가
+        // 이 시점에서 vendorTypeAtSubmission이 없으므로 제출 시점 기준으로 계산
+        // 11월에 220건만 있었고, 2개월 연속 200건 이상이 아니므로 '일반' 벤더
+        const newSubmission = {
+          id: 'sub-003',
+          no: 3,
+          companyCode: 'AD91',
+          companyName: '주식회사 천호',
+          totalCnt: 200,
+          submittedAt: '2026-01-06T10:00:00.000Z',
+          vendorTypeAtSubmission: null, // 저장된 값 없음, 제출 시점 기준 계산
+          isDeleted: false,
+          isTest: false
+        };
+        
+        // 모든 submission 포함하여 재계산
+        const allSubmissions = [...initialSubmissions, newSubmission];
+        const finalResult = simulateCalcSettlementForVendor(
+          allSubmissions,
+          withdrawals,
+          'AD91'
+        );
+        
+        console.log('\n📊 200건 추가 후 상태:');
+        console.log('  - 총 수수료:', finalResult.totalCommission.toLocaleString(), '원');
+        console.log('  - 총 출금액:', finalResult.totalWithdrawn.toLocaleString(), '원');
+        console.log('  - 출금가능액:', finalResult.availableAmount.toLocaleString(), '원');
+        
+        // 검증: 최종 출금가능액이 996,500원이어야 함
+        const expectedFinalAvailableAmount = 996500;
+        const finalTestPassed = Math.abs(finalResult.availableAmount - expectedFinalAvailableAmount) < 1;
+        
+        if (!finalTestPassed) {
+          console.error('❌ 최종 출금가능액 검증 실패');
+          console.error('  예상:', expectedFinalAvailableAmount.toLocaleString(), '원');
+          console.error('  실제:', finalResult.availableAmount.toLocaleString(), '원');
+          console.error('  차이:', Math.abs(finalResult.availableAmount - expectedFinalAvailableAmount).toLocaleString(), '원');
+        } else {
+          console.log('✅ 최종 출금가능액 검증 통과:', finalResult.availableAmount.toLocaleString(), '원');
+        }
+        
+        // 추가 검증: 200건 추가로 인한 수수료 증가량
+        const commissionIncrease = finalResult.totalCommission - initialResult.totalCommission;
+        const expectedIncrease = 200 * 1500; // 300,000원 (일반 벤더)
+        const increaseTestPassed = Math.abs(commissionIncrease - expectedIncrease) < 1;
+        
+        if (!increaseTestPassed) {
+          console.error('❌ 수수료 증가량 검증 실패');
+          console.error('  예상 증가:', expectedIncrease.toLocaleString(), '원');
+          console.error('  실제 증가:', commissionIncrease.toLocaleString(), '원');
+        } else {
+          console.log('✅ 수수료 증가량 검증 통과:', commissionIncrease.toLocaleString(), '원 (200건 × 1,500원)');
+        }
+        
+        // 출금가능액 증가량 검증
+        const availableIncrease = finalResult.availableAmount - initialResult.availableAmount;
+        const expectedAvailableIncrease = 300000; // 300,000원
+        const availableIncreaseTestPassed = Math.abs(availableIncrease - expectedAvailableIncrease) < 1;
+        
+        if (!availableIncreaseTestPassed) {
+          console.error('❌ 출금가능액 증가량 검증 실패');
+          console.error('  예상 증가:', expectedAvailableIncrease.toLocaleString(), '원');
+          console.error('  실제 증가:', availableIncrease.toLocaleString(), '원');
+        } else {
+          console.log('✅ 출금가능액 증가량 검증 통과:', availableIncrease.toLocaleString(), '원');
+        }
+        
+        const allPassed = initialTestPassed && finalTestPassed && increaseTestPassed && availableIncreaseTestPassed;
+        
+        return {
+          name: 'AD91 시나리오 테스트',
+          passed: allPassed,
+          details: {
+            initialAvailableAmount: initialResult.availableAmount,
+            expectedInitialAvailableAmount,
+            finalAvailableAmount: finalResult.availableAmount,
+            expectedFinalAvailableAmount,
+            commissionIncrease,
+            expectedCommissionIncrease: expectedIncrease,
+            availableIncrease,
+            expectedAvailableIncrease
+          }
+        };
+      }
+      
+      // 테스트 실행
+      const ad91TestResult = testAD91Scenario();
+      testResults.push(ad91TestResult);
+      
+      if (!ad91TestResult.passed) {
+        allTestsPassed = false;
+      }
+      
+      // 결과 요약
+      console.log('\n' + '='.repeat(60));
+      console.log('📊 테스트 결과 요약');
+      console.log('='.repeat(60));
+      
+      testResults.forEach((result, index) => {
+        const status = result.passed ? '✅ 통과' : '❌ 실패';
+        console.log(`${index + 1}. ${result.name}: ${status}`);
+        if (!result.passed) {
+          console.log('   상세:', result.details);
+        }
+      });
+      
+      console.log('\n' + '='.repeat(60));
+      if (allTestsPassed) {
+        console.log('🎉 모든 테스트 통과!');
+      } else {
+        console.log('⚠️ 일부 테스트 실패. 실제 코드 연결 작업을 진행하지 마세요.');
+      }
+      console.log('='.repeat(60));
+      
+      return {
+        allTestsPassed,
+        testResults
+      };
+    }
+    
+    // 테스트를 즉시 실행하지 않고, 수동으로 호출할 수 있도록 전역 함수로 등록
+    window.runUnitTests = runUnitTests;
+    
+    console.log('✅ [2단계] 단위 테스트 함수가 준비되었습니다.');
+    console.log('   브라우저 콘솔에서 runUnitTests()를 실행하여 테스트를 시작하세요.');
+    
   </script>
 </body>
 </html>
