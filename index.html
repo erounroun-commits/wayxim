@@ -4691,9 +4691,45 @@ ${r.optPlan}
       
       const subs = getSubsForVendor(submissions, vendorId, false);
       
+      // 주식회사 천호(AD91) 필터링 전 상태 확인
+      const 천호BeforeFilter = submissions.filter(s => {
+        const code = s.companyCode ? String(s.companyCode).trim() : '';
+        return code === 'AD91' || s.companyName?.includes('천호');
+      });
+      const 천호AfterFilter = subs.filter(s => {
+        const code = s.companyCode ? String(s.companyCode).trim() : '';
+        return code === 'AD91' || s.companyName?.includes('천호');
+      });
+      
+      if (천호BeforeFilter.length !== 천호AfterFilter.length) {
+        console.error('[ERROR][천호-필터링-누락]', {
+          beforeFilterCount: 천호BeforeFilter.length,
+          afterFilterCount: 천호AfterFilter.length,
+          excludedSubmissions: 천호BeforeFilter.filter(s => {
+            const code = s.companyCode ? String(s.companyCode).trim() : '';
+            const matchesVendor = vendorId ? ((s.vendorId && s.vendorId === vendorId) || (s.companyCode === vendorId)) : true;
+            const notDeleted = s.isDeleted !== true;
+            const notTest = s.isTest !== true;
+            const isAccepted = true; // acceptedOnly = false
+            const shouldInclude = matchesVendor && notDeleted && notTest && isAccepted;
+            return !shouldInclude;
+          }).map(s => ({
+            no: s.no,
+            id: s.id,
+            accepted: s.accepted,
+            isDeleted: s.isDeleted,
+            isTest: s.isTest,
+            totalCnt: s.totalCnt,
+            vendorTypeAtSubmission: s.vendorTypeAtSubmission
+          }))
+        });
+      }
+      
       console.log('[DEBUG][settlement-filtered]', {
         filteredCount: subs.length,
-        excludedCount: submissions.length - subs.length
+        excludedCount: submissions.length - subs.length,
+        천호BeforeFilter: 천호BeforeFilter.length,
+        천호AfterFilter: 천호AfterFilter.length
       });
       
       // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
@@ -4705,6 +4741,11 @@ ${r.optPlan}
       });
       
       let totalCommission = 0;
+      // 주식회사 천호(AD91) commission 추적용
+      const 천호CommissionTracker = new Map(); // no -> { commission, vType, totalCnt, rate }
+      // 주식회사 천호(AD91) submissions 브레이크다운 추적
+      const 천호SubmissionsBreakdown = [];
+      
       for (const sub of sortedSubs) {
         // companyCode 정규화 (공백 제거, 대소문자 통일)
         const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
@@ -4806,6 +4847,54 @@ ${r.optPlan}
         
         const commission = calcCommissionForSubmission(sub, vType);
         
+        // 주식회사 천호(AD91) commission 추적 및 브레이크다운
+        if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+          // totalCnt 파싱
+          let totalCntParsed = 0;
+          if (sub.totalCnt != null) {
+            if (typeof sub.totalCnt === 'number') totalCntParsed = sub.totalCnt;
+            else if (Array.isArray(sub.totalCnt)) totalCntParsed = sub.totalCnt.length > 0 ? Number(sub.totalCnt[0]) || 0 : 0;
+            else {
+              const strValue = String(sub.totalCnt);
+              const firstNumber = strValue.split(/[\/\s]/)[0];
+              const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+              totalCntParsed = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+            }
+          }
+          
+          const fixedUnitFee = vType === '우수' ? 1000 : 1500;
+          const amount = fixedUnitFee * totalCntParsed;
+          
+          const month = sub.submittedAt ? `${new Date(sub.submittedAt).getFullYear()}-${String(new Date(sub.submittedAt).getMonth() + 1).padStart(2, '0')}` : 'N/A';
+          
+          천호CommissionTracker.set(sub.no, {
+            commission: commission,
+            vType: vType,
+            totalCnt: sub.totalCnt,
+            rate: fixedUnitFee,
+            vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
+            hasSavedVendorType: hasSavedVendorType
+          });
+          
+          // 브레이크다운 추가
+          천호SubmissionsBreakdown.push({
+            submissionId: sub.id || sub.no || 'N/A',
+            no: sub.no,
+            vendorName: sub.companyName || 'N/A',
+            submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : 'N/A',
+            month: month,
+            count: totalCntParsed,
+            countRaw: sub.totalCnt,
+            vendorTypeAtSubmit: sub.vendorTypeAtSubmission || vType || 'N/A',
+            fixedUnitFee: fixedUnitFee,
+            amount: amount,
+            accepted: sub.accepted || false,
+            isDeleted: sub.isDeleted || false,
+            isTest: sub.isTest || false,
+            calculation: `${totalCntParsed} × ${fixedUnitFee} = ${amount}`
+          });
+        }
+        
         // 디버깅: 각 submission의 계산 상세 로그
         const expectedComm = sub.totalCnt ? (vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500) : 0;
         const commissionMatch = commission === expectedComm ? '✅' : '❌ MISMATCH';
@@ -4869,6 +4958,25 @@ ${r.optPlan}
         return matchesVendor && w.status === 'completed';
       });
       const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+      
+      // 주식회사 천호(AD91) 출금 이력 확인
+      if (vendorId === null || vendorId === 'ALL') {
+        if (천호Subs.length > 0) {
+          console.warn('[WARN][천호-출금-이력]', {
+            vendorName: '주식회사 천호',
+            vendorCode: 'AD91',
+            totalWithdrawals: relevantWithdrawals.length,
+            totalWithdrawnAmount: totalWithdrawn,
+            withdrawals: relevantWithdrawals.map(w => ({
+              id: w.id,
+              amount: w.amount,
+              status: w.status,
+              createdAt: w.createdAt ? new Date(w.createdAt).toISOString() : 'N/A',
+              vendorId: w.vendorId || 'ALL'
+            }))
+          });
+        }
+      }
       const result = {
         totalCommission,
         totalWithdrawn,
@@ -4882,45 +4990,158 @@ ${r.optPlan}
       });
       
       if (천호Subs.length > 0) {
-        let 천호TotalCommission = 0;
-        const 천호Details = 천호Subs.map(s => {
-          const normalizedCode = s.companyCode ? String(s.companyCode).trim() : '';
-          let vType = s.vendorTypeAtSubmission || 'N/A';
-          const rate = vType === '우수' ? 1000 : (vType === '일반' ? 1500 : 0);
-          let totalCnt = 0;
-          if (s.totalCnt != null) {
-            if (typeof s.totalCnt === 'number') totalCnt = s.totalCnt;
-            else if (Array.isArray(s.totalCnt)) totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
-            else {
-              const strValue = String(s.totalCnt);
-              const firstNumber = strValue.split(/[\/\s]/)[0];
-              const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-              totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-            }
+        // [로그 1] submissions 브레이크다운
+        console.warn('[로그1][천호-submissions-브레이크다운]', {
+          vendorName: '주식회사 천호',
+          vendorCode: 'AD91',
+          submissionsBreakdown: 천호SubmissionsBreakdown,
+          summary: {
+            totalSubmissions: 천호SubmissionsBreakdown.length,
+            totalAmount: 천호SubmissionsBreakdown.reduce((sum, s) => sum + s.amount, 0),
+            byMonth: 천호SubmissionsBreakdown.reduce((acc, s) => {
+              if (!acc[s.month]) acc[s.month] = { count: 0, amount: 0, submissions: [] };
+              acc[s.month].count += s.count;
+              acc[s.month].amount += s.amount;
+              acc[s.month].submissions.push({
+                no: s.no,
+                count: s.count,
+                fixedUnitFee: s.fixedUnitFee,
+                amount: s.amount
+              });
+              return acc;
+            }, {})
           }
-          const commission = totalCnt * rate;
-          천호TotalCommission += commission;
-          return {
-            no: s.no,
-            submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : null,
-            month: s.submittedAt ? `${new Date(s.submittedAt).getFullYear()}-${String(new Date(s.submittedAt).getMonth() + 1).padStart(2, '0')}` : 'N/A',
-            totalCnt: totalCnt,
-            vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A',
-            rate: rate,
-            commission: commission
-          };
         });
+        
+        // 실제 루프에서 계산된 commission 사용 (추적된 값)
+        let 천호TotalCommission = 0;
+        const 천호Details = [];
+        
+        for (const sub of 천호Subs) {
+          const tracked = 천호CommissionTracker.get(sub.no);
+          if (tracked) {
+            천호TotalCommission += tracked.commission;
+            
+            let totalCnt = 0;
+            if (sub.totalCnt != null) {
+              if (typeof sub.totalCnt === 'number') totalCnt = sub.totalCnt;
+              else if (Array.isArray(sub.totalCnt)) totalCnt = sub.totalCnt.length > 0 ? Number(sub.totalCnt[0]) || 0 : 0;
+              else {
+                const strValue = String(sub.totalCnt);
+                const firstNumber = strValue.split(/[\/\s]/)[0];
+                const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+                totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+              }
+            }
+            
+            천호Details.push({
+              no: sub.no,
+              id: sub.id || 'N/A',
+              submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null,
+              month: sub.submittedAt ? `${new Date(sub.submittedAt).getFullYear()}-${String(new Date(sub.submittedAt).getMonth() + 1).padStart(2, '0')}` : 'N/A',
+              totalCnt: totalCnt,
+              totalCntRaw: sub.totalCnt,
+              vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
+              vendorTypeUsed: tracked.vType,
+              hasSavedVendorType: tracked.hasSavedVendorType,
+              rate: tracked.rate,
+              commission: tracked.commission,
+              accepted: sub.accepted || false,
+              isDeleted: sub.isDeleted || false,
+              isTest: sub.isTest || false
+            });
+          } else {
+            // 추적되지 않은 submission 발견 (필터링에서 제외되었거나 계산 누락)
+            console.error('[ERROR][천호-추적-누락]', {
+              no: sub.no,
+              id: sub.id,
+              totalCnt: sub.totalCnt,
+              vendorTypeAtSubmission: sub.vendorTypeAtSubmission,
+              accepted: sub.accepted,
+              isDeleted: sub.isDeleted,
+              isTest: sub.isTest,
+              message: '이 submission이 루프에서 계산되지 않았습니다.'
+            });
+          }
+        }
+        
+        // [로그 2] 출금가능액 계산 과정
+        const submissionsAmountSum = result.totalCommission; // 모든 submissions의 amount 합계
+        const withdrawHistorySum = result.totalWithdrawn; // 모든 출금 이력 amount 합계
+        const withdrawableAmount = result.availableAmount; // 최종 출금가능액
+        
+        console.warn('[로그2][천호-출금가능액-계산-과정]', {
+          vendorName: '주식회사 천호',
+          vendorCode: 'AD91',
+          calculations: {
+            submissionsAmountSum: submissionsAmountSum,
+            withdrawHistorySum: withdrawHistorySum,
+            withdrawableAmount: withdrawableAmount,
+            formula: `${submissionsAmountSum.toLocaleString()} - ${withdrawHistorySum.toLocaleString()} = ${withdrawableAmount.toLocaleString()}`
+          },
+          천호SubmissionsAmount: 천호TotalCommission,
+          천호Breakdown: 천호SubmissionsBreakdown.map(s => ({
+            no: s.no,
+            month: s.month,
+            count: s.count,
+            fixedUnitFee: s.fixedUnitFee,
+            amount: s.amount,
+            calculation: s.calculation
+          })),
+          출금이력상세: relevantWithdrawals.map(w => ({
+            id: w.id,
+            amount: w.amount,
+            status: w.status,
+            createdAt: w.createdAt ? new Date(w.createdAt).toISOString() : 'N/A',
+            vendorId: w.vendorId || 'ALL'
+          }))
+        });
+        
+        // 190,000원 분석
+        const expectedIncrease = 300000; // 200건 × 1,500원
+        const actualIncrease = 천호TotalCommission - (submissionsAmountSum - 천호TotalCommission); // 전체에서 천호 제외한 금액과 비교는 복잡하므로...
+        // 대신 천호의 submission별 합계를 확인
+        const 천호AmountSum = 천호SubmissionsBreakdown.reduce((sum, s) => sum + s.amount, 0);
         
         console.warn('[WARN][천호-최종-정산]', {
           vendorName: '주식회사 천호',
           vendorCode: 'AD91',
           submissionsCount: 천호Subs.length,
+          trackedCount: 천호CommissionTracker.size,
           submissionsDetails: 천호Details,
           totalCommission: 천호TotalCommission,
+          천호AmountSum: 천호AmountSum,
           totalWithdrawn: result.totalWithdrawn,
           availableAmount: result.availableAmount,
-          calculation: `총 ${천호Subs.length}건의 submission 합계: ${천호TotalCommission.toLocaleString()}원`
+          calculation: `총 ${천호Subs.length}건의 submission 합계: ${천호TotalCommission.toLocaleString()}원`,
+          breakdown: 천호Details.map(d => `${d.no}번: ${d.totalCnt}건 × ${d.rate}원 = ${d.commission.toLocaleString()}원`).join(', '),
+          analysis: {
+            expectedIncrease: expectedIncrease,
+            천호AmountSum: 천호AmountSum,
+            difference: expectedIncrease - 천호AmountSum,
+            message: 천호AmountSum === expectedIncrease 
+              ? '✅ 천호 submission 합계가 기대값과 일치합니다'
+              : `❌ 천호 submission 합계가 기대값과 다릅니다 (차이: ${(expectedIncrease - 천호AmountSum).toLocaleString()}원)`
+          }
         });
+        
+        // 누락된 submission 확인
+        if (천호Subs.length !== 천호Details.length) {
+          console.error('[ERROR][천호-누락-확인]', {
+            expectedCount: 천호Subs.length,
+            actualCount: 천호Details.length,
+            trackedCount: 천호CommissionTracker.size,
+            missingSubmissions: 천호Subs.filter(s => !천호CommissionTracker.has(s.no)).map(s => ({
+              no: s.no,
+              id: s.id,
+              totalCnt: s.totalCnt,
+              vendorTypeAtSubmission: s.vendorTypeAtSubmission,
+              accepted: s.accepted,
+              isDeleted: s.isDeleted,
+              isTest: s.isTest
+            }))
+          });
+        }
       }
       
       console.log('[DEBUG][settlement]', {
