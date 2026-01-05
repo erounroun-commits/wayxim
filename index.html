@@ -2828,20 +2828,6 @@
     }
     
     function buildDetailText(r){
-      // 수수료 계산
-      let unitFee = 0;
-      let vendorType = 'N/A';
-      if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
-        unitFee = r.fixedUnitFee;
-        vendorType = r.fixedUnitFee === 1000 ? '우수' : '일반';
-      } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
-        vendorType = r.vendorTypeAtSubmission;
-        unitFee = r.vendorTypeAtSubmission === '우수' ? 1000 : 1500;
-      }
-      
-      const totalCnt = typeof r.totalCnt === 'number' ? r.totalCnt : parseInt(String(r.totalCnt || '0').replace(/[^0-9-]/g, ''), 10);
-      const totalCommission = totalCnt * unitFee;
-      
       return `【WAYX임반장 작업 요청서】
 ▷ 제출번호: ${r.no}
 ▷ 제출시간: ${formatDateTime(r.submittedAt)}
@@ -2861,16 +2847,7 @@ ${r.optPlan}
 □ 상품값 입금 대행: ${r.prepay}
 □ 택배 대행 여부: ${r.courier}
 □ 작업비/택배비 계산서: ${r.billWork}
-□ 상품금액 계산서: ${r.billProd}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 수수료 정보 (제출 시점 기준 고정)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-▷ 벤더 타입: ${vendorType} (제출 시점 기준)
-▷ 건당 수수료: ${unitFee > 0 ? unitFee.toLocaleString() + '원' : 'N/A'}
-▷ 총 수수료: ${totalCommission > 0 ? totalCommission.toLocaleString() + '원' : 'N/A'} (${totalCnt}건 × ${unitFee > 0 ? unitFee.toLocaleString() + '원' : 'N/A'})
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-※ 참고: 벤더 타입과 수수료는 제출 시점에 확정되어 이후 변경되지 않습니다.`;
+□ 상품금액 계산서: ${r.billProd}`;
     }
 
     async function showReqDashboard(){
@@ -4987,14 +4964,14 @@ ${r.optPlan}
             // 오류 발생 시 제출 시점 기준 계산 실패이므로 '일반'으로 설정
             vType = '일반';
           }
-        } else if (normalizedCompanyCode && !hasSavedVendorType) {
-          // submittedAt이 없고 저장된 값도 없는 경우에만 현재 vendorType 사용
+        } else if (normalizedCompanyCode && !hasSavedVendorType && !sub.submittedAt) {
+          // submittedAt이 없고 저장된 값도 없는 경우에만 현재 vendorType 사용 (최후의 수단)
           vType = vendorTypes[normalizedCompanyCode] || '일반';
         }
         
-        // 핵심: 저장된 vendorTypeAtSubmission이 있으면 절대 덮어쓰지 않음
-        // vendorId나 대소문자 매칭은 저장된 값이 없을 때만 시도
-        if (!hasSavedVendorType) {
+        // 핵심: 저장된 vendorTypeAtSubmission이나 fixedUnitFee가 있으면 절대 덮어쓰지 않음
+        // vendorId나 대소문자 매칭은 저장된 값이 없고 submittedAt도 없을 때만 시도
+        if (!hasSavedVendorType && !sub.fixedUnitFee && !sub.submittedAt) {
           // vendorId로도 시도 (companyCode로 찾지 못한 경우)
           if (vType === '일반' && normalizedVendorId) {
             vType = vendorTypes[normalizedVendorId] || '일반';
@@ -5002,8 +4979,7 @@ ${r.optPlan}
           
           // 대소문자 무시 매칭 시도 (companyCode 매칭 실패 시)
           // 주의: 저장된 vendorTypeAtSubmission이나 fixedUnitFee가 있으면 절대 실행하지 않음
-          // fixedUnitFee가 있으면 vendorType 계산이 불필요하므로 이 로직도 건너뛰어야 함
-          if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0 && !hasSavedVendorType && !sub.fixedUnitFee) {
+          if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0) {
             const matchedKey = Object.keys(vendorTypes).find(key => 
               key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
             );
@@ -5104,18 +5080,28 @@ ${r.optPlan}
       });
       
       // 전체 submission 상세 로그 (디버깅용)
+      const 천호CalculatedCommission = 천호Subs.reduce((sum, s) => {
+        const commission = calcCommissionForSubmission(s, s.vendorTypeAtSubmission || '일반');
+        return sum + commission;
+      }, 0);
+      
       console.log('[DEBUG][settlement-final]', {
         totalSubmissions: submissions.length,
         filteredSubmissions: subs.length,
         uniqueSubmissions: sortedSubs.length,
+        duplicateExcluded: duplicateCount,
         totalCommission: totalCommission,
         totalWithdrawn: totalWithdrawn,
         availableAmount: result.availableAmount,
         천호SubmissionsCount: 천호Subs.length,
-        천호TotalCommission: 천호Subs.reduce((sum, s) => {
-          const commission = calcCommissionForSubmission(s, s.vendorTypeAtSubmission || '일반');
-          return sum + commission;
-        }, 0)
+        천호TotalCommission: 천호CalculatedCommission,
+        천호Submissions: 천호Subs.map(s => ({
+          no: s.no,
+          totalCnt: s.totalCnt,
+          vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A',
+          fixedUnitFee: s.fixedUnitFee || 'N/A',
+          commission: calcCommissionForSubmission(s, s.vendorTypeAtSubmission || '일반')
+        }))
       });
       
       if (천호Subs.length > 0) {
@@ -7268,6 +7254,13 @@ ${r.optPlan}
           <button class="btn" onclick="confirmDeleteAll()" type="button" style="background:#8a2b2b;">전체 데이터 삭제</button>
         </div>
       </div>`;
+      
+      // 벤더타입 업데이트 패널 추가
+      html += `<div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;margin-bottom:20px;">
+        <h3 style="margin:0 0 12px;color:var(--brand);font-size:16px;">벤더타입 일괄 업데이트</h3>
+        <p style="margin:0 0 12px;color:#6a7a89;font-size:14px;">벤더타입이 N/A인 이전 작업요청서건들을 현재 기준 벤더타입으로 업데이트합니다.</p>
+        <button class="btn" onclick="updateMissingVendorTypes()" type="button">벤더타입 업데이트 실행</button>
+      </div>`;
 
       // Company rename panel
       html += `<div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;margin-bottom:20px;">
@@ -7472,8 +7465,22 @@ ${r.optPlan}
             await saveSubs(filteredRows);
           }
           
+          // localStorage 업데이트
+          const filteredRows = rows.filter(r => r.no !== no);
+          localStorage.setItem("wp_submissions", JSON.stringify(filteredRows));
+          
+          // 캐시 무효화
+          window.wp_data_cache_cleared = true;
+          clearVendorTypeCache();
+          
           alert('데이터가 삭제되었습니다.');
-          showDataManagement();
+          await showDataManagement();
+          
+          // 출금가능액 화면이 열려있으면 자동 새로고침
+          const currentSection = document.querySelector('[data-section].active')?.getAttribute('data-section');
+          if(currentSection === 'settle-withdrawal'){
+            await showWithdrawalRequest();
+          }
         } catch (error) {
           console.error('❌ 데이터 삭제 실패:', error);
           alert('데이터 삭제 중 오류가 발생했습니다: ' + error.message);
@@ -7493,6 +7500,60 @@ ${r.optPlan}
       openDetail(buildDetailText(targetRow));
     }
     
+    // 벤더타입이 N/A인 이전 작업요청서건들을 현재 기준 벤더타입으로 업데이트
+    async function updateMissingVendorTypes(){
+      if(!confirm('벤더타입이 N/A인 이전 작업요청서건들을 현재 기준 벤더타입으로 업데이트하시겠습니까?')) return;
+      
+      showLoading();
+      try {
+        const rows = await loadSubs();
+        const vendorTypes = await getAllVendorTypes(rows, true);
+        let updatedCount = 0;
+        
+        for(const row of rows){
+          // vendorTypeAtSubmission이 없거나 N/A인 경우만 업데이트
+          if(!row.vendorTypeAtSubmission || row.vendorTypeAtSubmission === 'N/A'){
+            const companyCode = row.companyCode ? String(row.companyCode).trim() : '';
+            if(companyCode && vendorTypes[companyCode]){
+              const currentVendorType = vendorTypes[companyCode];
+              row.vendorTypeAtSubmission = currentVendorType;
+              row.fixedUnitFee = currentVendorType === '우수' ? 1000 : 1500;
+              
+              // Firebase 업데이트
+              if(window.db && row.id){
+                try {
+                  const docRef = window.doc(window.db, 'submissions', row.id);
+                  await window.updateDoc(docRef, {
+                    vendorTypeAtSubmission: currentVendorType,
+                    fixedUnitFee: row.fixedUnitFee
+                  });
+                } catch(error){
+                  console.error(`Firebase 업데이트 실패 (no: ${row.no}):`, error);
+                }
+              }
+              
+              updatedCount++;
+            }
+          }
+        }
+        
+        // localStorage 업데이트
+        await saveSubs(rows);
+        
+        // 캐시 무효화
+        clearVendorTypeCache();
+        window.wp_data_cache_cleared = true;
+        
+        alert(`${updatedCount}건의 벤더타입이 업데이트되었습니다.`);
+        await showDataManagement();
+      } catch(error){
+        console.error('벤더타입 업데이트 실패:', error);
+        alert('벤더타입 업데이트 중 오류가 발생했습니다: ' + error.message);
+      } finally {
+        hideLoading();
+      }
+    }
+
     async function updateProgressCount(no, newCount){
       const rows = await loadSubs();
       const targetRow = rows.find(r => r.no === no);
@@ -7591,8 +7652,19 @@ ${r.optPlan}
       window.wp_pending_edits = {};
       const btn = document.getElementById('dmSaveBtn');
       if(btn) btn.setAttribute('disabled','true');
+      
+      // 캐시 무효화
+      window.wp_data_cache_cleared = true;
+      clearVendorTypeCache();
+      
       alert(updated+ '건 저장되었습니다.');
       await showDataManagement();
+      
+      // 출금가능액 화면이 열려있으면 자동 새로고침
+      const currentSection = document.querySelector('[data-section].active')?.getAttribute('data-section');
+      if(currentSection === 'settle-withdrawal'){
+        await showWithdrawalRequest();
+      }
     }
 
     // 업체명 변경 핸들러
@@ -8239,9 +8311,19 @@ ${r.optPlan}
           전체건수: savedData.length
         });
         
+        // 캐시 무효화
+        window.wp_data_cache_cleared = true;
+        clearVendorTypeCache();
+        
         // 신규요청건 탭 즉시 새로고침
         console.log('🔄 신규요청건 탭 새로고침');
         await showReqList(false);
+        
+        // 출금가능액 화면이 열려있으면 자동 새로고침
+        const currentSection = document.querySelector('[data-section].active')?.getAttribute('data-section');
+        if(currentSection === 'settle-withdrawal'){
+          await showWithdrawalRequest();
+        }
         
         // 모든 관리자 탭의 데이터 캐시 강제 초기화
         console.log('🔄 모든 관리자 탭 데이터 캐시 초기화');
