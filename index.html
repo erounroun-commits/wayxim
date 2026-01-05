@@ -4715,20 +4715,26 @@ ${r.optPlan}
         // 저장된 값이 없으면 제출 시점 기준으로 계산 (하위 호환성)
         let vType = '일반';
         
-        // 1순위: 저장된 vendorTypeAtSubmission 사용 (가장 확실한 방법)
+        // 핵심: 저장된 vendorTypeAtSubmission을 절대 우선 사용
+        // 제출 시점에 확정된 vendorType이 저장되어 있으면 그것을 무조건 사용
+        // 이후 로직에서 덮어쓰지 않도록 주의
+        let hasSavedVendorType = false;
+        
         if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
           vType = sub.vendorTypeAtSubmission;
+          hasSavedVendorType = true;
           
           // 주식회사 천호(AD91) 특별 로깅
           if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-            console.log('[INFO][천호-settlement] 저장된 vendorTypeAtSubmission 사용:', {
+            console.warn('[WARN][천호-settlement] 저장된 vendorTypeAtSubmission 사용 (절대 우선):', {
               no: sub.no,
               vendorTypeAtSubmission: sub.vendorTypeAtSubmission,
-              totalCnt: sub.totalCnt
+              totalCnt: sub.totalCnt,
+              expectedCommission: sub.totalCnt * (sub.vendorTypeAtSubmission === '우수' ? 1000 : 1500)
             });
           }
         }
-        // 2순위: 제출 시점 기준 계산 (저장된 값이 없는 경우, 하위 호환성)
+        // 저장된 값이 없는 경우에만 제출 시점 기준 계산 (하위 호환성)
         else if (normalizedCompanyCode && sub.submittedAt) {
           try {
             // 제출 시점 기준으로 vendorType 계산
@@ -4749,37 +4755,8 @@ ${r.optPlan}
               console.warn('[WARN][천호-settlement] vendorTypeAtSubmission이 없어서 계산:', {
                 no: sub.no,
                 calculatedVType: calculatedVType,
-                totalCnt: sub.totalCnt
-              });
-            }
-            
-            // 디버깅 로그 (주식회사 천호 특별 로깅)
-            if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-              const submissionsBeforeThis = sortedSubs.filter(s => {
-                if (!s.submittedAt || !s.companyCode) return false;
-                // 현재 submission 제외
-                if ((s.id && s.id === sub.id) || (s.no && s.no === sub.no)) return false;
-                const sCompanyCode = String(s.companyCode).trim();
-                if (sCompanyCode !== normalizedCompanyCode) return false;
-                const sTime = new Date(s.submittedAt);
-                const subTime = new Date(sub.submittedAt);
-                return sTime < subTime;
-              });
-              
-              console.warn('[WARN][천호-vendorType-calculation]', {
-                no: sub.no,
-                id: sub.id,
-                companyCode: normalizedCompanyCode,
-                submittedAt: new Date(sub.submittedAt).toISOString(),
-                calculatedVType: calculatedVType,
-                currentVendorType: vendorTypes[normalizedCompanyCode] || '일반',
                 totalCnt: sub.totalCnt,
-                submissionsBeforeThisCount: submissionsBeforeThis.length,
-                submissionsBeforeThis: submissionsBeforeThis.map(s => ({
-                  no: s.no,
-                  submittedAt: new Date(s.submittedAt).toISOString(),
-                  totalCnt: s.totalCnt
-                }))
+                expectedCommission: sub.totalCnt * (calculatedVType === '우수' ? 1000 : 1500)
               });
             }
           } catch (error) {
@@ -4792,29 +4769,33 @@ ${r.optPlan}
             // 오류 발생 시 제출 시점 기준 계산 실패이므로 '일반'으로 설정
             vType = '일반';
           }
-        } else if (normalizedCompanyCode) {
-          // submittedAt이 없는 경우 현재 vendorType 사용
+        } else if (normalizedCompanyCode && !hasSavedVendorType) {
+          // submittedAt이 없고 저장된 값도 없는 경우에만 현재 vendorType 사용
           vType = vendorTypes[normalizedCompanyCode] || '일반';
         }
         
-        // vendorId로도 시도 (companyCode로 찾지 못한 경우)
-        if (vType === '일반' && normalizedVendorId) {
-          vType = vendorTypes[normalizedVendorId] || '일반';
-        }
-        
-        // 대소문자 무시 매칭 시도 (companyCode 매칭 실패 시)
-        if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0) {
-          const matchedKey = Object.keys(vendorTypes).find(key => 
-            key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
-          );
-          if (matchedKey) {
-            vType = vendorTypes[matchedKey];
-            console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
-              original: sub.companyCode,
-              normalized: normalizedCompanyCode,
-              matched: matchedKey,
-              vendorType: vType
-            });
+        // 핵심: 저장된 vendorTypeAtSubmission이 있으면 절대 덮어쓰지 않음
+        // vendorId나 대소문자 매칭은 저장된 값이 없을 때만 시도
+        if (!hasSavedVendorType) {
+          // vendorId로도 시도 (companyCode로 찾지 못한 경우)
+          if (vType === '일반' && normalizedVendorId) {
+            vType = vendorTypes[normalizedVendorId] || '일반';
+          }
+          
+          // 대소문자 무시 매칭 시도 (companyCode 매칭 실패 시)
+          if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0) {
+            const matchedKey = Object.keys(vendorTypes).find(key => 
+              key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
+            );
+            if (matchedKey) {
+              vType = vendorTypes[matchedKey];
+              console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
+                original: sub.companyCode,
+                normalized: normalizedCompanyCode,
+                matched: matchedKey,
+                vendorType: vType
+              });
+            }
           }
         }
         
