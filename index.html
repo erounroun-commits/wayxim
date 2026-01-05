@@ -4114,6 +4114,68 @@ ${r.optPlan}
     let vendorTypeCacheTimestamp = 0;
     const VENDOR_TYPE_CACHE_DURATION = 60000; // 1분 캐시
 
+    // 제출 시점 기준 vendorType 계산 함수
+    async function getVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions) {
+      if (!vendorCode || !submittedAt) return '일반';
+      
+      try {
+        const submissionTime = new Date(submittedAt);
+        
+        // 제출 시점 이전의 submission만 필터링
+        const submissionsBeforeThis = allSubmissions.filter(s => {
+          if (!s.submittedAt || s.companyCode !== vendorCode) return false;
+          const sTime = new Date(s.submittedAt);
+          return sTime <= submissionTime;
+        });
+        
+        if (submissionsBeforeThis.length === 0) return '일반';
+        
+        // 제출 시점 기준으로 월별 건수 계산
+        const monthCounts = {};
+        submissionsBeforeThis.forEach(s => {
+          const sDate = new Date(s.submittedAt);
+          const monthKey = `${sDate.getFullYear()}-${pad(sDate.getMonth() + 1)}`;
+          if (!monthCounts[monthKey]) {
+            monthCounts[monthKey] = 0;
+          }
+          const totalCnt = typeof s.totalCnt === 'number' ? s.totalCnt : parseInt(String(s.totalCnt || '0').replace(/[^0-9-]/g, ''), 10);
+          monthCounts[monthKey] += (isNaN(totalCnt) ? 0 : totalCnt);
+        });
+        
+        // 연속된 2개월 이상 200건 달성 여부 확인
+        const sortedMonths = Object.keys(monthCounts).sort();
+        for (let i = 0; i < sortedMonths.length - 1; i++) {
+          const month1 = sortedMonths[i];
+          const month2 = sortedMonths[i + 1];
+          
+          if (monthCounts[month1] >= 200 && monthCounts[month2] >= 200) {
+            console.log('[DEBUG][vendorType-at-time]', {
+              vendorCode: vendorCode,
+              submittedAt: submissionTime.toISOString(),
+              month1: month1,
+              month1Count: monthCounts[month1],
+              month2: month2,
+              month2Count: monthCounts[month2],
+              result: '우수'
+            });
+            return '우수';
+          }
+        }
+        
+        console.log('[DEBUG][vendorType-at-time]', {
+          vendorCode: vendorCode,
+          submittedAt: submissionTime.toISOString(),
+          monthCounts: monthCounts,
+          result: '일반'
+        });
+        
+        return '일반';
+      } catch (error) {
+        console.error('[ERROR][vendorType-at-time]', error);
+        return '일반';
+      }
+    }
+
     // rows를 파라미터로 받는 최적화된 버전
     async function getVendorTypeWithRows(vendorCode, rows, vendorTypeOverrides = null) {
       // 먼저 데이터 관리탭에서 설정한 override 값 확인
@@ -4408,7 +4470,22 @@ ${r.optPlan}
         
         if (normalizedCompanyCode && sub.submittedAt) {
           // 제출 시점 기준으로 vendorType 계산
-          vType = await getVendorTypeAtSubmissionTime(normalizedCompanyCode, sub.submittedAt, subs);
+          // 주의: subs가 아닌 전체 submissions를 전달해야 정확한 계산 가능
+          vType = await getVendorTypeAtSubmissionTime(normalizedCompanyCode, sub.submittedAt, submissions);
+          
+          console.log('[DEBUG][vendorType-lookup]', {
+            no: sub.no,
+            companyCode: normalizedCompanyCode,
+            companyName: sub.companyName,
+            submittedAt: new Date(sub.submittedAt).toISOString(),
+            vendorTypeAtTime: vType,
+            currentVendorType: vendorTypes[normalizedCompanyCode] || '일반',
+            totalSubmissionsBeforeThis: submissions.filter(s => 
+              s.companyCode === normalizedCompanyCode && 
+              s.submittedAt && 
+              new Date(s.submittedAt) <= new Date(sub.submittedAt)
+            ).length
+          });
           
           // 제출 시점 기준 계산 실패 시 현재 vendorType 사용 (폴백)
           if (vType === '일반') {
@@ -4459,9 +4536,10 @@ ${r.optPlan}
           totalCntType: typeof sub.totalCnt,
           totalCntIsArray: Array.isArray(sub.totalCnt),
           vendorType: vType,
-          vendorTypeSource: vType !== '일반' ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'),
+          vendorTypeSource: (normalizedCompanyCode && sub.submittedAt && vType !== '일반') ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'),
           commission: commission,
-          accumulatedSum: totalCommission + commission
+          accumulatedSum: totalCommission + commission,
+          expectedCommission: sub.totalCnt ? (vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500) : 0
         });
         
         totalCommission += commission;
@@ -7177,8 +7255,11 @@ ${r.optPlan}
             일진행건수: dailyCnt
           });
           
-          // 기존 데이터에서 중복 확인 (업체코드, 업체명, 키워드, 총 진행건수, 일 진행건수가 모두 동일한 경우)
-          // totalCnt와 dailyCnt는 타입 변환 후 비교 (문자열/숫자 혼용 대응)
+          // 기존 데이터에서 중복 확인
+          // 주의: 제출시간(submittedAt)도 비교하여 같은 날짜/시간에 제출된 것만 중복으로 판단
+          // 이렇게 하면 같은 업체가 같은 건수로 여러 번 제출해도 각각 별도 submission으로 생성됨
+          const incomingSubmittedAt = parseTs(obj['제출시간']);
+          
           const existingDuplicate = rows.find(existing => {
             const existingTotalCnt = typeof existing.totalCnt === 'number' 
               ? existing.totalCnt 
@@ -7187,11 +7268,23 @@ ${r.optPlan}
               ? existing.dailyCnt 
               : parseInt(String(existing.dailyCnt || '0').replace(/[^0-9-]/g, ''), 10);
             
+            // 제출시간도 비교 (같은 날짜에 제출된 것만 중복으로 판단)
+            let submittedAtMatch = false;
+            if (incomingSubmittedAt && existing.submittedAt) {
+              const incomingDate = new Date(incomingSubmittedAt);
+              const existingDate = new Date(existing.submittedAt);
+              // 같은 날짜인지 확인 (시간은 무시)
+              submittedAtMatch = incomingDate.toDateString() === existingDate.toDateString();
+            } else if (!incomingSubmittedAt && !existing.submittedAt) {
+              submittedAtMatch = true; // 둘 다 제출시간이 없으면 매칭
+            }
+            
             const isDuplicate = existing.companyName === companyName && 
                                existing.companyCode === companyCode && 
                                existing.keywords === keywords &&
                                existingTotalCnt === totalCnt &&
                                existingDailyCnt === dailyCnt &&
+                               submittedAtMatch && // 제출시간도 일치해야 중복
                                companyName !== '' && companyCode !== '' && keywords !== '';
             
             if (isDuplicate) {
@@ -7202,11 +7295,14 @@ ${r.optPlan}
                 기존키워드: existing.keywords,
                 기존총진행건수: existing.totalCnt,
                 기존일진행건수: existing.dailyCnt,
+                기존제출시간: existing.submittedAt ? new Date(existing.submittedAt).toISOString() : null,
                 새업체명: companyName,
                 새업체코드: companyCode,
                 새키워드: keywords,
                 새총진행건수: totalCnt,
-                새일진행건수: dailyCnt
+                새일진행건수: dailyCnt,
+                새제출시간: incomingSubmittedAt ? new Date(incomingSubmittedAt).toISOString() : null,
+                제출시간일치: submittedAtMatch
               });
             }
             
@@ -7220,7 +7316,8 @@ ${r.optPlan}
               업체코드: companyCode,
               키워드: keywords,
               총진행건수: totalCnt,
-              일진행건수: dailyCnt
+              일진행건수: dailyCnt,
+              제출시간: incomingSubmittedAt ? new Date(incomingSubmittedAt).toISOString() : null
             });
             rec = existingDuplicate;
             duplicateCount++;
