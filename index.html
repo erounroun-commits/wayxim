@@ -4515,6 +4515,8 @@ ${r.optPlan}
       
       // 3. 각 submission의 수수료 계산
       let totalCommission = 0;
+      let ad91TotalCommission = 0; // AD91 전용 추적
+      let ad91Submissions = []; // AD91 submission 추적
       
       for (const sub of sortedSubs) {
         // vendorTypeAtSubmission이 있으면 우선 사용
@@ -4537,6 +4539,19 @@ ${r.optPlan}
         const commission = simulateCalcCommissionForSubmission(sub, vendorType);
         totalCommission += commission;
         
+        // AD91 추적
+        const isAD91 = sub.companyCode && String(sub.companyCode).trim() === 'AD91';
+        if (isAD91) {
+          ad91TotalCommission += commission;
+          ad91Submissions.push({
+            no: sub.no,
+            totalCnt: sub.totalCnt,
+            vendorType: vendorType,
+            commission: commission,
+            submittedAt: sub.submittedAt
+          });
+        }
+        
         // 디버깅 로그
         console.log('[DEBUG][settlement-detail]', {
           no: sub.no,
@@ -4548,8 +4563,23 @@ ${r.optPlan}
           vendorTypeSource: sub.vendorTypeAtSubmission ? 'saved' : 'calculated',
           rate: vendorType === '우수' ? 1000 : 1500,
           commission: commission,
-          accumulatedSum: totalCommission
+          accumulatedSum: totalCommission,
+          isAD91: isAD91
         });
+      }
+      
+      // AD91 상세 로그
+      if (ad91Submissions.length > 0) {
+        console.log('\n' + '='.repeat(80));
+        console.log('🔍 [AD91 상세 분석] 주식회사 천호 계산 내역');
+        console.log('='.repeat(80));
+        console.log('📊 AD91 submission 개수:', ad91Submissions.length);
+        console.log('📊 AD91 submission 상세:');
+        ad91Submissions.forEach((s, idx) => {
+          console.log(`  ${idx + 1}. NO: ${s.no}, 건수: ${s.totalCnt}, 타입: ${s.vendorType}, 수수료: ${s.commission.toLocaleString()}원, 제출일: ${s.submittedAt}`);
+        });
+        console.log('📊 AD91 총 수수료:', ad91TotalCommission.toLocaleString(), '원');
+        console.log('='.repeat(80) + '\n');
       }
       
       // 4. 출금액 계산 (completed 상태만)
@@ -4570,6 +4600,15 @@ ${r.optPlan}
         subsCount: sortedSubs.length
       };
       
+      // AD91 출금액 계산
+      const ad91Withdrawals = (withdrawals || []).filter(w => {
+        const matchesAD91 = (w.vendorId && w.vendorId === 'AD91') || 
+                            (w.companyCode && w.companyCode === 'AD91');
+        return matchesAD91 && w.status === 'completed';
+      });
+      const ad91TotalWithdrawn = ad91Withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+      const ad91AvailableAmount = ad91TotalCommission - ad91TotalWithdrawn;
+      
       console.log('[DEBUG][settlement]', {
         vendorId: vendorId || 'ALL',
         subsCount: result.subsCount,
@@ -4578,6 +4617,17 @@ ${r.optPlan}
         availableAmount: result.availableAmount,
         logic: 'NEW (전체 벤더 공통)'
       });
+      
+      // AD91 상세 정보 로그
+      if (ad91Submissions.length > 0) {
+        console.log('[DEBUG][settlement-AD91]', {
+          ad91SubmissionsCount: ad91Submissions.length,
+          ad91TotalCommission: ad91TotalCommission,
+          ad91TotalWithdrawn: ad91TotalWithdrawn,
+          ad91AvailableAmount: ad91AvailableAmount,
+          ad91WithdrawalsCount: ad91Withdrawals.length
+        });
+      }
       
       return result;
     }
