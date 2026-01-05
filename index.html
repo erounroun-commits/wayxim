@@ -4341,25 +4341,39 @@ ${r.optPlan}
       // totalCnt를 안전하게 숫자로 변환 (문자열, 숫자, null, undefined 모두 처리)
       let totalCnt = 0;
       if (submission?.totalCnt != null) {
-        const cnt = typeof submission.totalCnt === 'number' 
-          ? submission.totalCnt 
-          : parseInt(String(submission.totalCnt).replace(/[^0-9-]/g, ''), 10);
-        totalCnt = isNaN(cnt) || cnt < 0 ? 0 : cnt;
+        // 배열이나 객체인 경우 처리
+        if (Array.isArray(submission.totalCnt)) {
+          console.warn('[WARN][commission-calc] totalCnt가 배열입니다:', submission.totalCnt);
+          totalCnt = submission.totalCnt.length > 0 ? Number(submission.totalCnt[0]) || 0 : 0;
+        } else if (typeof submission.totalCnt === 'object') {
+          console.warn('[WARN][commission-calc] totalCnt가 객체입니다:', submission.totalCnt);
+          totalCnt = 0;
+        } else {
+          // 숫자 또는 문자열 처리
+          // "200/100" 같은 형태는 첫 번째 숫자만 추출
+          const strValue = String(submission.totalCnt);
+          // 슬래시나 공백으로 구분된 경우 첫 번째 숫자만 추출
+          const firstNumber = strValue.split(/[\/\s]/)[0];
+          const cnt = typeof submission.totalCnt === 'number' 
+            ? submission.totalCnt 
+            : parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+          totalCnt = isNaN(cnt) || cnt < 0 ? 0 : cnt;
+        }
       }
       
-      // 디버깅: 계산 과정 상세 로그
-      if (totalCnt > 0) {
-        console.log('[DEBUG][commission-calc]', {
-          no: submission?.no,
-          companyName: submission?.companyName,
-          totalCntRaw: submission?.totalCnt,
-          totalCntParsed: totalCnt,
-          totalCntType: typeof submission?.totalCnt,
-          vendorType: vendorType,
-          rate: rate,
-          commission: totalCnt * rate
-        });
-      }
+      // 디버깅: 계산 과정 상세 로그 (항상 출력)
+      console.log('[DEBUG][commission-calc]', {
+        no: submission?.no,
+        companyName: submission?.companyName,
+        companyCode: submission?.companyCode,
+        totalCntRaw: submission?.totalCnt,
+        totalCntParsed: totalCnt,
+        totalCntType: typeof submission?.totalCnt,
+        totalCntIsArray: Array.isArray(submission?.totalCnt),
+        vendorType: vendorType,
+        rate: rate,
+        commission: totalCnt * rate
+      });
       
       return totalCnt * rate;
     }
@@ -4381,21 +4395,61 @@ ${r.optPlan}
       });
       
       const totalCommission = subs.reduce((sum, sub) => {
-        const vType = vendorTypes[sub.companyCode] || vendorTypes[sub.vendorId] || '일반';
+        // companyCode 정규화 (공백 제거, 대소문자 통일)
+        const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
+        const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
+        
+        // vendorType 조회 (정규화된 companyCode로 먼저 시도)
+        let vType = '일반';
+        if (normalizedCompanyCode) {
+          // 정확한 매칭 시도
+          vType = vendorTypes[normalizedCompanyCode] || '일반';
+          
+          // 정확한 매칭이 실패한 경우, 대소문자 무시 매칭 시도
+          if (vType === '일반' && Object.keys(vendorTypes).length > 0) {
+            const matchedKey = Object.keys(vendorTypes).find(key => 
+              key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
+            );
+            if (matchedKey) {
+              vType = vendorTypes[matchedKey];
+              console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
+                original: sub.companyCode,
+                normalized: normalizedCompanyCode,
+                matched: matchedKey,
+                vendorType: vType
+              });
+            }
+          }
+        }
+        
+        // vendorId로도 시도
+        if (vType === '일반' && normalizedVendorId) {
+          vType = vendorTypes[normalizedVendorId] || '일반';
+        }
+        
         const commission = calcCommissionForSubmission(sub, vType);
+        
         // 디버깅: 각 submission의 계산 상세 로그
         console.log('[DEBUG][settlement-detail]', {
           no: sub.no,
           companyCode: sub.companyCode,
+          companyCodeNormalized: normalizedCompanyCode,
+          companyCodeInVendorTypes: normalizedCompanyCode in vendorTypes,
+          vendorId: sub.vendorId,
+          vendorIdNormalized: normalizedVendorId,
           companyName: sub.companyName,
           accepted: sub.accepted,
           isDeleted: sub.isDeleted,
           isTest: sub.isTest,
           totalCnt: sub.totalCnt,
           totalCntType: typeof sub.totalCnt,
+          totalCntIsArray: Array.isArray(sub.totalCnt),
           vendorType: vType,
-          commission: commission
+          vendorTypeSource: vendorTypes[normalizedCompanyCode] ? 'companyCode' : (vendorTypes[normalizedVendorId] ? 'vendorId' : 'default'),
+          commission: commission,
+          accumulatedSum: sum + commission
         });
+        
         return sum + commission;
       }, 0);
       const relevantWithdrawals = (withdrawals || []).filter(w => {
