@@ -2520,15 +2520,43 @@
       if (typeof checkFirebaseConnection === 'function' && !checkFirebaseConnection()) {
         console.warn('Firebase 연결 불가, localStorage에서 데이터 로드');
         const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-        console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
-        return localData;
+        console.log('📊 localStorage 전체 데이터 건수:', localData.length);
+        
+        // 핵심: 삭제된 submission과 테스트 submission 필터링
+        const filteredData = localData.filter(sub => {
+          const notDeleted = sub.isDeleted !== true;
+          const notTest = sub.isTest !== true;
+          return notDeleted && notTest;
+        });
+        
+        const deletedCount = localData.length - filteredData.length;
+        if (deletedCount > 0) {
+          console.log('🗑️ localStorage에서 삭제된/테스트 submission 제외:', deletedCount, '건');
+        }
+        
+        console.log('📊 localStorage 필터링 후 데이터 반환, 건수:', filteredData.length);
+        return filteredData;
       } else if (typeof checkFirebaseConnection !== 'function') {
         // 함수가 아직 정의되지 않은 경우 기본 Firebase 확인
         if (!window.db) {
           console.warn('Firebase DB가 초기화되지 않음, localStorage에서 데이터 로드');
           const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-          console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
-          return localData;
+          console.log('📊 localStorage 전체 데이터 건수:', localData.length);
+          
+          // 핵심: 삭제된 submission과 테스트 submission 필터링
+          const filteredData = localData.filter(sub => {
+            const notDeleted = sub.isDeleted !== true;
+            const notTest = sub.isTest !== true;
+            return notDeleted && notTest;
+          });
+          
+          const deletedCount = localData.length - filteredData.length;
+          if (deletedCount > 0) {
+            console.log('🗑️ localStorage에서 삭제된/테스트 submission 제외:', deletedCount, '건');
+          }
+          
+          console.log('📊 localStorage 필터링 후 데이터 반환, 건수:', filteredData.length);
+          return filteredData;
         }
       }
       
@@ -2541,14 +2569,28 @@
         
         // 캐시 무시하고 서버에서 최신 데이터 가져오기
         const snapshot = await window.getDocs(q);
-        const submissions = [];
+        const allSubmissions = [];
         snapshot.forEach(doc => {
-          submissions.push({ id: doc.id, ...doc.data() });
+          allSubmissions.push({ id: doc.id, ...doc.data() });
         });
         
-        console.log('📊 Firebase에서 가져온 데이터 건수:', submissions.length);
+        console.log('📊 Firebase에서 가져온 전체 데이터 건수:', allSubmissions.length);
         
-        // localStorage에도 백업 저장
+        // 핵심: 삭제된 submission과 테스트 submission 필터링
+        const submissions = allSubmissions.filter(sub => {
+          const notDeleted = sub.isDeleted !== true;
+          const notTest = sub.isTest !== true;
+          return notDeleted && notTest;
+        });
+        
+        const deletedCount = allSubmissions.length - submissions.length;
+        if (deletedCount > 0) {
+          console.log('🗑️ 삭제된/테스트 submission 제외:', deletedCount, '건');
+        }
+        
+        console.log('📊 필터링 후 데이터 건수:', submissions.length);
+        
+        // localStorage에도 백업 저장 (필터링된 데이터만)
         localStorage.setItem("wp_submissions", JSON.stringify(submissions));
         console.log('✅ localStorage 백업 저장 완료');
         
@@ -2561,8 +2603,22 @@
         // Firebase 로드 실패 시 localStorage에서 데이터 반환
         console.warn('Firebase 로드 실패, localStorage에서 데이터 반환');
         const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-        console.log('📊 localStorage 데이터 반환 (오류 시), 건수:', localData.length);
-        return localData;
+        console.log('📊 localStorage 전체 데이터 건수:', localData.length);
+        
+        // 핵심: 삭제된 submission과 테스트 submission 필터링
+        const filteredData = localData.filter(sub => {
+          const notDeleted = sub.isDeleted !== true;
+          const notTest = sub.isTest !== true;
+          return notDeleted && notTest;
+        });
+        
+        const deletedCount = localData.length - filteredData.length;
+        if (deletedCount > 0) {
+          console.log('🗑️ localStorage에서 삭제된/테스트 submission 제외:', deletedCount, '건');
+        }
+        
+        console.log('📊 localStorage 필터링 후 데이터 반환, 건수:', filteredData.length);
+        return filteredData;
       }
     }
     
@@ -2772,6 +2828,20 @@
     }
     
     function buildDetailText(r){
+      // 수수료 계산
+      let unitFee = 0;
+      let vendorType = 'N/A';
+      if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
+        unitFee = r.fixedUnitFee;
+        vendorType = r.fixedUnitFee === 1000 ? '우수' : '일반';
+      } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
+        vendorType = r.vendorTypeAtSubmission;
+        unitFee = r.vendorTypeAtSubmission === '우수' ? 1000 : 1500;
+      }
+      
+      const totalCnt = typeof r.totalCnt === 'number' ? r.totalCnt : parseInt(String(r.totalCnt || '0').replace(/[^0-9-]/g, ''), 10);
+      const totalCommission = totalCnt * unitFee;
+      
       return `【WAYX임반장 작업 요청서】
 ▷ 제출번호: ${r.no}
 ▷ 제출시간: ${formatDateTime(r.submittedAt)}
@@ -2791,7 +2861,16 @@ ${r.optPlan}
 □ 상품값 입금 대행: ${r.prepay}
 □ 택배 대행 여부: ${r.courier}
 □ 작업비/택배비 계산서: ${r.billWork}
-□ 상품금액 계산서: ${r.billProd}`;
+□ 상품금액 계산서: ${r.billProd}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 수수료 정보 (제출 시점 기준 고정)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▷ 벤더 타입: ${vendorType} (제출 시점 기준)
+▷ 건당 수수료: ${unitFee > 0 ? unitFee.toLocaleString() + '원' : 'N/A'}
+▷ 총 수수료: ${totalCommission > 0 ? totalCommission.toLocaleString() + '원' : 'N/A'} (${totalCnt}건 × ${unitFee > 0 ? unitFee.toLocaleString() + '원' : 'N/A'})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+※ 참고: 벤더 타입과 수수료는 제출 시점에 확정되어 이후 변경되지 않습니다.`;
     }
 
     async function showReqDashboard(){
@@ -4757,12 +4836,78 @@ ${r.optPlan}
         excludedCount: submissions.length - subs.length
       });
       
+      // 핵심: 중복 제거 (같은 no 또는 id를 가진 submission은 하나만 유지)
+      const uniqueSubs = [];
+      const seenIds = new Set();
+      const seenNos = new Set();
+      
+      for (const sub of subs) {
+        // id 또는 no로 중복 체크
+        const id = sub.id || sub.no || null;
+        const no = sub.no || null;
+        
+        if (id && seenIds.has(id)) {
+          console.warn('[WARN][settlement] 중복 submission 발견 (id):', {
+            id: id,
+            no: no,
+            companyCode: sub.companyCode,
+            companyName: sub.companyName
+          });
+          continue;
+        }
+        if (no && seenNos.has(no)) {
+          console.warn('[WARN][settlement] 중복 submission 발견 (no):', {
+            id: id,
+            no: no,
+            companyCode: sub.companyCode,
+            companyName: sub.companyName
+          });
+          continue;
+        }
+        
+        // 이중 체크: 삭제된 submission이나 테스트 submission 제외
+        if (sub.isDeleted === true) {
+          console.warn('[WARN][settlement] 삭제된 submission 발견:', {
+            id: id,
+            no: no,
+            companyCode: sub.companyCode,
+            companyName: sub.companyName
+          });
+          continue;
+        }
+        if (sub.isTest === true) {
+          console.warn('[WARN][settlement] 테스트 submission 발견:', {
+            id: id,
+            no: no,
+            companyCode: sub.companyCode,
+            companyName: sub.companyName
+          });
+          continue;
+        }
+        
+        if (id) seenIds.add(id);
+        if (no) seenNos.add(no);
+        uniqueSubs.push(sub);
+      }
+      
+      const duplicateCount = subs.length - uniqueSubs.length;
+      if (duplicateCount > 0) {
+        console.warn('[WARN][settlement] 중복/삭제/테스트 submission 제외:', duplicateCount, '건');
+      }
+      
       // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
       // 핵심: submissions를 제출 시점 순으로 정렬하여 순차 처리
-      const sortedSubs = [...subs].sort((a, b) => {
+      const sortedSubs = [...uniqueSubs].sort((a, b) => {
         const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
         const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
         return timeA - timeB;
+      });
+      
+      console.log('[DEBUG][settlement-unique]', {
+        originalCount: subs.length,
+        uniqueCount: uniqueSubs.length,
+        duplicateCount: duplicateCount,
+        sortedCount: sortedSubs.length
       });
       
       let totalCommission = 0;
@@ -4956,6 +5101,21 @@ ${r.optPlan}
       const 천호Subs = sortedSubs.filter(s => {
         const code = s.companyCode ? String(s.companyCode).trim() : '';
         return code === 'AD91' || s.companyName?.includes('천호');
+      });
+      
+      // 전체 submission 상세 로그 (디버깅용)
+      console.log('[DEBUG][settlement-final]', {
+        totalSubmissions: submissions.length,
+        filteredSubmissions: subs.length,
+        uniqueSubmissions: sortedSubs.length,
+        totalCommission: totalCommission,
+        totalWithdrawn: totalWithdrawn,
+        availableAmount: result.availableAmount,
+        천호SubmissionsCount: 천호Subs.length,
+        천호TotalCommission: 천호Subs.reduce((sum, s) => {
+          const commission = calcCommissionForSubmission(s, s.vendorTypeAtSubmission || '일반');
+          return sum + commission;
+        }, 0)
       });
       
       if (천호Subs.length > 0) {
@@ -7865,9 +8025,14 @@ ${r.optPlan}
           }
           
           // 핵심: 제출 시점의 단가를 확정하여 저장
-          // vendorTypeAtSubmission에 따라 단가를 확정 저장
-          // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
-          const fixedUnitFee = vendorTypeAtSubmission === '우수' ? 1000 : 1500;
+          // 기존 데이터가 있고 fixedUnitFee가 이미 저장되어 있으면 그대로 유지
+          // 신규 건이거나 fixedUnitFee가 없을 때만 새로 계산
+          let fixedUnitFee = rec ? rec.fixedUnitFee : null;
+          if (fixedUnitFee == null || (fixedUnitFee !== 1000 && fixedUnitFee !== 1500)) {
+            // vendorTypeAtSubmission에 따라 단가를 확정 저장
+            // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
+            fixedUnitFee = vendorTypeAtSubmission === '우수' ? 1000 : 1500;
+          }
           
           const newRec = {
             id: rec ? rec.id : `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Firebase 문서 ID 추가
@@ -7935,22 +8100,33 @@ ${r.optPlan}
           });
           
           if(rec){ 
-            // 기존 데이터 업데이트 시 접수 완료 상태 보존
+            // 기존 데이터 업데이트 시 중요한 필드 보존
             const preservedAccepted = rec.accepted;
             const preservedAcceptedAt = rec.acceptedAt;
+            const preservedVendorTypeAtSubmission = rec.vendorTypeAtSubmission;
+            const preservedFixedUnitFee = rec.fixedUnitFee;
             
-            console.log('🔄 기존 데이터 업데이트 - 접수 상태 보존:', {
+            console.log('🔄 기존 데이터 업데이트 - 중요 필드 보존:', {
               기존번호: rec.no,
               기존접수상태: preservedAccepted,
-              기존접수시간: preservedAcceptedAt ? new Date(preservedAcceptedAt).toLocaleString() : '없음'
+              기존접수시간: preservedAcceptedAt ? new Date(preservedAcceptedAt).toLocaleString() : '없음',
+              기존벤더타입: preservedVendorTypeAtSubmission || 'N/A',
+              기존고정단가: preservedFixedUnitFee || 'N/A'
             });
             
             // 데이터 업데이트
             Object.assign(rec, newRec);
             
-            // 접수 완료 상태 복원
+            // 중요한 필드 복원 (접수 상태, 벤더 타입, 고정 단가)
             rec.accepted = preservedAccepted;
             rec.acceptedAt = preservedAcceptedAt;
+            // 핵심: vendorTypeAtSubmission과 fixedUnitFee는 한 번 저장되면 변경되지 않음
+            if (preservedVendorTypeAtSubmission) {
+              rec.vendorTypeAtSubmission = preservedVendorTypeAtSubmission;
+            }
+            if (preservedFixedUnitFee != null && (preservedFixedUnitFee === 1000 || preservedFixedUnitFee === 1500)) {
+              rec.fixedUnitFee = preservedFixedUnitFee;
+            }
             
             console.log('✅ 접수 상태 복원 완료:', {
               번호: rec.no,
