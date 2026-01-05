@@ -4351,6 +4351,7 @@ ${r.optPlan}
 
     function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
       // 출금가능액 계산: 접수(accepted)된 submission만 포함
+      // 접수된 submission만 출금가능액에 반영되어야 함
       const subs = getSubsForVendor(submissions, vendorId, true);
       const totalCommission = subs.reduce((sum, sub) => {
         const vType = vendorTypes[sub.companyCode] || vendorTypes[sub.vendorId] || '일반';
