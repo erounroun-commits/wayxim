@@ -4137,7 +4137,8 @@ ${r.optPlan}
     const VENDOR_TYPE_CACHE_DURATION = 60000; // 1분 캐시
 
     // 제출 시점 기준 vendorType 계산 함수 (모든 업체에 대해 안정적으로 작동)
-    async function getVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions) {
+    // 핵심: 현재 submission을 제외하고, 제출 시점 이전의 submission만 고려
+    async function getVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions, currentSubmissionId = null) {
       if (!vendorCode || !submittedAt) {
         return '일반';
       }
@@ -4152,10 +4153,16 @@ ${r.optPlan}
         // companyCode 정규화
         const normalizedVendorCode = String(vendorCode).trim();
         
-        // 제출 시점 이전의 submission만 필터링 (같은 시점 포함)
-        // companyCode도 정규화하여 비교
+        // 제출 시점 이전의 submission만 필터링 (현재 submission 제외)
+        // 핵심: 현재 submission은 제외하고, 그 이전의 submission만 고려
+        // 같은 시점에 제출된 다른 submission도 제외 (현재 submission의 vendorType 결정에 영향을 주면 안 됨)
         const submissionsBeforeThis = allSubmissions.filter(s => {
           if (!s.submittedAt || !s.companyCode) return false;
+          
+          // 현재 submission 제외 (ID 또는 no로 비교)
+          if (currentSubmissionId && (s.id === currentSubmissionId || s.no === currentSubmissionId)) {
+            return false;
+          }
           
           // companyCode 정규화하여 비교
           const sCompanyCode = String(s.companyCode).trim();
@@ -4164,7 +4171,9 @@ ${r.optPlan}
           const sTime = new Date(s.submittedAt);
           if (isNaN(sTime.getTime())) return false;
           
-          return sTime <= submissionTime;
+          // 제출 시점 이전만 포함 (같은 시점 제외)
+          // 핵심: 현재 submission이 제출되는 시점에서, 그 시점까지의 이전 submission만 고려
+          return sTime < submissionTime;
         });
         
         // 주식회사 천호(AD91) 특별 로깅
@@ -4551,7 +4560,8 @@ ${r.optPlan}
           try {
             // 제출 시점 기준으로 vendorType 계산
             // 주의: subs가 아닌 전체 submissions를 전달해야 정확한 계산 가능
-            vType = await getVendorTypeAtSubmissionTime(normalizedCompanyCode, sub.submittedAt, submissions);
+            // 현재 submission의 ID를 전달하여 제외 (제출 시점 기준 확정)
+            vType = await getVendorTypeAtSubmissionTime(normalizedCompanyCode, sub.submittedAt, submissions, sub.id || sub.no);
             
             // 제출 시점 기준 계산이 실패하거나 '일반'인 경우, 현재 vendorType 사용 (폴백)
             // 하지만 제출 시점 기준 계산이 성공했다면 그것을 우선 사용
