@@ -4840,22 +4840,73 @@ ${r.optPlan}
             });
           }
         }
-        // vendorTypeAtSubmission이 없는 경우: 데이터 마이그레이션 대상으로 취급
-        // 계산에서 제외 (사용자 요청사항)
-        else {
-          // vendorTypeAtSubmission이 없는 경우 계산에서 제외
-          console.error('[ERROR][settlement] vendorTypeAtSubmission이 없어서 계산에서 제외:', {
-            no: sub.no,
-            companyCode: normalizedCompanyCode,
-            companyName: sub.companyName,
-            vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
-            submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : 'N/A',
-            totalCnt: sub.totalCnt,
-            message: '데이터 마이그레이션 대상입니다. 수동 보정이 필요합니다. 이 submission은 계산에서 제외됩니다.'
-          });
+        // vendorTypeAtSubmission이 없는 경우: 제출 시점 기준으로 계산
+        else if (normalizedCompanyCode && sub.submittedAt) {
+          try {
+            // 제출 시점 기준으로 vendorType 계산
+            // 주의: submissions 전체를 전달하여 제출 시점 순으로 정렬된 submission만 고려
+            // 현재 submission의 ID를 전달하여 제외 (제출 시점 기준 확정)
+            const calculatedVType = await getVendorTypeAtSubmissionTime(
+              normalizedCompanyCode, 
+              sub.submittedAt, 
+              submissions, // 원본 submissions 전체 사용 (현재 submission 포함, 내부에서 제외됨)
+              sub.id || sub.no || String(sub.submittedAt) // ID가 없으면 submittedAt으로 대체
+            );
+            
+            // 제출 시점 기준 계산 결과 사용
+            vType = calculatedVType;
+            
+            // 주식회사 천호(AD91) 특별 로깅 (저장된 값이 없어서 계산한 경우)
+            if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+              console.warn('[WARN][천호-settlement] vendorTypeAtSubmission이 없어서 제출 시점 기준으로 계산:', {
+                no: sub.no,
+                calculatedVType: calculatedVType,
+                totalCnt: sub.totalCnt,
+                submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : 'N/A',
+                expectedCommission: sub.totalCnt * (calculatedVType === '우수' ? 1000 : 1500),
+                message: '제출 시점 기준으로 벤더 타입을 계산했습니다.'
+              });
+            } else {
+              // 다른 업체는 경고만 (너무 많은 로그 방지)
+              console.warn('[WARN][settlement] vendorTypeAtSubmission이 없어서 제출 시점 기준으로 계산:', {
+                no: sub.no,
+                companyCode: normalizedCompanyCode,
+                companyName: sub.companyName,
+                calculatedVType: calculatedVType,
+                submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : 'N/A',
+                message: '제출 시점 기준으로 벤더 타입을 계산했습니다.'
+              });
+            }
+          } catch (error) {
+            console.error('[ERROR][vendorType-calculation]', {
+              no: sub.no,
+              companyCode: normalizedCompanyCode,
+              error: error.message,
+              stack: error.stack
+            });
+            // 오류 발생 시 제출 시점 기준 계산 실패이므로 '일반'으로 설정
+            vType = '일반';
+          }
+        } else {
+          // submittedAt이 없고 저장된 값도 없는 경우에만 기본값 '일반' 사용
+          vType = '일반';
           
-          // 계산에서 제외 (continue로 건너뛰기)
-          continue;
+          // 주식회사 천호(AD91) 특별 경고
+          if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+            console.error('[ERROR][천호-settlement] submittedAt이 없어서 기본값 일반으로 계산:', {
+              no: sub.no,
+              currentVendorType: vType,
+              vendorTypesMap: vendorTypes[normalizedCompanyCode],
+              message: 'submittedAt이 없어서 기본값 일반을 사용합니다. 데이터를 확인하세요.'
+            });
+          } else {
+            console.warn('[WARN][settlement] submittedAt이 없어서 기본값 일반으로 계산:', {
+              no: sub.no,
+              companyCode: normalizedCompanyCode,
+              companyName: sub.companyName,
+              message: 'submittedAt이 없어서 기본값 일반을 사용합니다.'
+            });
+          }
         }
         
         const commission = calcCommissionForSubmission(sub, vType);
