@@ -4820,12 +4820,14 @@ ${r.optPlan}
           }
           
           // 대소문자 무시 매칭 시도 (companyCode 매칭 실패 시)
-          // 주의: 저장된 vendorTypeAtSubmission이 있으면 절대 실행하지 않음
-          if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0 && !hasSavedVendorType) {
+          // 주의: 저장된 vendorTypeAtSubmission이나 fixedUnitFee가 있으면 절대 실행하지 않음
+          // fixedUnitFee가 있으면 vendorType 계산이 불필요하므로 이 로직도 건너뛰어야 함
+          if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0 && !hasSavedVendorType && !sub.fixedUnitFee) {
             const matchedKey = Object.keys(vendorTypes).find(key => 
               key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
             );
-            if (matchedKey) {
+            if (matchedKey && matchedKey !== normalizedCompanyCode) {
+              // 대소문자가 다른 경우에만 경고 (정확히 일치하는 경우는 경고 불필요)
               vType = vendorTypes[matchedKey];
               console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
                 no: sub.no,
@@ -4834,7 +4836,8 @@ ${r.optPlan}
                 normalized: normalizedCompanyCode,
                 matched: matchedKey,
                 vendorType: vType,
-                hasSavedVendorType: hasSavedVendorType
+                hasSavedVendorType: hasSavedVendorType,
+                fixedUnitFee: sub.fixedUnitFee || 'N/A'
               });
             }
           }
@@ -4923,8 +4926,17 @@ ${r.optPlan}
         let 천호TotalCommission = 0;
         const 천호Details = 천호Subs.map(s => {
           const normalizedCode = s.companyCode ? String(s.companyCode).trim() : '';
-          let vType = s.vendorTypeAtSubmission || 'N/A';
-          const rate = vType === '우수' ? 1000 : (vType === '일반' ? 1500 : 0);
+          
+          // 핵심: fixedUnitFee가 있으면 그것을 우선 사용
+          let rate;
+          if (s.fixedUnitFee != null && (s.fixedUnitFee === 1000 || s.fixedUnitFee === 1500)) {
+            rate = s.fixedUnitFee;
+          } else if (s.vendorTypeAtSubmission && (s.vendorTypeAtSubmission === '우수' || s.vendorTypeAtSubmission === '일반')) {
+            rate = s.vendorTypeAtSubmission === '우수' ? 1000 : 1500;
+          } else {
+            rate = 0;
+          }
+          
           let totalCnt = 0;
           if (s.totalCnt != null) {
             if (typeof s.totalCnt === 'number') totalCnt = s.totalCnt;
@@ -4936,14 +4948,18 @@ ${r.optPlan}
               totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
             }
           }
-          const commission = totalCnt * rate;
+          
+          // calcCommissionForSubmission을 사용하여 정확한 commission 계산
+          const commission = calcCommissionForSubmission(s, s.vendorTypeAtSubmission || '일반');
           천호TotalCommission += commission;
+          
           return {
             no: s.no,
             submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : null,
             month: s.submittedAt ? `${new Date(s.submittedAt).getFullYear()}-${String(new Date(s.submittedAt).getMonth() + 1).padStart(2, '0')}` : 'N/A',
             totalCnt: totalCnt,
             vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A',
+            fixedUnitFee: s.fixedUnitFee || 'N/A',
             rate: rate,
             commission: commission
           };
