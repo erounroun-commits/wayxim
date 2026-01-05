@@ -4346,6 +4346,21 @@ ${r.optPlan}
           : parseInt(String(submission.totalCnt).replace(/[^0-9-]/g, ''), 10);
         totalCnt = isNaN(cnt) || cnt < 0 ? 0 : cnt;
       }
+      
+      // 디버깅: 계산 과정 상세 로그
+      if (totalCnt > 0) {
+        console.log('[DEBUG][commission-calc]', {
+          no: submission?.no,
+          companyName: submission?.companyName,
+          totalCntRaw: submission?.totalCnt,
+          totalCntParsed: totalCnt,
+          totalCntType: typeof submission?.totalCnt,
+          vendorType: vendorType,
+          rate: rate,
+          commission: totalCnt * rate
+        });
+      }
+      
       return totalCnt * rate;
     }
 
@@ -7095,12 +7110,20 @@ ${r.optPlan}
           });
           
           // 기존 데이터에서 중복 확인 (업체코드, 업체명, 키워드, 총 진행건수, 일 진행건수가 모두 동일한 경우)
+          // totalCnt와 dailyCnt는 타입 변환 후 비교 (문자열/숫자 혼용 대응)
           const existingDuplicate = rows.find(existing => {
+            const existingTotalCnt = typeof existing.totalCnt === 'number' 
+              ? existing.totalCnt 
+              : parseInt(String(existing.totalCnt || '0').replace(/[^0-9-]/g, ''), 10);
+            const existingDailyCnt = typeof existing.dailyCnt === 'number' 
+              ? existing.dailyCnt 
+              : parseInt(String(existing.dailyCnt || '0').replace(/[^0-9-]/g, ''), 10);
+            
             const isDuplicate = existing.companyName === companyName && 
                                existing.companyCode === companyCode && 
                                existing.keywords === keywords &&
-                               existing.totalCnt === totalCnt &&
-                               existing.dailyCnt === dailyCnt &&
+                               existingTotalCnt === totalCnt &&
+                               existingDailyCnt === dailyCnt &&
                                companyName !== '' && companyCode !== '' && keywords !== '';
             
             if (isDuplicate) {
