@@ -4734,11 +4734,32 @@ ${r.optPlan}
       
       // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
       // 핵심: submissions를 제출 시점 순으로 정렬하여 순차 처리
-      const sortedSubs = [...subs].sort((a, b) => {
+      // 삭제된 submission은 제외 (이중 체크)
+      const sortedSubs = [...subs].filter(s => s.isDeleted !== true).sort((a, b) => {
         const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
         const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
         return timeA - timeB;
       });
+      
+      // 주식회사 천호(AD91) 삭제된 submission 확인
+      const 천호Deleted = subs.filter(s => {
+        const code = s.companyCode ? String(s.companyCode).trim() : '';
+        return (code === 'AD91' || s.companyName?.includes('천호')) && s.isDeleted === true;
+      });
+      if (천호Deleted.length > 0) {
+        console.warn('[WARN][천호-삭제된-submission]', {
+          vendorName: '주식회사 천호',
+          vendorCode: 'AD91',
+          deletedCount: 천호Deleted.length,
+          deletedSubmissions: 천호Deleted.map(s => ({
+            no: s.no,
+            id: s.id,
+            totalCnt: s.totalCnt,
+            isDeleted: s.isDeleted
+          })),
+          message: '삭제된 submission은 계산에서 제외됩니다.'
+        });
+      }
       
       let totalCommission = 0;
       // 주식회사 천호(AD91) commission 추적용
@@ -4925,6 +4946,18 @@ ${r.optPlan}
             accumulatedSum: totalCommission + commission,
             submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null
           });
+        }
+        
+        // 삭제된 submission은 계산에서 제외
+        if (sub.isDeleted === true) {
+          console.warn('[WARN][settlement] 삭제된 submission 제외:', {
+            no: sub.no,
+            companyCode: normalizedCompanyCode,
+            companyName: sub.companyName,
+            totalCnt: sub.totalCnt,
+            commission: commission
+          });
+          continue; // 이 submission은 건너뛰기
         }
         
         totalCommission += commission;
@@ -7426,21 +7459,46 @@ ${r.optPlan}
       
       if(confirm(`다음 데이터를 삭제하시겠습니까?\n\n번호: ${targetRow.no}\n업체명: ${targetRow.companyName}\n진행건수: ${targetRow.totalCnt}\n\n이 작업은 되돌릴 수 없습니다.`)){
         try {
+          showLoading();
+          
           // Firebase에서 직접 삭제 (문서 ID가 있는 경우)
           if (window.db && targetRow.id) {
             console.log('🔥 Firebase에서 직접 삭제 시도:', targetRow.id);
             const docRef = window.doc(window.db, 'submissions', targetRow.id);
             await window.deleteDoc(docRef);
             console.log('✅ Firebase 직접 삭제 완료');
+            
+            // 삭제 후 localStorage에서도 제거
+            const filteredRows = rows.filter(r => r.no !== no);
+            localStorage.setItem("wp_submissions", JSON.stringify(filteredRows));
+            console.log('✅ localStorage에서도 삭제 반영 완료');
           } else {
             console.log('📝 Firebase 직접 삭제 불가, 전체 데이터 재저장 방식 사용');
             const filteredRows = rows.filter(r => r.no !== no);
             await saveSubs(filteredRows);
           }
           
+          // 캐시 무효화 플래그 설정 (출금가능액 계산 화면 자동 새로고침)
+          window.wp_data_cache_cleared = true;
+          clearVendorTypeCache();
+          
+          // 주식회사 천호(AD91) 삭제 시 특별 로깅
+          if (targetRow.companyCode === 'AD91' || targetRow.companyName?.includes('천호')) {
+            console.warn('[WARN][천호-삭제]', {
+              no: targetRow.no,
+              companyName: targetRow.companyName,
+              companyCode: targetRow.companyCode,
+              totalCnt: targetRow.totalCnt,
+              vendorTypeAtSubmission: targetRow.vendorTypeAtSubmission || 'N/A',
+              message: '삭제 완료. 출금가능액 계산 화면을 새로고침하세요.'
+            });
+          }
+          
+          hideLoading();
           alert('데이터가 삭제되었습니다.');
           showDataManagement();
         } catch (error) {
+          hideLoading();
           console.error('❌ 데이터 삭제 실패:', error);
           alert('데이터 삭제 중 오류가 발생했습니다: ' + error.message);
         }
