@@ -1471,7 +1471,34 @@
       
       try {
         // 제출 시점 이전의 모든 submission 조회
-        const existingSubmissions = await loadSubs();
+        // Firebase 호출을 피하기 위해 localStorage를 우선 사용
+        let existingSubmissions = [];
+        try {
+          const localData = localStorage.getItem("wp_submissions");
+          if (localData) {
+            existingSubmissions = JSON.parse(localData);
+            console.log('[DEBUG][submit] localStorage에서 기존 submission 로드:', existingSubmissions.length, '건');
+          }
+        } catch (e) {
+          console.warn('[WARN][submit] localStorage 파싱 오류:', e);
+        }
+        
+        // localStorage에 데이터가 없거나 부족한 경우에만 Firebase에서 로드
+        if (existingSubmissions.length === 0 && window.db) {
+          try {
+            const submissionsRef = window.collection(window.db, 'submissions');
+            const q = window.query(submissionsRef, window.orderBy('submittedAt', 'asc'));
+            const snapshot = await window.getDocs(q);
+            existingSubmissions = [];
+            snapshot.forEach(doc => {
+              existingSubmissions.push({ id: doc.id, ...doc.data() });
+            });
+            console.log('[DEBUG][submit] Firebase에서 기존 submission 로드:', existingSubmissions.length, '건');
+          } catch (firebaseError) {
+            console.error('[ERROR][submit] Firebase 로드 실패:', firebaseError);
+            // Firebase 실패 시 localStorage 사용
+          }
+        }
         
         // 제출 시점 기준 vendorType 계산
         vendorTypeAtSubmission = await getVendorTypeAtSubmissionTime(
@@ -1512,7 +1539,8 @@
       } catch (error) {
         console.error('[ERROR][submit-vendorType-calculation]', {
           companyCode: companyCode,
-          error: error.message
+          error: error.message,
+          stack: error.stack
         });
         // 오류 발생 시 기본값 '일반' 사용
         vendorTypeAtSubmission = '일반';
