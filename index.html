@@ -4378,7 +4378,7 @@ ${r.optPlan}
       return totalCnt * rate;
     }
 
-    function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
+    async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
       // 출금가능액 계산: 접수 여부와 관계없이 모든 submission 포함
       // 신규 요청서도 포함되어야 하며, 접수되면 추가로 증액됨
       console.log('[DEBUG][settlement-start]', {
@@ -4394,32 +4394,45 @@ ${r.optPlan}
         excludedCount: submissions.length - subs.length
       });
       
-      const totalCommission = subs.reduce((sum, sub) => {
+      // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
+      let totalCommission = 0;
+      for (const sub of subs) {
         // companyCode 정규화 (공백 제거, 대소문자 통일)
         const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
         const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
         
-        // vendorType 조회 (정규화된 companyCode로 먼저 시도)
+        // 각 submission의 제출 시점(submittedAt) 기준으로 vendorType 계산
+        // 제출 당시의 vendorType을 사용해야 함 (현재 vendorType이 아님)
+        
         let vType = '일반';
-        if (normalizedCompanyCode) {
-          // 정확한 매칭 시도
-          vType = vendorTypes[normalizedCompanyCode] || '일반';
+        
+        if (normalizedCompanyCode && sub.submittedAt) {
+          // 제출 시점 기준으로 vendorType 계산
+          vType = await getVendorTypeAtSubmissionTime(normalizedCompanyCode, sub.submittedAt, subs);
           
-          // 정확한 매칭이 실패한 경우, 대소문자 무시 매칭 시도
-          if (vType === '일반' && Object.keys(vendorTypes).length > 0) {
-            const matchedKey = Object.keys(vendorTypes).find(key => 
-              key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
-            );
-            if (matchedKey) {
-              vType = vendorTypes[matchedKey];
-              console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
-                original: sub.companyCode,
-                normalized: normalizedCompanyCode,
-                matched: matchedKey,
-                vendorType: vType
-              });
+          // 제출 시점 기준 계산 실패 시 현재 vendorType 사용 (폴백)
+          if (vType === '일반') {
+            vType = vendorTypes[normalizedCompanyCode] || '일반';
+            
+            // 정확한 매칭이 실패한 경우, 대소문자 무시 매칭 시도
+            if (vType === '일반' && Object.keys(vendorTypes).length > 0) {
+              const matchedKey = Object.keys(vendorTypes).find(key => 
+                key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
+              );
+              if (matchedKey) {
+                vType = vendorTypes[matchedKey];
+                console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
+                  original: sub.companyCode,
+                  normalized: normalizedCompanyCode,
+                  matched: matchedKey,
+                  vendorType: vType
+                });
+              }
             }
           }
+        } else if (normalizedCompanyCode) {
+          // submittedAt이 없는 경우 현재 vendorType 사용
+          vType = vendorTypes[normalizedCompanyCode] || '일반';
         }
         
         // vendorId로도 시도
@@ -4434,6 +4447,7 @@ ${r.optPlan}
           no: sub.no,
           companyCode: sub.companyCode,
           companyCodeNormalized: normalizedCompanyCode,
+          submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null,
           companyCodeInVendorTypes: normalizedCompanyCode in vendorTypes,
           vendorId: sub.vendorId,
           vendorIdNormalized: normalizedVendorId,
@@ -4445,13 +4459,13 @@ ${r.optPlan}
           totalCntType: typeof sub.totalCnt,
           totalCntIsArray: Array.isArray(sub.totalCnt),
           vendorType: vType,
-          vendorTypeSource: vendorTypes[normalizedCompanyCode] ? 'companyCode' : (vendorTypes[normalizedVendorId] ? 'vendorId' : 'default'),
+          vendorTypeSource: vType !== '일반' ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'),
           commission: commission,
-          accumulatedSum: sum + commission
+          accumulatedSum: totalCommission + commission
         });
         
-        return sum + commission;
-      }, 0);
+        totalCommission += commission;
+      }
       const relevantWithdrawals = (withdrawals || []).filter(w => {
         const matchesVendor = vendorId ? ((w.vendorId && w.vendorId === vendorId) || (!w.vendorId && !vendorId)) : true;
         return matchesVendor && w.status === 'completed';
@@ -4896,7 +4910,7 @@ ${r.optPlan}
         const rows = await loadSubs();
         const withdrawals = await loadWithdrawals();
         const vendorTypes = await getAllVendorTypes(rows, true);
-        const settlement = calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
+        const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
         const { totalCommission, totalWithdrawn, availableAmount } = settlement;
         
         // 상단 영역 (모바일에서 sticky)
