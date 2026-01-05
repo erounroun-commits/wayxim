@@ -1463,11 +1463,65 @@
       // 고유 ID 생성
       const uniqueId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const displayNo = await getNextNo();
+      
+      // 핵심: 제출 시점에 vendorType을 계산하여 확정 저장
+      // 이렇게 하면 이후 벤더 등급이 변경되어도 과거 submission의 단가는 변경되지 않음
+      const submittedAt = Date.now();
+      let vendorTypeAtSubmission = '일반'; // 기본값
+      
+      try {
+        // 제출 시점 이전의 모든 submission 조회
+        const existingSubmissions = await loadSubs();
+        
+        // 제출 시점 기준 vendorType 계산
+        vendorTypeAtSubmission = await getVendorTypeAtSubmissionTime(
+          companyCode,
+          submittedAt,
+          existingSubmissions,
+          uniqueId // 현재 submission ID 전달하여 제외
+        );
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (companyCode === 'AD91' || productData.companyName?.includes('천호')) {
+          const submissionsBeforeThis = existingSubmissions.filter(s => {
+            if (!s.submittedAt || !s.companyCode) return false;
+            if (s.id === uniqueId || s.no === displayNo) return false;
+            const sCompanyCode = String(s.companyCode).trim();
+            if (sCompanyCode !== companyCode) return false;
+            const sTime = new Date(s.submittedAt);
+            const subTime = new Date(submittedAt);
+            return sTime < subTime;
+          });
+          
+          console.warn('[WARN][천호-submit] 제출 시점 vendorType 확정:', {
+            companyCode: companyCode,
+            companyName: productData.companyName,
+            submittedAt: new Date(submittedAt).toISOString(),
+            vendorTypeAtSubmission: vendorTypeAtSubmission,
+            totalCnt: productData.totalCnt,
+            expectedCommission: productData.totalCnt * (vendorTypeAtSubmission === '우수' ? 1000 : 1500),
+            submissionsBeforeThisCount: submissionsBeforeThis.length,
+            submissionsBeforeThis: submissionsBeforeThis.map(s => ({
+              no: s.no,
+              submittedAt: new Date(s.submittedAt).toISOString(),
+              totalCnt: s.totalCnt,
+              vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A'
+            }))
+          });
+        }
+      } catch (error) {
+        console.error('[ERROR][submit-vendorType-calculation]', {
+          companyCode: companyCode,
+          error: error.message
+        });
+        // 오류 발생 시 기본값 '일반' 사용
+        vendorTypeAtSubmission = '일반';
+      }
 
       const rec = {
         id: uniqueId,
         no: displayNo,
-        submittedAt: Date.now(),
+        submittedAt: submittedAt,
         companyCode,
         companyName: productData.companyName,
         bizNo: productData.bizNo,
@@ -1483,7 +1537,10 @@
         billWork: productData.billWork,
         billProd: productData.billProd,
         accepted: false,
-        acceptedAt: null
+        acceptedAt: null,
+        // 핵심: 제출 시점의 vendorType을 확정하여 저장
+        // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
+        vendorTypeAtSubmission: vendorTypeAtSubmission
       };
       
       console.log('[DEBUG][submit-product-rec]', {
@@ -4253,6 +4310,26 @@ ${r.optPlan}
         
         // 연속된 2개월 이상 200건 달성 여부 확인
         const sortedMonths = Object.keys(monthCounts).sort();
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-연속월체크]', {
+            vendorCode: vendorCode,
+            sortedMonths: sortedMonths,
+            monthCounts: monthCounts,
+            checkPairs: sortedMonths.slice(0, -1).map((month1, i) => {
+              const month2 = sortedMonths[i + 1];
+              return {
+                month1: month1,
+                month1Count: monthCounts[month1] || 0,
+                month2: month2,
+                month2Count: monthCounts[month2] || 0,
+                isPremium: (monthCounts[month1] || 0) >= 200 && (monthCounts[month2] || 0) >= 200
+              };
+            })
+          });
+        }
+        
         for (let i = 0; i < sortedMonths.length - 1; i++) {
           const month1 = sortedMonths[i];
           const month2 = sortedMonths[i + 1];
@@ -4261,8 +4338,25 @@ ${r.optPlan}
           const month2Count = monthCounts[month2] || 0;
           
           if (month1Count >= 200 && month2Count >= 200) {
+            if (vendorCode === 'AD91') {
+              console.warn('[WARN][천호-우수판정]', {
+                vendorCode: vendorCode,
+                month1: month1,
+                month1Count: month1Count,
+                month2: month2,
+                month2Count: month2Count
+              });
+            }
             return '우수';
           }
+        }
+        
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-일반판정]', {
+            vendorCode: vendorCode,
+            monthCounts: monthCounts,
+            sortedMonths: sortedMonths
+          });
         }
         
         return '일반';
@@ -4575,40 +4669,68 @@ ${r.optPlan}
       });
       
       // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
+      // 핵심: submissions를 제출 시점 순으로 정렬하여 순차 처리
+      const sortedSubs = [...subs].sort((a, b) => {
+        const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+        const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+        return timeA - timeB;
+      });
+      
       let totalCommission = 0;
-      for (const sub of subs) {
+      for (const sub of sortedSubs) {
         // companyCode 정규화 (공백 제거, 대소문자 통일)
         const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
         const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
         
-        // 각 submission의 제출 시점(submittedAt) 기준으로 vendorType 계산
-        // 제출 당시의 vendorType을 사용해야 함 (현재 vendorType이 아님)
-        
+        // 핵심: 저장된 vendorTypeAtSubmission을 우선 사용
+        // 제출 시점에 확정된 vendorType이 저장되어 있으면 그것을 사용
+        // 저장된 값이 없으면 제출 시점 기준으로 계산 (하위 호환성)
         let vType = '일반';
         
-        // 제출 시점 기준 vendorType 계산 (모든 업체에 대해 안정적으로 작동)
-        // 핵심: 각 submission의 제출 시점에서 그 시점 이전의 submission만 고려하여 vendorType 결정
-        if (normalizedCompanyCode && sub.submittedAt) {
+        // 1순위: 저장된 vendorTypeAtSubmission 사용 (가장 확실한 방법)
+        if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
+          vType = sub.vendorTypeAtSubmission;
+          
+          // 주식회사 천호(AD91) 특별 로깅
+          if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+            console.log('[INFO][천호-settlement] 저장된 vendorTypeAtSubmission 사용:', {
+              no: sub.no,
+              vendorTypeAtSubmission: sub.vendorTypeAtSubmission,
+              totalCnt: sub.totalCnt
+            });
+          }
+        }
+        // 2순위: 제출 시점 기준 계산 (저장된 값이 없는 경우, 하위 호환성)
+        else if (normalizedCompanyCode && sub.submittedAt) {
           try {
             // 제출 시점 기준으로 vendorType 계산
-            // 주의: subs가 아닌 전체 submissions를 전달해야 정확한 계산 가능
+            // 주의: sortedSubs를 전달하여 제출 시점 순으로 정렬된 submission만 고려
             // 현재 submission의 ID를 전달하여 제외 (제출 시점 기준 확정)
-            // 핵심: 각 submission은 제출 시점에서 그 시점 이전의 submission만 고려
             const calculatedVType = await getVendorTypeAtSubmissionTime(
               normalizedCompanyCode, 
               sub.submittedAt, 
-              submissions, 
+              sortedSubs, // 정렬된 submissions 사용
               sub.id || sub.no || String(sub.submittedAt) // ID가 없으면 submittedAt으로 대체
             );
             
-            // 제출 시점 기준 계산 결과를 무조건 사용 (과거 건 보호)
-            // 이렇게 하면 각 submission의 vendorType이 제출 시점에서 확정됨
+            // 제출 시점 기준 계산 결과 사용
             vType = calculatedVType;
+            
+            // 주식회사 천호(AD91) 특별 로깅 (저장된 값이 없어서 계산한 경우)
+            if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+              console.warn('[WARN][천호-settlement] vendorTypeAtSubmission이 없어서 계산:', {
+                no: sub.no,
+                calculatedVType: calculatedVType,
+                totalCnt: sub.totalCnt
+              });
+            }
             
             // 디버깅 로그 (주식회사 천호 특별 로깅)
             if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-              const submissionsBeforeThis = submissions.filter(s => {
+              const submissionsBeforeThis = sortedSubs.filter(s => {
                 if (!s.submittedAt || !s.companyCode) return false;
+                // 현재 submission 제외
+                if ((s.id && s.id === sub.id) || (s.no && s.no === sub.no)) return false;
                 const sCompanyCode = String(s.companyCode).trim();
                 if (sCompanyCode !== normalizedCompanyCode) return false;
                 const sTime = new Date(s.submittedAt);
@@ -7521,6 +7643,47 @@ ${r.optPlan}
             console.log('✅ 새 번호 생성 완료:', newNo, typeof newNo);
           }
           
+          // 제출 시점 vendorType 계산 (신규 건인 경우에만)
+          let vendorTypeAtSubmission = rec ? rec.vendorTypeAtSubmission : null;
+          
+          // 신규 건이거나 vendorTypeAtSubmission이 없는 경우 계산
+          if (!rec || !vendorTypeAtSubmission) {
+            const submittedAt = parseTs(obj['제출시간']) || (rec? rec.submittedAt : Date.now());
+            const companyCode = (obj['업체코드'] || '').trim() || (rec? rec.companyCode : '');
+            
+            if (companyCode && submittedAt) {
+              try {
+                // 제출 시점 기준 vendorType 계산
+                vendorTypeAtSubmission = await getVendorTypeAtSubmissionTime(
+                  companyCode,
+                  submittedAt,
+                  rows, // 기존 모든 submission
+                  rec ? rec.id : null // 현재 submission ID (신규인 경우 null)
+                );
+                
+                // 주식회사 천호(AD91) 특별 로깅
+                if (companyCode === 'AD91' || companyName?.includes('천호')) {
+                  console.warn('[WARN][천호-csv-upload] vendorTypeAtSubmission 계산:', {
+                    companyCode: companyCode,
+                    companyName: companyName,
+                    submittedAt: new Date(submittedAt).toISOString(),
+                    vendorTypeAtSubmission: vendorTypeAtSubmission,
+                    totalCnt: toInt(obj['총진행건수'] != null ? obj['총진행건수'] : (rec? rec.totalCnt : 0)),
+                    isNew: !rec
+                  });
+                }
+              } catch (error) {
+                console.error('[ERROR][csv-vendorType-calculation]', {
+                  companyCode: companyCode,
+                  error: error.message
+                });
+                vendorTypeAtSubmission = '일반';
+              }
+            } else {
+              vendorTypeAtSubmission = '일반';
+            }
+          }
+          
           const newRec = {
             id: rec ? rec.id : `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Firebase 문서 ID 추가
             no: newNo,
@@ -7540,7 +7703,9 @@ ${r.optPlan}
             billWork: (obj['작업비계산서'] || '').trim() || (rec? rec.billWork : ''),
             billProd: (obj['상품금액계산서'] || '').trim() || (rec? rec.billProd : ''),
             accepted: obj['접수상태'] != null ? parseBool(obj['접수상태']) : (rec? rec.accepted : false),
-            acceptedAt: obj['접수시간'] ? parseTs(obj['접수시간']) : (rec? rec.acceptedAt : null)
+            acceptedAt: obj['접수시간'] ? parseTs(obj['접수시간']) : (rec? rec.acceptedAt : null),
+            // 핵심: 제출 시점의 vendorType을 확정하여 저장
+            vendorTypeAtSubmission: vendorTypeAtSubmission
           };
           
           console.log('📋 매핑된 데이터 상세:', {
