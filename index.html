@@ -2512,15 +2512,19 @@
       if (typeof checkFirebaseConnection === 'function' && !checkFirebaseConnection()) {
         console.warn('Firebase 연결 불가, localStorage에서 데이터 로드');
         const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-        console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
-        return localData;
+        // 삭제된 submission 제외
+        const filteredData = localData.filter(r => r.isDeleted !== true);
+        console.log('📊 localStorage 데이터 반환, 건수:', filteredData.length, '(전체:', localData.length, ', 삭제:', localData.length - filteredData.length, ')');
+        return filteredData;
       } else if (typeof checkFirebaseConnection !== 'function') {
         // 함수가 아직 정의되지 않은 경우 기본 Firebase 확인
         if (!window.db) {
           console.warn('Firebase DB가 초기화되지 않음, localStorage에서 데이터 로드');
           const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-          console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
-          return localData;
+          // 삭제된 submission 제외
+          const filteredData = localData.filter(r => r.isDeleted !== true);
+          console.log('📊 localStorage 데이터 반환, 건수:', filteredData.length, '(전체:', localData.length, ', 삭제:', localData.length - filteredData.length, ')');
+          return filteredData;
         }
       }
       
@@ -2535,12 +2539,16 @@
         const snapshot = await window.getDocs(q);
         const submissions = [];
         snapshot.forEach(doc => {
-          submissions.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          // 삭제된 submission은 Firebase에서 이미 제외되지만, 명시적으로 필터링
+          if (data.isDeleted !== true) {
+            submissions.push({ id: doc.id, ...data });
+          }
         });
         
-        console.log('📊 Firebase에서 가져온 데이터 건수:', submissions.length);
+        console.log('📊 Firebase에서 가져온 데이터 건수:', submissions.length, '(전체 문서:', snapshot.docs.length, ')');
         
-        // localStorage에도 백업 저장
+        // localStorage에도 백업 저장 (삭제된 submission 제외)
         localStorage.setItem("wp_submissions", JSON.stringify(submissions));
         console.log('✅ localStorage 백업 저장 완료');
         
@@ -2553,8 +2561,10 @@
         // Firebase 로드 실패 시 localStorage에서 데이터 반환
         console.warn('Firebase 로드 실패, localStorage에서 데이터 반환');
         const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-        console.log('📊 localStorage 데이터 반환 (오류 시), 건수:', localData.length);
-        return localData;
+        // 삭제된 submission 제외
+        const filteredData = localData.filter(r => r.isDeleted !== true);
+        console.log('📊 localStorage 데이터 반환 (오류 시), 건수:', filteredData.length, '(전체:', localData.length, ', 삭제:', localData.length - filteredData.length, ')');
+        return filteredData;
       }
     }
     
@@ -4683,13 +4693,33 @@ ${r.optPlan}
     async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
       // 출금가능액 계산: 접수 여부와 관계없이 모든 submission 포함
       // 신규 요청서도 포함되어야 하며, 접수되면 추가로 증액됨
+      // 핵심: 삭제된 submission은 절대 포함하지 않음
+      const activeSubmissions = submissions.filter(s => s && s.isDeleted !== true);
+      
       console.log('[DEBUG][settlement-start]', {
         totalSubmissions: submissions.length,
+        activeSubmissions: activeSubmissions.length,
+        deletedSubmissions: submissions.length - activeSubmissions.length,
         vendorId: vendorId || 'ALL',
         vendorTypesCount: Object.keys(vendorTypes).length
       });
       
-      const subs = getSubsForVendor(submissions, vendorId, false);
+      // 삭제된 submission이 있는 경우 경고
+      if (submissions.length !== activeSubmissions.length) {
+        const deletedSubs = submissions.filter(s => s && s.isDeleted === true);
+        console.warn('[WARN][settlement] 삭제된 submission 발견:', {
+          deletedCount: deletedSubs.length,
+          deletedSubmissions: deletedSubs.map(s => ({
+            no: s.no,
+            id: s.id,
+            companyCode: s.companyCode,
+            companyName: s.companyName,
+            totalCnt: s.totalCnt
+          }))
+        });
+      }
+      
+      const subs = getSubsForVendor(activeSubmissions, vendorId, false);
       
       // 주식회사 천호(AD91) 필터링 전 상태 확인
       const 천호BeforeFilter = submissions.filter(s => {
@@ -4811,35 +4841,21 @@ ${r.optPlan}
           }
         }
         // vendorTypeAtSubmission이 없는 경우: 데이터 마이그레이션 대상으로 취급
-        // 현재 vendorType으로 계산하지 않고 기본값 '일반' 사용 (하지만 경고)
+        // 계산에서 제외 (사용자 요청사항)
         else {
-          // 주식회사 천호(AD91) vendorTypeAtSubmission이 없는 경우 경고
-          if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-            console.error('[ERROR][천호-settlement] vendorTypeAtSubmission이 없어서 계산에서 제외될 수 있습니다:', {
-              no: sub.no,
-              vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
-              submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : 'N/A',
-              message: '데이터 마이그레이션 대상입니다. 수동 보정이 필요합니다.'
-            });
-          }
-          // vendorTypeAtSubmission이 없는 경우 기본값 '일반' 사용 (하지만 경고)
-          vType = '일반';
-          hasSavedVendorType = false; // 저장된 값이 아니므로 플래그는 false
-        }
-        
-        // 핵심 변경: vendorTypeAtSubmission이 없는 경우 현재 vendorType으로 덮어쓰지 않음
-        // 데이터 마이그레이션 대상으로 취급하여 수동 보정 필요
-        // 단, 82번, 83번은 이미 위에서 특별 처리됨
-        if (!hasSavedVendorType && !(sub.no === 82 || sub.no === 83)) {
-          // vendorTypeAtSubmission이 없고 82번/83번도 아닌 경우
-          // 현재 vendorType으로 계산하지 않고 기본값 '일반' 사용 (하지만 경고)
-          console.error('[ERROR][settlement] vendorTypeAtSubmission이 없어서 계산에서 제외될 수 있습니다:', {
+          // vendorTypeAtSubmission이 없는 경우 계산에서 제외
+          console.error('[ERROR][settlement] vendorTypeAtSubmission이 없어서 계산에서 제외:', {
             no: sub.no,
             companyCode: normalizedCompanyCode,
             companyName: sub.companyName,
             vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
-            message: '데이터 마이그레이션 대상입니다. 수동 보정이 필요합니다.'
+            submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : 'N/A',
+            totalCnt: sub.totalCnt,
+            message: '데이터 마이그레이션 대상입니다. 수동 보정이 필요합니다. 이 submission은 계산에서 제외됩니다.'
           });
+          
+          // 계산에서 제외 (continue로 건너뛰기)
+          continue;
         }
         
         const commission = calcCommissionForSubmission(sub, vType);
@@ -5602,7 +5618,19 @@ ${r.optPlan}
         // 데이터 캐시 강제 초기화 플래그 설정
         window.wp_data_cache_cleared = true;
         
-        const rows = await loadSubs();
+        // 삭제된 submission 제외를 위해 명시적으로 필터링
+        const allRows = await loadSubs();
+        const rows = allRows.filter(r => r.isDeleted !== true);
+        
+        console.log('[DEBUG][withdrawal-request]', {
+          totalRows: allRows.length,
+          filteredRows: rows.length,
+          deletedCount: allRows.filter(r => r.isDeleted === true).length,
+          천호Rows: rows.filter(r => {
+            const code = r.companyCode ? String(r.companyCode).trim() : '';
+            return code === 'AD91' || r.companyName?.includes('천호');
+          }).length
+        });
         const withdrawals = await loadWithdrawals();
         const vendorTypes = await getAllVendorTypes(rows, true);
         
