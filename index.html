@@ -2512,19 +2512,15 @@
       if (typeof checkFirebaseConnection === 'function' && !checkFirebaseConnection()) {
         console.warn('Firebase 연결 불가, localStorage에서 데이터 로드');
         const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-        // 삭제된 submission 제외
-        const filteredData = localData.filter(r => r.isDeleted !== true);
-        console.log('📊 localStorage 데이터 반환, 건수:', filteredData.length, '(전체:', localData.length, ', 삭제:', localData.length - filteredData.length, ')');
-        return filteredData;
+        console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
+        return localData;
       } else if (typeof checkFirebaseConnection !== 'function') {
         // 함수가 아직 정의되지 않은 경우 기본 Firebase 확인
         if (!window.db) {
           console.warn('Firebase DB가 초기화되지 않음, localStorage에서 데이터 로드');
           const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-          // 삭제된 submission 제외
-          const filteredData = localData.filter(r => r.isDeleted !== true);
-          console.log('📊 localStorage 데이터 반환, 건수:', filteredData.length, '(전체:', localData.length, ', 삭제:', localData.length - filteredData.length, ')');
-          return filteredData;
+          console.log('📊 localStorage 데이터 반환, 건수:', localData.length);
+          return localData;
         }
       }
       
@@ -2539,16 +2535,12 @@
         const snapshot = await window.getDocs(q);
         const submissions = [];
         snapshot.forEach(doc => {
-          const data = doc.data();
-          // 삭제된 submission은 Firebase에서 이미 제외되지만, 명시적으로 필터링
-          if (data.isDeleted !== true) {
-            submissions.push({ id: doc.id, ...data });
-          }
+          submissions.push({ id: doc.id, ...doc.data() });
         });
         
-        console.log('📊 Firebase에서 가져온 데이터 건수:', submissions.length, '(전체 문서:', snapshot.docs.length, ')');
+        console.log('📊 Firebase에서 가져온 데이터 건수:', submissions.length);
         
-        // localStorage에도 백업 저장 (삭제된 submission 제외)
+        // localStorage에도 백업 저장
         localStorage.setItem("wp_submissions", JSON.stringify(submissions));
         console.log('✅ localStorage 백업 저장 완료');
         
@@ -2561,10 +2553,8 @@
         // Firebase 로드 실패 시 localStorage에서 데이터 반환
         console.warn('Firebase 로드 실패, localStorage에서 데이터 반환');
         const localData = JSON.parse(localStorage.getItem("wp_submissions")||"[]");
-        // 삭제된 submission 제외
-        const filteredData = localData.filter(r => r.isDeleted !== true);
-        console.log('📊 localStorage 데이터 반환 (오류 시), 건수:', filteredData.length, '(전체:', localData.length, ', 삭제:', localData.length - filteredData.length, ')');
-        return filteredData;
+        console.log('📊 localStorage 데이터 반환 (오류 시), 건수:', localData.length);
+        return localData;
       }
     }
     
@@ -4693,110 +4683,28 @@ ${r.optPlan}
     async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
       // 출금가능액 계산: 접수 여부와 관계없이 모든 submission 포함
       // 신규 요청서도 포함되어야 하며, 접수되면 추가로 증액됨
-      // 핵심: 삭제된 submission은 절대 포함하지 않음
-      const activeSubmissions = submissions.filter(s => s && s.isDeleted !== true);
-      
       console.log('[DEBUG][settlement-start]', {
         totalSubmissions: submissions.length,
-        activeSubmissions: activeSubmissions.length,
-        deletedSubmissions: submissions.length - activeSubmissions.length,
         vendorId: vendorId || 'ALL',
         vendorTypesCount: Object.keys(vendorTypes).length
       });
       
-      // 삭제된 submission이 있는 경우 경고
-      if (submissions.length !== activeSubmissions.length) {
-        const deletedSubs = submissions.filter(s => s && s.isDeleted === true);
-        console.warn('[WARN][settlement] 삭제된 submission 발견:', {
-          deletedCount: deletedSubs.length,
-          deletedSubmissions: deletedSubs.map(s => ({
-            no: s.no,
-            id: s.id,
-            companyCode: s.companyCode,
-            companyName: s.companyName,
-            totalCnt: s.totalCnt
-          }))
-        });
-      }
-      
-      const subs = getSubsForVendor(activeSubmissions, vendorId, false);
-      
-      // 주식회사 천호(AD91) 필터링 전 상태 확인
-      const 천호BeforeFilter = submissions.filter(s => {
-        const code = s.companyCode ? String(s.companyCode).trim() : '';
-        return code === 'AD91' || s.companyName?.includes('천호');
-      });
-      const 천호AfterFilter = subs.filter(s => {
-        const code = s.companyCode ? String(s.companyCode).trim() : '';
-        return code === 'AD91' || s.companyName?.includes('천호');
-      });
-      
-      if (천호BeforeFilter.length !== 천호AfterFilter.length) {
-        console.error('[ERROR][천호-필터링-누락]', {
-          beforeFilterCount: 천호BeforeFilter.length,
-          afterFilterCount: 천호AfterFilter.length,
-          excludedSubmissions: 천호BeforeFilter.filter(s => {
-            const code = s.companyCode ? String(s.companyCode).trim() : '';
-            const matchesVendor = vendorId ? ((s.vendorId && s.vendorId === vendorId) || (s.companyCode === vendorId)) : true;
-            const notDeleted = s.isDeleted !== true;
-            const notTest = s.isTest !== true;
-            const isAccepted = true; // acceptedOnly = false
-            const shouldInclude = matchesVendor && notDeleted && notTest && isAccepted;
-            return !shouldInclude;
-          }).map(s => ({
-            no: s.no,
-            id: s.id,
-            accepted: s.accepted,
-            isDeleted: s.isDeleted,
-            isTest: s.isTest,
-            totalCnt: s.totalCnt,
-            vendorTypeAtSubmission: s.vendorTypeAtSubmission
-          }))
-        });
-      }
+      const subs = getSubsForVendor(submissions, vendorId, false);
       
       console.log('[DEBUG][settlement-filtered]', {
         filteredCount: subs.length,
-        excludedCount: submissions.length - subs.length,
-        천호BeforeFilter: 천호BeforeFilter.length,
-        천호AfterFilter: 천호AfterFilter.length
+        excludedCount: submissions.length - subs.length
       });
       
       // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
       // 핵심: submissions를 제출 시점 순으로 정렬하여 순차 처리
-      // 삭제된 submission은 제외 (이중 체크)
-      const sortedSubs = [...subs].filter(s => s.isDeleted !== true).sort((a, b) => {
+      const sortedSubs = [...subs].sort((a, b) => {
         const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
         const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
         return timeA - timeB;
       });
       
-      // 주식회사 천호(AD91) 삭제된 submission 확인
-      const 천호Deleted = subs.filter(s => {
-        const code = s.companyCode ? String(s.companyCode).trim() : '';
-        return (code === 'AD91' || s.companyName?.includes('천호')) && s.isDeleted === true;
-      });
-      if (천호Deleted.length > 0) {
-        console.warn('[WARN][천호-삭제된-submission]', {
-          vendorName: '주식회사 천호',
-          vendorCode: 'AD91',
-          deletedCount: 천호Deleted.length,
-          deletedSubmissions: 천호Deleted.map(s => ({
-            no: s.no,
-            id: s.id,
-            totalCnt: s.totalCnt,
-            isDeleted: s.isDeleted
-          })),
-          message: '삭제된 submission은 계산에서 제외됩니다.'
-        });
-      }
-      
       let totalCommission = 0;
-      // 주식회사 천호(AD91) commission 추적용
-      const 천호CommissionTracker = new Map(); // no -> { commission, vType, totalCnt, rate }
-      // 주식회사 천호(AD91) submissions 브레이크다운 추적
-      const 천호SubmissionsBreakdown = [];
-      
       for (const sub of sortedSubs) {
         // companyCode 정규화 (공백 제거, 대소문자 통일)
         const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
@@ -4812,21 +4720,7 @@ ${r.optPlan}
         // 이후 로직에서 덮어쓰지 않도록 주의
         let hasSavedVendorType = false;
         
-        // 특별 처리: 82번, 83번은 일반 벤더 단가로 강제 설정 (데이터 보정)
-        if ((sub.no === 82 || sub.no === 83) && (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호'))) {
-          vType = '일반';
-          hasSavedVendorType = true;
-          console.warn('[WARN][천호-settlement] 특별 보정: 82번/83번을 일반 벤더로 강제 설정', {
-            no: sub.no,
-            vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
-            forcedVendorType: '일반',
-            rate: 1500,
-            totalCnt: sub.totalCnt,
-            expectedCommission: sub.totalCnt * 1500
-          });
-        }
-        // 저장된 vendorTypeAtSubmission이 있는 경우
-        else if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
+        if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
           vType = sub.vendorTypeAtSubmission;
           hasSavedVendorType = true;
           
@@ -4840,12 +4734,13 @@ ${r.optPlan}
             });
           }
         }
-        // vendorTypeAtSubmission이 없는 경우: 제출 시점 기준으로 계산
+        // 저장된 값이 없는 경우에만 제출 시점 기준 계산 (하위 호환성)
         else if (normalizedCompanyCode && sub.submittedAt) {
           try {
             // 제출 시점 기준으로 vendorType 계산
             // 주의: submissions 전체를 전달하여 제출 시점 순으로 정렬된 submission만 고려
             // 현재 submission의 ID를 전달하여 제외 (제출 시점 기준 확정)
+            // 핵심: sortedSubs가 아닌 원본 submissions를 전달하여 정확한 제출 시점 기준 계산
             const calculatedVType = await getVendorTypeAtSubmissionTime(
               normalizedCompanyCode, 
               sub.submittedAt, 
@@ -4858,23 +4753,11 @@ ${r.optPlan}
             
             // 주식회사 천호(AD91) 특별 로깅 (저장된 값이 없어서 계산한 경우)
             if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-              console.warn('[WARN][천호-settlement] vendorTypeAtSubmission이 없어서 제출 시점 기준으로 계산:', {
+              console.warn('[WARN][천호-settlement] vendorTypeAtSubmission이 없어서 계산:', {
                 no: sub.no,
                 calculatedVType: calculatedVType,
                 totalCnt: sub.totalCnt,
-                submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : 'N/A',
-                expectedCommission: sub.totalCnt * (calculatedVType === '우수' ? 1000 : 1500),
-                message: '제출 시점 기준으로 벤더 타입을 계산했습니다.'
-              });
-            } else {
-              // 다른 업체는 경고만 (너무 많은 로그 방지)
-              console.warn('[WARN][settlement] vendorTypeAtSubmission이 없어서 제출 시점 기준으로 계산:', {
-                no: sub.no,
-                companyCode: normalizedCompanyCode,
-                companyName: sub.companyName,
-                calculatedVType: calculatedVType,
-                submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : 'N/A',
-                message: '제출 시점 기준으로 벤더 타입을 계산했습니다.'
+                expectedCommission: sub.totalCnt * (calculatedVType === '우수' ? 1000 : 1500)
               });
             }
           } catch (error) {
@@ -4887,77 +4770,41 @@ ${r.optPlan}
             // 오류 발생 시 제출 시점 기준 계산 실패이므로 '일반'으로 설정
             vType = '일반';
           }
-        } else {
-          // submittedAt이 없고 저장된 값도 없는 경우에만 기본값 '일반' 사용
-          vType = '일반';
+        } else if (normalizedCompanyCode && !hasSavedVendorType) {
+          // submittedAt이 없고 저장된 값도 없는 경우에만 현재 vendorType 사용
+          vType = vendorTypes[normalizedCompanyCode] || '일반';
+        }
+        
+        // 핵심: 저장된 vendorTypeAtSubmission이 있으면 절대 덮어쓰지 않음
+        // vendorId나 대소문자 매칭은 저장된 값이 없을 때만 시도
+        if (!hasSavedVendorType) {
+          // vendorId로도 시도 (companyCode로 찾지 못한 경우)
+          if (vType === '일반' && normalizedVendorId) {
+            vType = vendorTypes[normalizedVendorId] || '일반';
+          }
           
-          // 주식회사 천호(AD91) 특별 경고
-          if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-            console.error('[ERROR][천호-settlement] submittedAt이 없어서 기본값 일반으로 계산:', {
-              no: sub.no,
-              currentVendorType: vType,
-              vendorTypesMap: vendorTypes[normalizedCompanyCode],
-              message: 'submittedAt이 없어서 기본값 일반을 사용합니다. 데이터를 확인하세요.'
-            });
-          } else {
-            console.warn('[WARN][settlement] submittedAt이 없어서 기본값 일반으로 계산:', {
-              no: sub.no,
-              companyCode: normalizedCompanyCode,
-              companyName: sub.companyName,
-              message: 'submittedAt이 없어서 기본값 일반을 사용합니다.'
-            });
+          // 대소문자 무시 매칭 시도 (companyCode 매칭 실패 시)
+          // 주의: 저장된 vendorTypeAtSubmission이 있으면 절대 실행하지 않음
+          if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0 && !hasSavedVendorType) {
+            const matchedKey = Object.keys(vendorTypes).find(key => 
+              key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
+            );
+            if (matchedKey) {
+              vType = vendorTypes[matchedKey];
+              console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
+                no: sub.no,
+                companyCode: sub.companyCode,
+                original: sub.companyCode,
+                normalized: normalizedCompanyCode,
+                matched: matchedKey,
+                vendorType: vType,
+                hasSavedVendorType: hasSavedVendorType
+              });
+            }
           }
         }
         
         const commission = calcCommissionForSubmission(sub, vType);
-        
-        // 주식회사 천호(AD91) commission 추적 및 브레이크다운
-        if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-          // totalCnt 파싱
-          let totalCntParsed = 0;
-          if (sub.totalCnt != null) {
-            if (typeof sub.totalCnt === 'number') totalCntParsed = sub.totalCnt;
-            else if (Array.isArray(sub.totalCnt)) totalCntParsed = sub.totalCnt.length > 0 ? Number(sub.totalCnt[0]) || 0 : 0;
-            else {
-              const strValue = String(sub.totalCnt);
-              const firstNumber = strValue.split(/[\/\s]/)[0];
-              const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-              totalCntParsed = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-            }
-          }
-          
-          const fixedUnitFee = vType === '우수' ? 1000 : 1500;
-          const amount = fixedUnitFee * totalCntParsed;
-          
-          const month = sub.submittedAt ? `${new Date(sub.submittedAt).getFullYear()}-${String(new Date(sub.submittedAt).getMonth() + 1).padStart(2, '0')}` : 'N/A';
-          
-          천호CommissionTracker.set(sub.no, {
-            commission: commission,
-            vType: vType,
-            totalCnt: sub.totalCnt,
-            rate: fixedUnitFee,
-            vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
-            hasSavedVendorType: hasSavedVendorType
-          });
-          
-          // 브레이크다운 추가
-          천호SubmissionsBreakdown.push({
-            submissionId: sub.id || sub.no || 'N/A',
-            no: sub.no,
-            vendorName: sub.companyName || 'N/A',
-            submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : 'N/A',
-            month: month,
-            count: totalCntParsed,
-            countRaw: sub.totalCnt,
-            vendorTypeAtSubmit: sub.vendorTypeAtSubmission || vType || 'N/A',
-            fixedUnitFee: fixedUnitFee,
-            amount: amount,
-            accepted: sub.accepted || false,
-            isDeleted: sub.isDeleted || false,
-            isTest: sub.isTest || false,
-            calculation: `${totalCntParsed} × ${fixedUnitFee} = ${amount}`
-          });
-        }
         
         // 디버깅: 각 submission의 계산 상세 로그
         const expectedComm = sub.totalCnt ? (vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500) : 0;
@@ -5015,18 +4862,6 @@ ${r.optPlan}
           });
         }
         
-        // 삭제된 submission은 계산에서 제외
-        if (sub.isDeleted === true) {
-          console.warn('[WARN][settlement] 삭제된 submission 제외:', {
-            no: sub.no,
-            companyCode: normalizedCompanyCode,
-            companyName: sub.companyName,
-            totalCnt: sub.totalCnt,
-            commission: commission
-          });
-          continue; // 이 submission은 건너뛰기
-        }
-        
         totalCommission += commission;
       }
       const relevantWithdrawals = (withdrawals || []).filter(w => {
@@ -5034,209 +4869,58 @@ ${r.optPlan}
         return matchesVendor && w.status === 'completed';
       });
       const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
-      
-      // 주식회사 천호(AD91) 전용 상세 로그 (result 계산 전에 정의)
-      const 천호Subs = sortedSubs.filter(s => {
-        const code = s.companyCode ? String(s.companyCode).trim() : '';
-        return code === 'AD91' || s.companyName?.includes('천호');
-      });
-      
-      // 주식회사 천호(AD91) 출금 이력 확인
-      if ((vendorId === null || vendorId === 'ALL') && 천호Subs.length > 0) {
-        console.warn('[WARN][천호-출금-이력]', {
-          vendorName: '주식회사 천호',
-          vendorCode: 'AD91',
-          totalWithdrawals: relevantWithdrawals.length,
-          totalWithdrawnAmount: totalWithdrawn,
-          withdrawals: relevantWithdrawals.map(w => ({
-            id: w.id,
-            amount: w.amount,
-            status: w.status,
-            createdAt: w.createdAt ? new Date(w.createdAt).toISOString() : 'N/A',
-            vendorId: w.vendorId || 'ALL'
-          }))
-        });
-      }
-      
       const result = {
         totalCommission,
         totalWithdrawn,
         availableAmount: totalCommission - totalWithdrawn,
         subsCount: subs.length
       };
+      // 주식회사 천호(AD91) 전용 상세 로그
+      const 천호Subs = sortedSubs.filter(s => {
+        const code = s.companyCode ? String(s.companyCode).trim() : '';
+        return code === 'AD91' || s.companyName?.includes('천호');
+      });
       
       if (천호Subs.length > 0) {
-        // [로그 1] submissions 브레이크다운
-        console.warn('[로그1][천호-submissions-브레이크다운]', {
-          vendorName: '주식회사 천호',
-          vendorCode: 'AD91',
-          submissionsBreakdown: 천호SubmissionsBreakdown,
-          summary: {
-            totalSubmissions: 천호SubmissionsBreakdown.length,
-            totalAmount: 천호SubmissionsBreakdown.reduce((sum, s) => sum + s.amount, 0),
-            byMonth: 천호SubmissionsBreakdown.reduce((acc, s) => {
-              if (!acc[s.month]) acc[s.month] = { count: 0, amount: 0, submissions: [] };
-              acc[s.month].count += s.count;
-              acc[s.month].amount += s.amount;
-              acc[s.month].submissions.push({
-                no: s.no,
-                count: s.count,
-                fixedUnitFee: s.fixedUnitFee,
-                amount: s.amount
-              });
-              return acc;
-            }, {})
-          }
-        });
-        
-        // 실제 루프에서 계산된 commission 사용 (추적된 값)
         let 천호TotalCommission = 0;
-        const 천호Details = [];
-        
-        for (const sub of 천호Subs) {
-          const tracked = 천호CommissionTracker.get(sub.no);
-          if (tracked) {
-            천호TotalCommission += tracked.commission;
-            
-            let totalCnt = 0;
-            if (sub.totalCnt != null) {
-              if (typeof sub.totalCnt === 'number') totalCnt = sub.totalCnt;
-              else if (Array.isArray(sub.totalCnt)) totalCnt = sub.totalCnt.length > 0 ? Number(sub.totalCnt[0]) || 0 : 0;
-              else {
-                const strValue = String(sub.totalCnt);
-                const firstNumber = strValue.split(/[\/\s]/)[0];
-                const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-                totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-              }
+        const 천호Details = 천호Subs.map(s => {
+          const normalizedCode = s.companyCode ? String(s.companyCode).trim() : '';
+          let vType = s.vendorTypeAtSubmission || 'N/A';
+          const rate = vType === '우수' ? 1000 : (vType === '일반' ? 1500 : 0);
+          let totalCnt = 0;
+          if (s.totalCnt != null) {
+            if (typeof s.totalCnt === 'number') totalCnt = s.totalCnt;
+            else if (Array.isArray(s.totalCnt)) totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
+            else {
+              const strValue = String(s.totalCnt);
+              const firstNumber = strValue.split(/[\/\s]/)[0];
+              const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+              totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
             }
-            
-            천호Details.push({
-              no: sub.no,
-              id: sub.id || 'N/A',
-              submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null,
-              month: sub.submittedAt ? `${new Date(sub.submittedAt).getFullYear()}-${String(new Date(sub.submittedAt).getMonth() + 1).padStart(2, '0')}` : 'N/A',
-              totalCnt: totalCnt,
-              totalCntRaw: sub.totalCnt,
-              vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
-              vendorTypeUsed: tracked.vType,
-              hasSavedVendorType: tracked.hasSavedVendorType,
-              rate: tracked.rate,
-              commission: tracked.commission,
-              accepted: sub.accepted || false,
-              isDeleted: sub.isDeleted || false,
-              isTest: sub.isTest || false
-            });
-          } else {
-            // 추적되지 않은 submission 발견 (필터링에서 제외되었거나 계산 누락)
-            console.error('[ERROR][천호-추적-누락]', {
-              no: sub.no,
-              id: sub.id,
-              totalCnt: sub.totalCnt,
-              vendorTypeAtSubmission: sub.vendorTypeAtSubmission,
-              accepted: sub.accepted,
-              isDeleted: sub.isDeleted,
-              isTest: sub.isTest,
-              message: '이 submission이 루프에서 계산되지 않았습니다.'
-            });
           }
-        }
-        
-        // [로그 2] 출금가능액 계산 과정
-        const submissionsAmountSum = result.totalCommission; // 모든 submissions의 amount 합계
-        const withdrawHistorySum = result.totalWithdrawn; // 모든 출금 이력 amount 합계
-        const withdrawableAmount = result.availableAmount; // 최종 출금가능액
-        
-        console.warn('[로그2][천호-출금가능액-계산-과정]', {
-          vendorName: '주식회사 천호',
-          vendorCode: 'AD91',
-          calculations: {
-            submissionsAmountSum: submissionsAmountSum,
-            withdrawHistorySum: withdrawHistorySum,
-            withdrawableAmount: withdrawableAmount,
-            formula: `${submissionsAmountSum.toLocaleString()} - ${withdrawHistorySum.toLocaleString()} = ${withdrawableAmount.toLocaleString()}`
-          },
-          천호SubmissionsAmount: 천호TotalCommission,
-          천호Breakdown: 천호SubmissionsBreakdown.map(s => ({
+          const commission = totalCnt * rate;
+          천호TotalCommission += commission;
+          return {
             no: s.no,
-            month: s.month,
-            count: s.count,
-            fixedUnitFee: s.fixedUnitFee,
-            amount: s.amount,
-            calculation: s.calculation
-          })),
-          출금이력상세: relevantWithdrawals.map(w => ({
-            id: w.id,
-            amount: w.amount,
-            status: w.status,
-            createdAt: w.createdAt ? new Date(w.createdAt).toISOString() : 'N/A',
-            vendorId: w.vendorId || 'ALL'
-          }))
+            submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : null,
+            month: s.submittedAt ? `${new Date(s.submittedAt).getFullYear()}-${String(new Date(s.submittedAt).getMonth() + 1).padStart(2, '0')}` : 'N/A',
+            totalCnt: totalCnt,
+            vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A',
+            rate: rate,
+            commission: commission
+          };
         });
-        
-        // 1월 신규 200건 추가 분석
-        // 457번 submission이 1월에 추가된 신규 submission인지 확인
-        const january2025Submissions = 천호SubmissionsBreakdown.filter(s => s.month === '2025-01');
-        const january2025Total = january2025Submissions.reduce((sum, s) => sum + s.amount, 0);
-        
-        // 457번 submission 상세 확인
-        const submission457 = 천호SubmissionsBreakdown.find(s => s.no === 457);
-        const expected457Amount = 200 * 1500; // 300,000원
         
         console.warn('[WARN][천호-최종-정산]', {
           vendorName: '주식회사 천호',
           vendorCode: 'AD91',
           submissionsCount: 천호Subs.length,
-          trackedCount: 천호CommissionTracker.size,
           submissionsDetails: 천호Details,
           totalCommission: 천호TotalCommission,
-          천호AmountSum: 천호SubmissionsBreakdown.reduce((sum, s) => sum + s.amount, 0),
           totalWithdrawn: result.totalWithdrawn,
           availableAmount: result.availableAmount,
-          calculation: `총 ${천호Subs.length}건의 submission 합계: ${천호TotalCommission.toLocaleString()}원`,
-          breakdown: 천호Details.map(d => `${d.no}번: ${d.totalCnt}건 × ${d.rate}원 = ${d.commission.toLocaleString()}원`).join(', '),
-          january2025Analysis: {
-            januarySubmissions: january2025Submissions.map(s => ({
-              no: s.no,
-              count: s.count,
-              fixedUnitFee: s.fixedUnitFee,
-              amount: s.amount,
-              vendorTypeAtSubmit: s.vendorTypeAtSubmit
-            })),
-            januaryTotal: january2025Total,
-            submission457: submission457 ? {
-              no: submission457.no,
-              count: submission457.count,
-              fixedUnitFee: submission457.fixedUnitFee,
-              amount: submission457.amount,
-              expectedAmount: expected457Amount,
-              match: submission457.amount === expected457Amount ? '✅' : '❌',
-              difference: submission457.amount - expected457Amount
-            } : null
-          },
-          analysis: {
-            전체천호합계: 천호TotalCommission,
-            전체천호합계상세: 천호SubmissionsBreakdown.map(s => `${s.no}번(${s.month}): ${s.amount.toLocaleString()}원`).join(', '),
-            message: '각 submission별 금액을 확인하세요. 1월 신규 200건(457번)이 300,000원으로 계산되었는지 확인 필요.'
-          }
+          calculation: `총 ${천호Subs.length}건의 submission 합계: ${천호TotalCommission.toLocaleString()}원`
         });
-        
-        // 누락된 submission 확인
-        if (천호Subs.length !== 천호Details.length) {
-          console.error('[ERROR][천호-누락-확인]', {
-            expectedCount: 천호Subs.length,
-            actualCount: 천호Details.length,
-            trackedCount: 천호CommissionTracker.size,
-            missingSubmissions: 천호Subs.filter(s => !천호CommissionTracker.has(s.no)).map(s => ({
-              no: s.no,
-              id: s.id,
-              totalCnt: s.totalCnt,
-              vendorTypeAtSubmission: s.vendorTypeAtSubmission,
-              accepted: s.accepted,
-              isDeleted: s.isDeleted,
-              isTest: s.isTest
-            }))
-          });
-        }
       }
       
       console.log('[DEBUG][settlement]', {
@@ -5669,19 +5353,7 @@ ${r.optPlan}
         // 데이터 캐시 강제 초기화 플래그 설정
         window.wp_data_cache_cleared = true;
         
-        // 삭제된 submission 제외를 위해 명시적으로 필터링
-        const allRows = await loadSubs();
-        const rows = allRows.filter(r => r.isDeleted !== true);
-        
-        console.log('[DEBUG][withdrawal-request]', {
-          totalRows: allRows.length,
-          filteredRows: rows.length,
-          deletedCount: allRows.filter(r => r.isDeleted === true).length,
-          천호Rows: rows.filter(r => {
-            const code = r.companyCode ? String(r.companyCode).trim() : '';
-            return code === 'AD91' || r.companyName?.includes('천호');
-          }).length
-        });
+        const rows = await loadSubs();
         const withdrawals = await loadWithdrawals();
         const vendorTypes = await getAllVendorTypes(rows, true);
         
@@ -7538,46 +7210,21 @@ ${r.optPlan}
       
       if(confirm(`다음 데이터를 삭제하시겠습니까?\n\n번호: ${targetRow.no}\n업체명: ${targetRow.companyName}\n진행건수: ${targetRow.totalCnt}\n\n이 작업은 되돌릴 수 없습니다.`)){
         try {
-          showLoading();
-          
           // Firebase에서 직접 삭제 (문서 ID가 있는 경우)
           if (window.db && targetRow.id) {
             console.log('🔥 Firebase에서 직접 삭제 시도:', targetRow.id);
             const docRef = window.doc(window.db, 'submissions', targetRow.id);
             await window.deleteDoc(docRef);
             console.log('✅ Firebase 직접 삭제 완료');
-            
-            // 삭제 후 localStorage에서도 제거
-            const filteredRows = rows.filter(r => r.no !== no);
-            localStorage.setItem("wp_submissions", JSON.stringify(filteredRows));
-            console.log('✅ localStorage에서도 삭제 반영 완료');
           } else {
             console.log('📝 Firebase 직접 삭제 불가, 전체 데이터 재저장 방식 사용');
             const filteredRows = rows.filter(r => r.no !== no);
             await saveSubs(filteredRows);
           }
           
-          // 캐시 무효화 플래그 설정 (출금가능액 계산 화면 자동 새로고침)
-          window.wp_data_cache_cleared = true;
-          clearVendorTypeCache();
-          
-          // 주식회사 천호(AD91) 삭제 시 특별 로깅
-          if (targetRow.companyCode === 'AD91' || targetRow.companyName?.includes('천호')) {
-            console.warn('[WARN][천호-삭제]', {
-              no: targetRow.no,
-              companyName: targetRow.companyName,
-              companyCode: targetRow.companyCode,
-              totalCnt: targetRow.totalCnt,
-              vendorTypeAtSubmission: targetRow.vendorTypeAtSubmission || 'N/A',
-              message: '삭제 완료. 출금가능액 계산 화면을 새로고침하세요.'
-            });
-          }
-          
-          hideLoading();
           alert('데이터가 삭제되었습니다.');
           showDataManagement();
         } catch (error) {
-          hideLoading();
           console.error('❌ 데이터 삭제 실패:', error);
           alert('데이터 삭제 중 오류가 발생했습니다: ' + error.message);
         }
