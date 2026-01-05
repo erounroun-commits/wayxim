@@ -2995,8 +2995,17 @@ ${r.optPlan}
           } else {
             let desktopHtml = '';
             for(const r of sorted){
-              const vendorType = vendorTypes[r.companyCode] || '일반';
-              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              // 핵심: fixedUnitFee 또는 vendorTypeAtSubmission을 우선 사용
+              let commissionPerUnit;
+              if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
+                commissionPerUnit = r.fixedUnitFee === 1000 ? '1,000원' : '1,500원';
+              } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
+                commissionPerUnit = r.vendorTypeAtSubmission === '우수' ? '1,000원' : '1,500원';
+              } else {
+                // 하위 호환성: 현재 vendorType 사용
+                const vendorType = vendorTypes[r.companyCode] || '일반';
+                commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              }
               desktopHtml += `<tr data-no="${r.no}">`+
                 `<td>${r.no}</td>`+
                 `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
@@ -3027,8 +3036,17 @@ ${r.optPlan}
             let mobileHtml = '';
             for(const r of sorted){
               const detailId = `reqDetail-${r.no}`;
-              const vendorType = vendorTypes[r.companyCode] || '일반';
-              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              // 핵심: fixedUnitFee 또는 vendorTypeAtSubmission을 우선 사용
+              let commissionPerUnit;
+              if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
+                commissionPerUnit = r.fixedUnitFee === 1000 ? '1,000원' : '1,500원';
+              } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
+                commissionPerUnit = r.vendorTypeAtSubmission === '우수' ? '1,000원' : '1,500원';
+              } else {
+                // 하위 호환성: 현재 vendorType 사용
+                const vendorType = vendorTypes[r.companyCode] || '일반';
+                commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              }
               mobileHtml += `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                   <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
@@ -3066,7 +3084,7 @@ ${r.optPlan}
                         <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
                         <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
                         <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
-                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorTypes[r.companyCode] === '우수' ? '1,000원' : '1,500원'}</span></div>
+                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${commissionPerUnit}</span></div>
                         ${isAccepted ? `<div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>` : ''}
                       </div>
                       <div class="pt-4 border-t">
@@ -3273,8 +3291,17 @@ ${r.optPlan}
           } else {
             let desktopHtml = '';
             for(const r of sorted){
-              const vendorType = vendorTypes[r.companyCode] || '일반';
-              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              // 핵심: fixedUnitFee 또는 vendorTypeAtSubmission을 우선 사용
+              let commissionPerUnit;
+              if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
+                commissionPerUnit = r.fixedUnitFee === 1000 ? '1,000원' : '1,500원';
+              } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
+                commissionPerUnit = r.vendorTypeAtSubmission === '우수' ? '1,000원' : '1,500원';
+              } else {
+                // 하위 호환성: 현재 vendorType 사용
+                const vendorType = vendorTypes[r.companyCode] || '일반';
+                commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              }
               desktopHtml += `<tr data-no="${r.no}">`+
                 `<td>${r.no}</td>`+
                 `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
@@ -3302,8 +3329,17 @@ ${r.optPlan}
             let mobileHtml = '';
             for(const r of sorted){
               const detailId = `reqAllDetail-${r.no}`;
-              const vendorType = vendorTypes[r.companyCode] || '일반';
-              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              // 핵심: fixedUnitFee 또는 vendorTypeAtSubmission을 우선 사용
+              let commissionPerUnit;
+              if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
+                commissionPerUnit = r.fixedUnitFee === 1000 ? '1,000원' : '1,500원';
+              } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
+                commissionPerUnit = r.vendorTypeAtSubmission === '우수' ? '1,000원' : '1,500원';
+              } else {
+                // 하위 호환성: 현재 vendorType 사용
+                const vendorType = vendorTypes[r.companyCode] || '일반';
+                commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              }
               mobileHtml += `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                   <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
@@ -3341,7 +3377,7 @@ ${r.optPlan}
                         <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
                         <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
                         <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
-                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorTypes[r.companyCode] === '우수' ? '1,000원' : '1,500원'}</span></div>
+                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${commissionPerUnit}</span></div>
                         <div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>
                       </div>
                       <div class="pt-4 border-t">
