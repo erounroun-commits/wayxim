@@ -7818,6 +7818,180 @@ ${r.optPlan}
     }
 
     if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); }
+    
+    /**
+     * 순수 함수: 제출 시점 기준 벤더 타입 판정
+     * @param {string} vendorCode - 업체 코드
+     * @param {number|string|Date} submittedAt - 제출 시점 (timestamp 또는 Date)
+     * @param {Array} allSubmissions - 모든 submission 배열 (제출 시점 이전의 것만 고려)
+     * @param {string|number} currentSubmissionId - 현재 submission ID (제외용)
+     * @returns {string} '우수' 또는 '일반'
+     */
+    function simulateGetVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions = [], currentSubmissionId = null) {
+      // 입력 검증
+      if (!vendorCode || !submittedAt) {
+        return '일반';
+      }
+      
+      // submittedAt을 timestamp로 변환
+      let submissionTime;
+      if (typeof submittedAt === 'number') {
+        submissionTime = new Date(submittedAt);
+      } else if (submittedAt instanceof Date) {
+        submissionTime = submittedAt;
+      } else {
+        submissionTime = new Date(submittedAt);
+      }
+      
+      if (isNaN(submissionTime.getTime())) {
+        return '일반';
+      }
+      
+      // companyCode 정규화
+      const normalizedVendorCode = String(vendorCode).trim();
+      
+      // 제출 시점 이전의 submission만 필터링 (현재 submission 제외)
+      const submissionsBeforeThis = allSubmissions.filter(s => {
+        if (!s.submittedAt || !s.companyCode) return false;
+        
+        // 현재 submission 제외 (ID 또는 no로 비교)
+        if (currentSubmissionId) {
+          if (s.id && String(s.id) === String(currentSubmissionId)) return false;
+          if (s.no && String(s.no) === String(currentSubmissionId)) return false;
+        }
+        
+        // companyCode 정규화하여 비교
+        const sCompanyCode = String(s.companyCode).trim();
+        if (sCompanyCode !== normalizedVendorCode) return false;
+        
+        // 제출 시점 이전만 포함 (같은 시점 제외)
+        const sTime = new Date(s.submittedAt);
+        if (isNaN(sTime.getTime())) return false;
+        
+        return sTime < submissionTime;
+      });
+      
+      // 이전 submission이 없으면 일반
+      if (submissionsBeforeThis.length === 0) {
+        return '일반';
+      }
+      
+      // 월별 건수 집계 (달력월 기준)
+      const monthCounts = {};
+      submissionsBeforeThis.forEach(s => {
+        try {
+          const sDate = new Date(s.submittedAt);
+          if (isNaN(sDate.getTime())) return;
+          
+          const year = sDate.getFullYear();
+          const month = sDate.getMonth() + 1;
+          const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+          
+          if (!monthCounts[monthKey]) {
+            monthCounts[monthKey] = 0;
+          }
+          
+          // totalCnt 안전하게 파싱
+          let totalCnt = 0;
+          if (s.totalCnt != null) {
+            if (typeof s.totalCnt === 'number') {
+              totalCnt = s.totalCnt;
+            } else if (Array.isArray(s.totalCnt)) {
+              totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
+            } else if (typeof s.totalCnt === 'object') {
+              totalCnt = 0;
+            } else {
+              const strValue = String(s.totalCnt);
+              const firstNumber = strValue.split(/[\/\s]/)[0];
+              const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+              totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+            }
+          }
+          
+          monthCounts[monthKey] += totalCnt;
+        } catch (err) {
+          // 오류 발생 시 해당 submission 건너뛰기
+        }
+      });
+      
+      // 연속된 2개월 이상 200건 달성 여부 확인
+      const sortedMonths = Object.keys(monthCounts).sort();
+      
+      for (let i = 0; i < sortedMonths.length - 1; i++) {
+        const month1 = sortedMonths[i];
+        const month2 = sortedMonths[i + 1];
+        
+        const month1Count = monthCounts[month1] || 0;
+        const month2Count = monthCounts[month2] || 0;
+        
+        // 연속 2개월 각각 200건 이상 달성
+        if (month1Count >= 200 && month2Count >= 200) {
+          // 달성한 날짜 확인 (마지막 submission의 날짜)
+          let lastSubmissionDate = null;
+          submissionsBeforeThis.forEach(s => {
+            const sDate = new Date(s.submittedAt);
+            if (!isNaN(sDate.getTime())) {
+              const year = sDate.getFullYear();
+              const month = sDate.getMonth() + 1;
+              const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+              
+              if (monthKey === month2) {
+                if (!lastSubmissionDate || sDate > lastSubmissionDate) {
+                  lastSubmissionDate = sDate;
+                }
+              }
+            }
+          });
+          
+          // 현재 제출 시점이 달성일 이후인지 확인 (다음날부터 우수 단가)
+          if (lastSubmissionDate && submissionTime > lastSubmissionDate) {
+            // 다음날인지 확인 (날짜만 비교)
+            const lastDate = new Date(lastSubmissionDate.getFullYear(), lastSubmissionDate.getMonth(), lastSubmissionDate.getDate());
+            const currentDate = new Date(submissionTime.getFullYear(), submissionTime.getMonth(), submissionTime.getDate());
+            
+            if (currentDate > lastDate) {
+              return '우수'; // 다음날부터 우수 단가
+            }
+          }
+          
+          // 달성한 당일은 일반 단가
+          return '일반';
+        }
+      }
+      
+      return '일반';
+    }
+    
+    /**
+     * 순수 함수: submission의 수수료 계산
+     * @param {Object} submission - submission 객체
+     * @param {string} vendorType - 벤더 타입 ('우수' 또는 '일반')
+     * @returns {number} 수수료 (원)
+     */
+    function simulateCalcCommissionForSubmission(submission, vendorType) {
+      // 단가 결정
+      const rate = vendorType === '우수' ? 1000 : 1500;
+      
+      // totalCnt 안전하게 파싱
+      let totalCnt = 0;
+      if (submission?.totalCnt != null) {
+        if (typeof submission.totalCnt === 'number') {
+          totalCnt = submission.totalCnt;
+        } else if (Array.isArray(submission.totalCnt)) {
+          totalCnt = submission.totalCnt.length > 0 ? Number(submission.totalCnt[0]) || 0 : 0;
+        } else if (typeof submission.totalCnt === 'object') {
+          totalCnt = 0;
+        } else {
+          const strValue = String(submission.totalCnt);
+          const firstNumber = strValue.split(/[\/\s]/)[0];
+          const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+          totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+        }
+      }
+      
+      return totalCnt * rate;
+    }
+    
   </script>
 
   <!-- Firebase SDK -->
@@ -9148,180 +9322,11 @@ ${r.optPlan}
     
     // ============================================
     // [1단계] 시뮬레이션 로직 - 순수 함수 구현
+    // (이 함수들은 위의 일반 스크립트 태그로 이동됨)
     // ============================================
     
-    /**
-     * 순수 함수: 제출 시점 기준 벤더 타입 판정
-     * @param {string} vendorCode - 업체 코드
-     * @param {number|string|Date} submittedAt - 제출 시점 (timestamp 또는 Date)
-     * @param {Array} allSubmissions - 모든 submission 배열 (제출 시점 이전의 것만 고려)
-     * @param {string|number} currentSubmissionId - 현재 submission ID (제외용)
-     * @returns {string} '우수' 또는 '일반'
-     */
-    function simulateGetVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions = [], currentSubmissionId = null) {
-      // 입력 검증
-      if (!vendorCode || !submittedAt) {
-        return '일반';
-      }
-      
-      // submittedAt을 timestamp로 변환
-      let submissionTime;
-      if (typeof submittedAt === 'number') {
-        submissionTime = new Date(submittedAt);
-      } else if (submittedAt instanceof Date) {
-        submissionTime = submittedAt;
-      } else {
-        submissionTime = new Date(submittedAt);
-      }
-      
-      if (isNaN(submissionTime.getTime())) {
-        return '일반';
-      }
-      
-      // companyCode 정규화
-      const normalizedVendorCode = String(vendorCode).trim();
-      
-      // 제출 시점 이전의 submission만 필터링 (현재 submission 제외)
-      const submissionsBeforeThis = allSubmissions.filter(s => {
-        if (!s.submittedAt || !s.companyCode) return false;
-        
-        // 현재 submission 제외 (ID 또는 no로 비교)
-        if (currentSubmissionId) {
-          if (s.id && String(s.id) === String(currentSubmissionId)) return false;
-          if (s.no && String(s.no) === String(currentSubmissionId)) return false;
-        }
-        
-        // companyCode 정규화하여 비교
-        const sCompanyCode = String(s.companyCode).trim();
-        if (sCompanyCode !== normalizedVendorCode) return false;
-        
-        // 제출 시점 이전만 포함 (같은 시점 제외)
-        const sTime = new Date(s.submittedAt);
-        if (isNaN(sTime.getTime())) return false;
-        
-        return sTime < submissionTime;
-      });
-      
-      // 이전 submission이 없으면 일반
-      if (submissionsBeforeThis.length === 0) {
-        return '일반';
-      }
-      
-      // 월별 건수 집계 (달력월 기준)
-      const monthCounts = {};
-      submissionsBeforeThis.forEach(s => {
-        try {
-          const sDate = new Date(s.submittedAt);
-          if (isNaN(sDate.getTime())) return;
-          
-          const year = sDate.getFullYear();
-          const month = sDate.getMonth() + 1;
-          const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-          
-          if (!monthCounts[monthKey]) {
-            monthCounts[monthKey] = 0;
-          }
-          
-          // totalCnt 안전하게 파싱
-          let totalCnt = 0;
-          if (s.totalCnt != null) {
-            if (typeof s.totalCnt === 'number') {
-              totalCnt = s.totalCnt;
-            } else if (Array.isArray(s.totalCnt)) {
-              totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
-            } else if (typeof s.totalCnt === 'object') {
-              totalCnt = 0;
-            } else {
-              const strValue = String(s.totalCnt);
-              const firstNumber = strValue.split(/[\/\s]/)[0];
-              const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-              totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-            }
-          }
-          
-          monthCounts[monthKey] += totalCnt;
-        } catch (err) {
-          // 오류 발생 시 해당 submission 건너뛰기
-        }
-      });
-      
-      // 연속된 2개월 이상 200건 달성 여부 확인
-      const sortedMonths = Object.keys(monthCounts).sort();
-      
-      for (let i = 0; i < sortedMonths.length - 1; i++) {
-        const month1 = sortedMonths[i];
-        const month2 = sortedMonths[i + 1];
-        
-        const month1Count = monthCounts[month1] || 0;
-        const month2Count = monthCounts[month2] || 0;
-        
-        // 연속 2개월 각각 200건 이상 달성
-        if (month1Count >= 200 && month2Count >= 200) {
-          // 달성한 날짜 확인 (마지막 submission의 날짜)
-          let lastSubmissionDate = null;
-          submissionsBeforeThis.forEach(s => {
-            const sDate = new Date(s.submittedAt);
-            if (!isNaN(sDate.getTime())) {
-              const year = sDate.getFullYear();
-              const month = sDate.getMonth() + 1;
-              const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-              
-              if (monthKey === month2) {
-                if (!lastSubmissionDate || sDate > lastSubmissionDate) {
-                  lastSubmissionDate = sDate;
-                }
-              }
-            }
-          });
-          
-          // 현재 제출 시점이 달성일 이후인지 확인 (다음날부터 우수 단가)
-          if (lastSubmissionDate && submissionTime > lastSubmissionDate) {
-            // 다음날인지 확인 (날짜만 비교)
-            const lastDate = new Date(lastSubmissionDate.getFullYear(), lastSubmissionDate.getMonth(), lastSubmissionDate.getDate());
-            const currentDate = new Date(submissionTime.getFullYear(), submissionTime.getMonth(), submissionTime.getDate());
-            
-            if (currentDate > lastDate) {
-              return '우수'; // 다음날부터 우수 단가
-            }
-          }
-          
-          // 달성한 당일은 일반 단가
-          return '일반';
-        }
-      }
-      
-      return '일반';
-    }
-    
-    /**
-     * 순수 함수: submission의 수수료 계산
-     * @param {Object} submission - submission 객체
-     * @param {string} vendorType - 벤더 타입 ('우수' 또는 '일반')
-     * @returns {number} 수수료 (원)
-     */
-    function simulateCalcCommissionForSubmission(submission, vendorType) {
-      // 단가 결정
-      const rate = vendorType === '우수' ? 1000 : 1500;
-      
-      // totalCnt 안전하게 파싱
-      let totalCnt = 0;
-      if (submission?.totalCnt != null) {
-        if (typeof submission.totalCnt === 'number') {
-          totalCnt = submission.totalCnt;
-        } else if (Array.isArray(submission.totalCnt)) {
-          totalCnt = submission.totalCnt.length > 0 ? Number(submission.totalCnt[0]) || 0 : 0;
-        } else if (typeof submission.totalCnt === 'object') {
-          totalCnt = 0;
-        } else {
-          const strValue = String(submission.totalCnt);
-          const firstNumber = strValue.split(/[\/\s]/)[0];
-          const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-          totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-        }
-      }
-      
-      return totalCnt * rate;
-    }
+    // 함수들이 모듈 스크립트 밖으로 이동되었으므로 여기서는 제거
+    // (위의 일반 스크립트 태그에 정의됨)
     
     /**
      * 순수 함수: 출금가능액 계산 (시뮬레이션 로직)
