@@ -5589,12 +5589,39 @@ ${r.optPlan}
         // 데이터 캐시 강제 초기화 플래그 설정
         window.wp_data_cache_cleared = true;
         
+        // 최신 데이터 강제 로드 (캐시 무시)
         const rows = await loadSubs();
+        
+        // 삭제된 submission이 있는지 확인하고 제거
+        const cleanedRows = rows.filter(r => {
+          if (r.isDeleted === true) {
+            console.warn('[WARN][withdrawal] 삭제된 submission 발견 및 제외:', {
+              no: r.no,
+              companyCode: r.companyCode,
+              companyName: r.companyName
+            });
+            return false;
+          }
+          if (r.isTest === true) {
+            console.warn('[WARN][withdrawal] 테스트 submission 발견 및 제외:', {
+              no: r.no,
+              companyCode: r.companyCode,
+              companyName: r.companyName
+            });
+            return false;
+          }
+          return true;
+        });
+        
+        if (cleanedRows.length !== rows.length) {
+          console.log(`[DEBUG][withdrawal] ${rows.length - cleanedRows.length}건의 삭제/테스트 submission 제외됨`);
+        }
+        
         const withdrawals = await loadWithdrawals();
-        const vendorTypes = await getAllVendorTypes(rows, true);
+        const vendorTypes = await getAllVendorTypes(cleanedRows, true);
         
         // 주식회사 천호(AD91) 제출 전 상태 로깅
-        const 천호Before = rows.filter(r => {
+        const 천호Before = cleanedRows.filter(r => {
           const code = r.companyCode ? String(r.companyCode).trim() : '';
           return code === 'AD91' || r.companyName?.includes('천호');
         });
@@ -5608,12 +5635,14 @@ ${r.optPlan}
               submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : null,
               totalCnt: s.totalCnt,
               vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A',
-              accepted: s.accepted
+              fixedUnitFee: s.fixedUnitFee || 'N/A',
+              accepted: s.accepted,
+              isDeleted: s.isDeleted || false
             }))
           });
         }
         
-        const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
+        const settlement = await calcSettlementForVendor(cleanedRows, withdrawals, null, vendorTypes);
         const { totalCommission, totalWithdrawn, availableAmount } = settlement;
         
         // 상단 영역 (모바일에서 sticky)
@@ -7453,35 +7482,69 @@ ${r.optPlan}
       
       if(confirm(`다음 데이터를 삭제하시겠습니까?\n\n번호: ${targetRow.no}\n업체명: ${targetRow.companyName}\n진행건수: ${targetRow.totalCnt}\n\n이 작업은 되돌릴 수 없습니다.`)){
         try {
+          showLoading();
+          
+          // 먼저 localStorage에서 즉시 제거
+          const filteredRows = rows.filter(r => r.no !== no);
+          localStorage.setItem("wp_submissions", JSON.stringify(filteredRows));
+          console.log('✅ localStorage에서 즉시 삭제 완료');
+          
           // Firebase에서 직접 삭제 (문서 ID가 있는 경우)
           if (window.db && targetRow.id) {
             console.log('🔥 Firebase에서 직접 삭제 시도:', targetRow.id);
-            const docRef = window.doc(window.db, 'submissions', targetRow.id);
-            await window.deleteDoc(docRef);
-            console.log('✅ Firebase 직접 삭제 완료');
+            try {
+              const docRef = window.doc(window.db, 'submissions', targetRow.id);
+              await window.deleteDoc(docRef);
+              console.log('✅ Firebase 직접 삭제 완료');
+            } catch (firebaseError) {
+              console.error('❌ Firebase 삭제 실패:', firebaseError);
+              // Firebase 삭제 실패해도 localStorage는 이미 업데이트됨
+            }
           } else {
             console.log('📝 Firebase 직접 삭제 불가, 전체 데이터 재저장 방식 사용');
-            const filteredRows = rows.filter(r => r.no !== no);
             await saveSubs(filteredRows);
           }
           
-          // localStorage 업데이트
-          const filteredRows = rows.filter(r => r.no !== no);
-          localStorage.setItem("wp_submissions", JSON.stringify(filteredRows));
-          
-          // 캐시 무효화
+          // 캐시 강제 무효화
           window.wp_data_cache_cleared = true;
           clearVendorTypeCache();
           
+          // 최신 데이터 다시 로드하여 확인
+          const latestRows = await loadSubs();
+          const stillExists = latestRows.find(r => r.no === no);
+          if (stillExists) {
+            console.warn('⚠️ 삭제 후에도 데이터가 남아있음, 다시 시도');
+            // 다시 시도
+            const reFilteredRows = latestRows.filter(r => r.no !== no);
+            localStorage.setItem("wp_submissions", JSON.stringify(reFilteredRows));
+            if (window.db && targetRow.id) {
+              try {
+                const docRef = window.doc(window.db, 'submissions', targetRow.id);
+                await window.deleteDoc(docRef);
+              } catch (e) {
+                console.error('재시도 Firebase 삭제 실패:', e);
+              }
+            }
+          }
+          
+          hideLoading();
           alert('데이터가 삭제되었습니다.');
+          
+          // 데이터 관리 화면 새로고침
           await showDataManagement();
           
-          // 출금가능액 화면이 열려있으면 자동 새로고침
+          // 출금가능액 화면이 열려있으면 강제 새로고침
           const currentSection = document.querySelector('[data-section].active')?.getAttribute('data-section');
           if(currentSection === 'settle-withdrawal'){
-            await showWithdrawalRequest();
+            // 약간의 지연 후 새로고침 (Firebase 동기화 대기)
+            setTimeout(async () => {
+              window.wp_data_cache_cleared = true;
+              clearVendorTypeCache();
+              await showWithdrawalRequest();
+            }, 500);
           }
         } catch (error) {
+          hideLoading();
           console.error('❌ 데이터 삭제 실패:', error);
           alert('데이터 삭제 중 오류가 발생했습니다: ' + error.message);
         }
