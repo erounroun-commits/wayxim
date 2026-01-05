@@ -4959,35 +4959,35 @@ ${r.optPlan}
       });
       const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
       
+      // 주식회사 천호(AD91) 전용 상세 로그 (result 계산 전에 정의)
+      const 천호Subs = sortedSubs.filter(s => {
+        const code = s.companyCode ? String(s.companyCode).trim() : '';
+        return code === 'AD91' || s.companyName?.includes('천호');
+      });
+      
       // 주식회사 천호(AD91) 출금 이력 확인
-      if (vendorId === null || vendorId === 'ALL') {
-        if (천호Subs.length > 0) {
-          console.warn('[WARN][천호-출금-이력]', {
-            vendorName: '주식회사 천호',
-            vendorCode: 'AD91',
-            totalWithdrawals: relevantWithdrawals.length,
-            totalWithdrawnAmount: totalWithdrawn,
-            withdrawals: relevantWithdrawals.map(w => ({
-              id: w.id,
-              amount: w.amount,
-              status: w.status,
-              createdAt: w.createdAt ? new Date(w.createdAt).toISOString() : 'N/A',
-              vendorId: w.vendorId || 'ALL'
-            }))
-          });
-        }
+      if ((vendorId === null || vendorId === 'ALL') && 천호Subs.length > 0) {
+        console.warn('[WARN][천호-출금-이력]', {
+          vendorName: '주식회사 천호',
+          vendorCode: 'AD91',
+          totalWithdrawals: relevantWithdrawals.length,
+          totalWithdrawnAmount: totalWithdrawn,
+          withdrawals: relevantWithdrawals.map(w => ({
+            id: w.id,
+            amount: w.amount,
+            status: w.status,
+            createdAt: w.createdAt ? new Date(w.createdAt).toISOString() : 'N/A',
+            vendorId: w.vendorId || 'ALL'
+          }))
+        });
       }
+      
       const result = {
         totalCommission,
         totalWithdrawn,
         availableAmount: totalCommission - totalWithdrawn,
         subsCount: subs.length
       };
-      // 주식회사 천호(AD91) 전용 상세 로그
-      const 천호Subs = sortedSubs.filter(s => {
-        const code = s.companyCode ? String(s.companyCode).trim() : '';
-        return code === 'AD91' || s.companyName?.includes('천호');
-      });
       
       if (천호Subs.length > 0) {
         // [로그 1] submissions 브레이크다운
