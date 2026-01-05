@@ -5097,11 +5097,14 @@ ${r.optPlan}
           }))
         });
         
-        // 190,000원 분석
-        const expectedIncrease = 300000; // 200건 × 1,500원
-        const actualIncrease = 천호TotalCommission - (submissionsAmountSum - 천호TotalCommission); // 전체에서 천호 제외한 금액과 비교는 복잡하므로...
-        // 대신 천호의 submission별 합계를 확인
-        const 천호AmountSum = 천호SubmissionsBreakdown.reduce((sum, s) => sum + s.amount, 0);
+        // 1월 신규 200건 추가 분석
+        // 457번 submission이 1월에 추가된 신규 submission인지 확인
+        const january2025Submissions = 천호SubmissionsBreakdown.filter(s => s.month === '2025-01');
+        const january2025Total = january2025Submissions.reduce((sum, s) => sum + s.amount, 0);
+        
+        // 457번 submission 상세 확인
+        const submission457 = 천호SubmissionsBreakdown.find(s => s.no === 457);
+        const expected457Amount = 200 * 1500; // 300,000원
         
         console.warn('[WARN][천호-최종-정산]', {
           vendorName: '주식회사 천호',
@@ -5110,18 +5113,34 @@ ${r.optPlan}
           trackedCount: 천호CommissionTracker.size,
           submissionsDetails: 천호Details,
           totalCommission: 천호TotalCommission,
-          천호AmountSum: 천호AmountSum,
+          천호AmountSum: 천호SubmissionsBreakdown.reduce((sum, s) => sum + s.amount, 0),
           totalWithdrawn: result.totalWithdrawn,
           availableAmount: result.availableAmount,
           calculation: `총 ${천호Subs.length}건의 submission 합계: ${천호TotalCommission.toLocaleString()}원`,
           breakdown: 천호Details.map(d => `${d.no}번: ${d.totalCnt}건 × ${d.rate}원 = ${d.commission.toLocaleString()}원`).join(', '),
+          january2025Analysis: {
+            januarySubmissions: january2025Submissions.map(s => ({
+              no: s.no,
+              count: s.count,
+              fixedUnitFee: s.fixedUnitFee,
+              amount: s.amount,
+              vendorTypeAtSubmit: s.vendorTypeAtSubmit
+            })),
+            januaryTotal: january2025Total,
+            submission457: submission457 ? {
+              no: submission457.no,
+              count: submission457.count,
+              fixedUnitFee: submission457.fixedUnitFee,
+              amount: submission457.amount,
+              expectedAmount: expected457Amount,
+              match: submission457.amount === expected457Amount ? '✅' : '❌',
+              difference: submission457.amount - expected457Amount
+            } : null
+          },
           analysis: {
-            expectedIncrease: expectedIncrease,
-            천호AmountSum: 천호AmountSum,
-            difference: expectedIncrease - 천호AmountSum,
-            message: 천호AmountSum === expectedIncrease 
-              ? '✅ 천호 submission 합계가 기대값과 일치합니다'
-              : `❌ 천호 submission 합계가 기대값과 다릅니다 (차이: ${(expectedIncrease - 천호AmountSum).toLocaleString()}원)`
+            전체천호합계: 천호TotalCommission,
+            전체천호합계상세: 천호SubmissionsBreakdown.map(s => `${s.no}번(${s.month}): ${s.amount.toLocaleString()}원`).join(', '),
+            message: '각 submission별 금액을 확인하세요. 1월 신규 200건(457번)이 300,000원으로 계산되었는지 확인 필요.'
           }
         });
         
