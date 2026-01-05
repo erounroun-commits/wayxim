@@ -4735,25 +4735,39 @@ ${r.optPlan}
         const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
         const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
         
-        // 핵심: 저장된 vendorTypeAtSubmission을 우선 사용
-        // 제출 시점에 확정된 vendorType이 저장되어 있으면 그것을 사용
-        // 저장된 값이 없으면 제출 시점 기준으로 계산 (하위 호환성)
-        let vType = '일반';
-        
-        // 핵심: 저장된 vendorTypeAtSubmission을 절대 우선 사용
-        // 제출 시점에 확정된 vendorType이 저장되어 있으면 그것을 무조건 사용
-        // 이후 로직에서 덮어쓰지 않도록 주의
+        // 핵심: 저장된 fixedUnitFee가 있으면 그것을 우선 사용
+        // fixedUnitFee가 있으면 vendorType 계산을 건너뛰고 fixedUnitFee만 사용
+        let vType = '일반'; // 기본값 (calcCommissionForSubmission에서 fixedUnitFee 우선 사용)
         let hasSavedVendorType = false;
         
-        if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
+        // fixedUnitFee가 있으면 vendorType 계산 불필요 (fixedUnitFee가 우선)
+        if (sub.fixedUnitFee != null && (sub.fixedUnitFee === 1000 || sub.fixedUnitFee === 1500)) {
+          // fixedUnitFee가 있으면 vendorType은 단순히 로깅용으로만 사용
+          vType = sub.fixedUnitFee === 1000 ? '우수' : '일반';
+          hasSavedVendorType = true;
+          
+          // 주식회사 천호(AD91) 특별 로깅
+          if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+            console.warn('[WARN][천호-settlement] 저장된 fixedUnitFee 사용 (절대 우선):', {
+              no: sub.no,
+              fixedUnitFee: sub.fixedUnitFee,
+              vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
+              totalCnt: sub.totalCnt,
+              expectedCommission: sub.totalCnt * sub.fixedUnitFee
+            });
+          }
+        }
+        // fixedUnitFee가 없는 경우에만 vendorType 계산 (하위 호환성)
+        else if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
           vType = sub.vendorTypeAtSubmission;
           hasSavedVendorType = true;
           
           // 주식회사 천호(AD91) 특별 로깅
           if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-            console.warn('[WARN][천호-settlement] 저장된 vendorTypeAtSubmission 사용 (절대 우선):', {
+            console.warn('[WARN][천호-settlement] 저장된 vendorTypeAtSubmission 사용:', {
               no: sub.no,
               vendorTypeAtSubmission: sub.vendorTypeAtSubmission,
+              fixedUnitFee: sub.fixedUnitFee || 'N/A',
               totalCnt: sub.totalCnt,
               expectedCommission: sub.totalCnt * (sub.vendorTypeAtSubmission === '우수' ? 1000 : 1500)
             });
@@ -4763,14 +4777,11 @@ ${r.optPlan}
         else if (normalizedCompanyCode && sub.submittedAt) {
           try {
             // 제출 시점 기준으로 vendorType 계산
-            // 주의: submissions 전체를 전달하여 제출 시점 순으로 정렬된 submission만 고려
-            // 현재 submission의 ID를 전달하여 제외 (제출 시점 기준 확정)
-            // 핵심: sortedSubs가 아닌 원본 submissions를 전달하여 정확한 제출 시점 기준 계산
             const calculatedVType = await getVendorTypeAtSubmissionTime(
               normalizedCompanyCode, 
               sub.submittedAt, 
-              submissions, // 원본 submissions 전체 사용 (현재 submission 포함, 내부에서 제외됨)
-              sub.id || sub.no || String(sub.submittedAt) // ID가 없으면 submittedAt으로 대체
+              submissions, // 원본 submissions 전체 사용
+              sub.id || sub.no || String(sub.submittedAt)
             );
             
             // 제출 시점 기준 계산 결과 사용
@@ -4829,6 +4840,8 @@ ${r.optPlan}
           }
         }
         
+        // 핵심: calcCommissionForSubmission은 fixedUnitFee를 우선 사용
+        // fixedUnitFee가 있으면 vType은 무시되고 fixedUnitFee만 사용됨
         const commission = calcCommissionForSubmission(sub, vType);
         
         // 디버깅: 각 submission의 계산 상세 로그
