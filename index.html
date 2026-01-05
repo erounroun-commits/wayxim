@@ -1508,6 +1508,34 @@
           uniqueId // 현재 submission ID 전달하여 제외
         );
         
+        // 주식회사 천호(AD91) 특별 로깅
+        if (companyCode === 'AD91' || productData.companyName?.includes('천호')) {
+          const submissionsBeforeThis = existingSubmissions.filter(s => {
+            if (!s.submittedAt || !s.companyCode) return false;
+            if (s.id === uniqueId || s.no === displayNo) return false;
+            const sCompanyCode = String(s.companyCode).trim();
+            if (sCompanyCode !== companyCode) return false;
+            const sTime = new Date(s.submittedAt);
+            const subTime = new Date(submittedAt);
+            return sTime < subTime;
+          });
+          
+          console.warn('[WARN][천호-submit] 제출 시점 vendorType 확정:', {
+            companyCode: companyCode,
+            companyName: productData.companyName,
+            submittedAt: new Date(submittedAt).toISOString(),
+            vendorTypeAtSubmission: vendorTypeAtSubmission,
+            totalCnt: productData.totalCnt,
+            expectedCommission: productData.totalCnt * (vendorTypeAtSubmission === '우수' ? 1000 : 1500),
+            submissionsBeforeThisCount: submissionsBeforeThis.length,
+            submissionsBeforeThis: submissionsBeforeThis.map(s => ({
+              no: s.no,
+              submittedAt: new Date(s.submittedAt).toISOString(),
+              totalCnt: s.totalCnt,
+              vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A'
+            }))
+          });
+        }
       } catch (error) {
         console.error('[ERROR][submit-vendorType-calculation]', {
           companyCode: companyCode,
@@ -1517,6 +1545,11 @@
         // 오류 발생 시 기본값 '일반' 사용
         vendorTypeAtSubmission = '일반';
       }
+
+      // 핵심: 제출 시점의 단가를 확정하여 저장
+      // vendorTypeAtSubmission에 따라 단가를 확정 저장
+      // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
+      const fixedUnitFee = vendorTypeAtSubmission === '우수' ? 1000 : 1500;
 
       const rec = {
         id: uniqueId,
@@ -1540,7 +1573,10 @@
         acceptedAt: null,
         // 핵심: 제출 시점의 vendorType을 확정하여 저장
         // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
-        vendorTypeAtSubmission: vendorTypeAtSubmission
+        vendorTypeAtSubmission: vendorTypeAtSubmission,
+        // 핵심: 제출 시점의 단가를 확정하여 저장
+        // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
+        fixedUnitFee: fixedUnitFee
       };
       
       console.log('[DEBUG][submit-product-rec]', {
@@ -2959,8 +2995,17 @@ ${r.optPlan}
           } else {
             let desktopHtml = '';
             for(const r of sorted){
-              const vendorType = vendorTypes[r.companyCode] || '일반';
-              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              // 핵심: fixedUnitFee 또는 vendorTypeAtSubmission을 우선 사용
+              let commissionPerUnit;
+              if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
+                commissionPerUnit = r.fixedUnitFee === 1000 ? '1,000원' : '1,500원';
+              } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
+                commissionPerUnit = r.vendorTypeAtSubmission === '우수' ? '1,000원' : '1,500원';
+              } else {
+                // 하위 호환성: 현재 vendorType 사용
+                const vendorType = vendorTypes[r.companyCode] || '일반';
+                commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              }
               desktopHtml += `<tr data-no="${r.no}">`+
                 `<td>${r.no}</td>`+
                 `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
@@ -2991,8 +3036,17 @@ ${r.optPlan}
             let mobileHtml = '';
             for(const r of sorted){
               const detailId = `reqDetail-${r.no}`;
-              const vendorType = vendorTypes[r.companyCode] || '일반';
-              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              // 핵심: fixedUnitFee 또는 vendorTypeAtSubmission을 우선 사용
+              let commissionPerUnit;
+              if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
+                commissionPerUnit = r.fixedUnitFee === 1000 ? '1,000원' : '1,500원';
+              } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
+                commissionPerUnit = r.vendorTypeAtSubmission === '우수' ? '1,000원' : '1,500원';
+              } else {
+                // 하위 호환성: 현재 vendorType 사용
+                const vendorType = vendorTypes[r.companyCode] || '일반';
+                commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              }
               mobileHtml += `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                   <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
@@ -3030,7 +3084,7 @@ ${r.optPlan}
                         <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
                         <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
                         <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
-                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorTypes[r.companyCode] === '우수' ? '1,000원' : '1,500원'}</span></div>
+                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${commissionPerUnit}</span></div>
                         ${isAccepted ? `<div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>` : ''}
                       </div>
                       <div class="pt-4 border-t">
@@ -3237,8 +3291,17 @@ ${r.optPlan}
           } else {
             let desktopHtml = '';
             for(const r of sorted){
-              const vendorType = vendorTypes[r.companyCode] || '일반';
-              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              // 핵심: fixedUnitFee 또는 vendorTypeAtSubmission을 우선 사용
+              let commissionPerUnit;
+              if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
+                commissionPerUnit = r.fixedUnitFee === 1000 ? '1,000원' : '1,500원';
+              } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
+                commissionPerUnit = r.vendorTypeAtSubmission === '우수' ? '1,000원' : '1,500원';
+              } else {
+                // 하위 호환성: 현재 vendorType 사용
+                const vendorType = vendorTypes[r.companyCode] || '일반';
+                commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              }
               desktopHtml += `<tr data-no="${r.no}">`+
                 `<td>${r.no}</td>`+
                 `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
@@ -3266,8 +3329,17 @@ ${r.optPlan}
             let mobileHtml = '';
             for(const r of sorted){
               const detailId = `reqAllDetail-${r.no}`;
-              const vendorType = vendorTypes[r.companyCode] || '일반';
-              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              // 핵심: fixedUnitFee 또는 vendorTypeAtSubmission을 우선 사용
+              let commissionPerUnit;
+              if (r.fixedUnitFee != null && (r.fixedUnitFee === 1000 || r.fixedUnitFee === 1500)) {
+                commissionPerUnit = r.fixedUnitFee === 1000 ? '1,000원' : '1,500원';
+              } else if (r.vendorTypeAtSubmission && (r.vendorTypeAtSubmission === '우수' || r.vendorTypeAtSubmission === '일반')) {
+                commissionPerUnit = r.vendorTypeAtSubmission === '우수' ? '1,000원' : '1,500원';
+              } else {
+                // 하위 호환성: 현재 vendorType 사용
+                const vendorType = vendorTypes[r.companyCode] || '일반';
+                commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              }
               mobileHtml += `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                   <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
@@ -3305,7 +3377,7 @@ ${r.optPlan}
                         <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
                         <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
                         <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
-                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorTypes[r.companyCode] === '우수' ? '1,000원' : '1,500원'}</span></div>
+                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${commissionPerUnit}</span></div>
                         <div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>
                       </div>
                       <div class="pt-4 border-t">
@@ -4196,11 +4268,170 @@ ${r.optPlan}
     // 제출 시점 기준 vendorType 계산 함수 (모든 업체에 대해 안정적으로 작동)
     // 핵심: 현재 submission을 제외하고, 제출 시점 이전의 submission만 고려
     async function getVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions, currentSubmissionId = null) {
-      // [전체 벤더 공통 로직] NEW 로직 사용
-      // simulateGetVendorTypeAtSubmissionTime을 호출하여 동일한 로직 적용
-      // async 래퍼 유지 (기존 호출 코드와의 호환성)
+      if (!vendorCode || !submittedAt) {
+        return '일반';
+      }
+      
       try {
-        return simulateGetVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions, currentSubmissionId);
+        const submissionTime = new Date(submittedAt);
+        if (isNaN(submissionTime.getTime())) {
+          console.warn('[WARN][vendorType-at-time] 잘못된 submittedAt:', submittedAt);
+          return '일반';
+        }
+        
+        // companyCode 정규화
+        const normalizedVendorCode = String(vendorCode).trim();
+        
+        // 제출 시점 이전의 submission만 필터링 (현재 submission 제외)
+        // 핵심: 현재 submission은 제외하고, 그 이전의 submission만 고려
+        // 같은 시점에 제출된 다른 submission도 제외 (현재 submission의 vendorType 결정에 영향을 주면 안 됨)
+        const submissionsBeforeThis = allSubmissions.filter(s => {
+          if (!s.submittedAt || !s.companyCode) return false;
+          
+          // 현재 submission 제외 (ID, no로 비교)
+          // 핵심: 현재 submission은 제외하여 제출 시점 기준 계산이 정확하게 이루어지도록 함
+          if (currentSubmissionId) {
+            // ID로 비교
+            if (s.id && String(s.id) === String(currentSubmissionId)) {
+              return false;
+            }
+            // no로 비교
+            if (s.no && String(s.no) === String(currentSubmissionId)) {
+              return false;
+            }
+          }
+          
+          // companyCode 정규화하여 비교
+          const sCompanyCode = String(s.companyCode).trim();
+          if (sCompanyCode !== normalizedVendorCode) return false;
+          
+          const sTime = new Date(s.submittedAt);
+          if (isNaN(sTime.getTime())) return false;
+          
+          // 제출 시점 이전만 포함 (같은 시점 제외)
+          // 핵심: 현재 submission이 제출되는 시점에서, 그 시점까지의 이전 submission만 고려
+          return sTime < submissionTime;
+        });
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-vendorType-at-time-start]', {
+            vendorCode: vendorCode,
+            submittedAt: submissionTime.toISOString(),
+            totalSubmissions: allSubmissions.length,
+            submissionsBeforeThis: submissionsBeforeThis.length,
+            submissionsBeforeThisDetails: submissionsBeforeThis.map(s => ({
+              no: s.no,
+              submittedAt: new Date(s.submittedAt).toISOString(),
+              totalCnt: s.totalCnt,
+              totalCntType: typeof s.totalCnt
+            }))
+          });
+        }
+        
+        if (submissionsBeforeThis.length === 0) {
+          if (vendorCode === 'AD91') {
+            console.warn('[WARN][천호-vendorType] 제출 시점 이전 submission이 없음');
+          }
+          return '일반';
+        }
+        
+        // 제출 시점 기준으로 월별 건수 계산
+        const monthCounts = {};
+        submissionsBeforeThis.forEach(s => {
+          try {
+            const sDate = new Date(s.submittedAt);
+            if (isNaN(sDate.getTime())) return;
+            
+            const monthKey = `${sDate.getFullYear()}-${pad(sDate.getMonth() + 1)}`;
+            if (!monthCounts[monthKey]) {
+              monthCounts[monthKey] = 0;
+            }
+            
+            // totalCnt 안전하게 파싱 (calcCommissionForSubmission과 동일한 로직)
+            let totalCnt = 0;
+            if (s.totalCnt != null) {
+              if (typeof s.totalCnt === 'number') {
+                totalCnt = s.totalCnt;
+              } else if (Array.isArray(s.totalCnt)) {
+                totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
+              } else if (typeof s.totalCnt === 'object') {
+                totalCnt = 0;
+              } else {
+                const strValue = String(s.totalCnt);
+                const firstNumber = strValue.split(/[\/\s]/)[0];
+                const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+                totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+              }
+            }
+            
+            monthCounts[monthKey] += totalCnt;
+          } catch (err) {
+            console.warn('[WARN][vendorType-at-time] submission 처리 오류:', err, s);
+          }
+        });
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-monthCounts]', {
+            vendorCode: vendorCode,
+            monthCounts: monthCounts,
+            sortedMonths: Object.keys(monthCounts).sort()
+          });
+        }
+        
+        // 연속된 2개월 이상 200건 달성 여부 확인
+        const sortedMonths = Object.keys(monthCounts).sort();
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-연속월체크]', {
+            vendorCode: vendorCode,
+            sortedMonths: sortedMonths,
+            monthCounts: monthCounts,
+            checkPairs: sortedMonths.slice(0, -1).map((month1, i) => {
+              const month2 = sortedMonths[i + 1];
+              return {
+                month1: month1,
+                month1Count: monthCounts[month1] || 0,
+                month2: month2,
+                month2Count: monthCounts[month2] || 0,
+                isPremium: (monthCounts[month1] || 0) >= 200 && (monthCounts[month2] || 0) >= 200
+              };
+            })
+          });
+        }
+        
+        for (let i = 0; i < sortedMonths.length - 1; i++) {
+          const month1 = sortedMonths[i];
+          const month2 = sortedMonths[i + 1];
+          
+          const month1Count = monthCounts[month1] || 0;
+          const month2Count = monthCounts[month2] || 0;
+          
+          if (month1Count >= 200 && month2Count >= 200) {
+            if (vendorCode === 'AD91') {
+              console.warn('[WARN][천호-우수판정]', {
+                vendorCode: vendorCode,
+                month1: month1,
+                month1Count: month1Count,
+                month2: month2,
+                month2Count: month2Count
+              });
+            }
+            return '우수';
+          }
+        }
+        
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-일반판정]', {
+            vendorCode: vendorCode,
+            monthCounts: monthCounts,
+            sortedMonths: sortedMonths
+          });
+        }
+        
+        return '일반';
       } catch (error) {
         console.error('[ERROR][vendorType-at-time]', {
           vendorCode,
@@ -4435,28 +4666,45 @@ ${r.optPlan}
     }
 
     function calcCommissionForSubmission(submission, vendorType) {
-      // [전체 벤더 공통 로직] NEW 로직 사용
-      // simulateCalcCommissionForSubmission을 호출하여 동일한 로직 적용
-      const commission = simulateCalcCommissionForSubmission(submission, vendorType);
+      // 핵심: 저장된 fixedUnitFee가 있으면 그것을 우선 사용
+      // 접수 시점에 확정된 단가를 사용하여 이후 벤더 등급 변경에 영향받지 않음
+      let rate;
+      let rateSource;
       
-      // 디버깅: 계산 과정 상세 로그 (기존 호환성 유지)
-      const rate = vendorType === '우수' ? 1000 : 1500;
+      if (submission?.fixedUnitFee != null && (submission.fixedUnitFee === 1000 || submission.fixedUnitFee === 1500)) {
+        rate = submission.fixedUnitFee;
+        rateSource = 'fixedUnitFee';
+      } else {
+        // fixedUnitFee가 없으면 vendorType 기준으로 계산 (하위 호환성)
+        rate = vendorType === '우수' ? 1000 : 1500;
+        rateSource = 'vendorType';
+      }
+      
+      // totalCnt를 안전하게 숫자로 변환 (문자열, 숫자, null, undefined 모두 처리)
       let totalCnt = 0;
       if (submission?.totalCnt != null) {
-        if (typeof submission.totalCnt === 'number') {
-          totalCnt = submission.totalCnt;
-        } else if (Array.isArray(submission.totalCnt)) {
+        // 배열이나 객체인 경우 처리
+        if (Array.isArray(submission.totalCnt)) {
+          console.warn('[WARN][commission-calc] totalCnt가 배열입니다:', submission.totalCnt);
           totalCnt = submission.totalCnt.length > 0 ? Number(submission.totalCnt[0]) || 0 : 0;
         } else if (typeof submission.totalCnt === 'object') {
+          console.warn('[WARN][commission-calc] totalCnt가 객체입니다:', submission.totalCnt);
           totalCnt = 0;
         } else {
+          // 숫자 또는 문자열 처리
+          // "200/100" 같은 형태는 첫 번째 숫자만 추출
           const strValue = String(submission.totalCnt);
+          // 슬래시나 공백으로 구분된 경우 첫 번째 숫자만 추출
           const firstNumber = strValue.split(/[\/\s]/)[0];
-          const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-          totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+          const cnt = typeof submission.totalCnt === 'number' 
+            ? submission.totalCnt 
+            : parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+          totalCnt = isNaN(cnt) || cnt < 0 ? 0 : cnt;
         }
       }
       
+      // 디버깅: 계산 과정 상세 로그 (항상 출력)
+      const calculatedCommission = totalCnt * rate;
       console.log('[DEBUG][commission-calc]', {
         no: submission?.no,
         companyName: submission?.companyName,
@@ -4466,119 +4714,312 @@ ${r.optPlan}
         totalCntType: typeof submission?.totalCnt,
         totalCntIsArray: Array.isArray(submission?.totalCnt),
         vendorType: vendorType,
+        fixedUnitFee: submission?.fixedUnitFee || 'N/A',
         rate: rate,
-        commission: commission,
-        calculation: `${totalCnt} × ${rate} = ${commission}`
+        rateSource: rateSource,
+        commission: calculatedCommission,
+        calculation: `${totalCnt} × ${rate} = ${calculatedCommission}`
       });
       
-      return commission;
+      // 주식회사 천호(AD91) 특별 로깅
+      if (submission?.companyCode === 'AD91' || submission?.companyName?.includes('천호')) {
+        console.warn('[WARN][천호-commission]', {
+          no: submission?.no,
+          companyName: submission?.companyName,
+          companyCode: submission?.companyCode,
+          totalCntRaw: submission?.totalCnt,
+          totalCntParsed: totalCnt,
+          vendorType: vendorType,
+          fixedUnitFee: submission?.fixedUnitFee || 'N/A',
+          rate: rate,
+          rateSource: rateSource,
+          commission: calculatedCommission,
+          expectedCommission: totalCnt === 200 ? (rate === 1000 ? 200000 : 300000) : 'N/A'
+        });
+      }
+      
+      return totalCnt * rate;
     }
 
     async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
-      // [전체 벤더 공통 로직] NEW 계산 로직 적용
-      // 모든 벤더에 대해 시뮬레이션 로직과 동일한 계산 방식 사용
+      // 출금가능액 계산: 접수 여부와 관계없이 모든 submission 포함
+      // 신규 요청서도 포함되어야 하며, 접수되면 추가로 증액됨
       console.log('[DEBUG][settlement-start]', {
         totalSubmissions: submissions.length,
         vendorId: vendorId || 'ALL',
-        vendorTypesCount: Object.keys(vendorTypes).length,
-        logic: 'NEW (전체 벤더 공통)'
+        vendorTypesCount: Object.keys(vendorTypes).length
       });
       
-      // 1. 벤더별 필터링 (삭제/테스트 제외)
-      const filteredSubs = submissions.filter(sub => {
-        if (!sub) return false;
-        
-        // 삭제/테스트 제외
-        if (sub.isDeleted === true || sub.isTest === true) return false;
-        
-        // 벤더 필터링
-        if (vendorId) {
-          const matchesVendor = (sub.vendorId && sub.vendorId === vendorId) || 
-                                (sub.companyCode && sub.companyCode === vendorId);
-          return matchesVendor;
-        }
-        
-        return true;
-      });
+      const subs = getSubsForVendor(submissions, vendorId, false);
       
       console.log('[DEBUG][settlement-filtered]', {
-        filteredCount: filteredSubs.length,
-        excludedCount: submissions.length - filteredSubs.length
+        filteredCount: subs.length,
+        excludedCount: submissions.length - subs.length
       });
       
-      // 2. 제출 시점 순으로 정렬
-      const sortedSubs = [...filteredSubs].sort((a, b) => {
+      // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
+      // 핵심: submissions를 제출 시점 순으로 정렬하여 순차 처리
+      const sortedSubs = [...subs].sort((a, b) => {
         const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
         const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
         return timeA - timeB;
       });
       
-      // 3. 각 submission의 수수료 계산
       let totalCommission = 0;
-      
       for (const sub of sortedSubs) {
-        // vendorTypeAtSubmission이 있으면 우선 사용
-        let vendorType = '일반';
+        // companyCode 정규화 (공백 제거, 대소문자 통일)
+        const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
+        const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
         
-        if (sub.vendorTypeAtSubmission && 
-            (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
-          vendorType = sub.vendorTypeAtSubmission;
-        } else if (sub.companyCode && sub.submittedAt) {
-          // 저장된 값이 없으면 제출 시점 기준 계산 (NEW 로직 사용)
-          vendorType = simulateGetVendorTypeAtSubmissionTime(
-            sub.companyCode,
-            sub.submittedAt,
-            submissions, // 전체 submissions 전달
-            sub.id || sub.no || null
-          );
+        // 핵심: 저장된 fixedUnitFee가 있으면 그것을 우선 사용
+        // fixedUnitFee가 있으면 vendorType 계산을 건너뛰고 fixedUnitFee만 사용
+        let vType = '일반'; // 기본값 (calcCommissionForSubmission에서 fixedUnitFee 우선 사용)
+        let hasSavedVendorType = false;
+        
+        // fixedUnitFee가 있으면 vendorType 계산 불필요 (fixedUnitFee가 우선)
+        if (sub.fixedUnitFee != null && (sub.fixedUnitFee === 1000 || sub.fixedUnitFee === 1500)) {
+          // fixedUnitFee가 있으면 vendorType은 단순히 로깅용으로만 사용
+          vType = sub.fixedUnitFee === 1000 ? '우수' : '일반';
+          hasSavedVendorType = true;
+          
+          // 주식회사 천호(AD91) 특별 로깅
+          if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+            console.warn('[WARN][천호-settlement] 저장된 fixedUnitFee 사용 (절대 우선):', {
+              no: sub.no,
+              fixedUnitFee: sub.fixedUnitFee,
+              vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
+              totalCnt: sub.totalCnt,
+              expectedCommission: sub.totalCnt * sub.fixedUnitFee
+            });
+          }
+        }
+        // fixedUnitFee가 없는 경우에만 vendorType 계산 (하위 호환성)
+        else if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
+          vType = sub.vendorTypeAtSubmission;
+          hasSavedVendorType = true;
+          
+          // 주식회사 천호(AD91) 특별 로깅
+          if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+            console.warn('[WARN][천호-settlement] 저장된 vendorTypeAtSubmission 사용:', {
+              no: sub.no,
+              vendorTypeAtSubmission: sub.vendorTypeAtSubmission,
+              fixedUnitFee: sub.fixedUnitFee || 'N/A',
+              totalCnt: sub.totalCnt,
+              expectedCommission: sub.totalCnt * (sub.vendorTypeAtSubmission === '우수' ? 1000 : 1500)
+            });
+          }
+        }
+        // 저장된 값이 없는 경우에만 제출 시점 기준 계산 (하위 호환성)
+        else if (normalizedCompanyCode && sub.submittedAt) {
+          try {
+            // 제출 시점 기준으로 vendorType 계산
+            const calculatedVType = await getVendorTypeAtSubmissionTime(
+              normalizedCompanyCode, 
+              sub.submittedAt, 
+              submissions, // 원본 submissions 전체 사용
+              sub.id || sub.no || String(sub.submittedAt)
+            );
+            
+            // 제출 시점 기준 계산 결과 사용
+            vType = calculatedVType;
+            
+            // 주식회사 천호(AD91) 특별 로깅 (저장된 값이 없어서 계산한 경우)
+            if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+              console.warn('[WARN][천호-settlement] vendorTypeAtSubmission이 없어서 계산:', {
+                no: sub.no,
+                calculatedVType: calculatedVType,
+                totalCnt: sub.totalCnt,
+                expectedCommission: sub.totalCnt * (calculatedVType === '우수' ? 1000 : 1500)
+              });
+            }
+          } catch (error) {
+            console.error('[ERROR][vendorType-calculation]', {
+              no: sub.no,
+              companyCode: normalizedCompanyCode,
+              error: error.message,
+              stack: error.stack
+            });
+            // 오류 발생 시 제출 시점 기준 계산 실패이므로 '일반'으로 설정
+            vType = '일반';
+          }
+        } else if (normalizedCompanyCode && !hasSavedVendorType) {
+          // submittedAt이 없고 저장된 값도 없는 경우에만 현재 vendorType 사용
+          vType = vendorTypes[normalizedCompanyCode] || '일반';
         }
         
-        // 수수료 계산 (NEW 로직 사용)
-        const commission = simulateCalcCommissionForSubmission(sub, vendorType);
-        totalCommission += commission;
+        // 핵심: 저장된 vendorTypeAtSubmission이 있으면 절대 덮어쓰지 않음
+        // vendorId나 대소문자 매칭은 저장된 값이 없을 때만 시도
+        if (!hasSavedVendorType) {
+          // vendorId로도 시도 (companyCode로 찾지 못한 경우)
+          if (vType === '일반' && normalizedVendorId) {
+            vType = vendorTypes[normalizedVendorId] || '일반';
+          }
+          
+          // 대소문자 무시 매칭 시도 (companyCode 매칭 실패 시)
+          // 주의: 저장된 vendorTypeAtSubmission이나 fixedUnitFee가 있으면 절대 실행하지 않음
+          // fixedUnitFee가 있으면 vendorType 계산이 불필요하므로 이 로직도 건너뛰어야 함
+          if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0 && !hasSavedVendorType && !sub.fixedUnitFee) {
+            const matchedKey = Object.keys(vendorTypes).find(key => 
+              key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
+            );
+            if (matchedKey && matchedKey !== normalizedCompanyCode) {
+              // 대소문자가 다른 경우에만 경고 (정확히 일치하는 경우는 경고 불필요)
+              vType = vendorTypes[matchedKey];
+              console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
+                no: sub.no,
+                companyCode: sub.companyCode,
+                original: sub.companyCode,
+                normalized: normalizedCompanyCode,
+                matched: matchedKey,
+                vendorType: vType,
+                hasSavedVendorType: hasSavedVendorType,
+                fixedUnitFee: sub.fixedUnitFee || 'N/A'
+              });
+            }
+          }
+        }
         
-        // 디버깅 로그
+        // 핵심: calcCommissionForSubmission은 fixedUnitFee를 우선 사용
+        // fixedUnitFee가 있으면 vType은 무시되고 fixedUnitFee만 사용됨
+        const commission = calcCommissionForSubmission(sub, vType);
+        
+        // 디버깅: 각 submission의 계산 상세 로그
+        const expectedComm = sub.totalCnt ? (vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500) : 0;
+        const commissionMatch = commission === expectedComm ? '✅' : '❌ MISMATCH';
+        
         console.log('[DEBUG][settlement-detail]', {
           no: sub.no,
           companyCode: sub.companyCode,
-          companyName: sub.companyName,
+          companyCodeNormalized: normalizedCompanyCode,
           submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null,
+          companyCodeInVendorTypes: normalizedCompanyCode in vendorTypes,
+          vendorId: sub.vendorId,
+          vendorIdNormalized: normalizedVendorId,
+          companyName: sub.companyName,
+          accepted: sub.accepted,
+          isDeleted: sub.isDeleted,
+          isTest: sub.isTest,
           totalCnt: sub.totalCnt,
-          vendorType: vendorType,
-          vendorTypeSource: sub.vendorTypeAtSubmission ? 'saved' : 'calculated',
-          rate: vendorType === '우수' ? 1000 : 1500,
+          totalCntType: typeof sub.totalCnt,
+          totalCntIsArray: Array.isArray(sub.totalCnt),
+          vendorType: vType,
+          vendorTypeSource: (normalizedCompanyCode && sub.submittedAt && vType !== '일반') ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'),
+          rate: vType === '우수' ? 1000 : 1500,
           commission: commission,
-          accumulatedSum: totalCommission
+          expectedCommission: expectedComm,
+          commissionMatch: commissionMatch,
+          difference: commission - expectedComm,
+          accumulatedSum: totalCommission + commission,
+          calculation: `${sub.totalCnt} × ${vType === '우수' ? 1000 : 1500} = ${expectedComm}`
         });
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+          const vendorTypeSource = sub.vendorTypeAtSubmission 
+            ? 'saved' 
+            : ((normalizedCompanyCode && sub.submittedAt && vType !== '일반') ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'));
+          
+          console.warn('[WARN][천호-settlement]', {
+            no: sub.no,
+            companyName: sub.companyName,
+            companyCode: normalizedCompanyCode,
+            totalCnt: sub.totalCnt,
+            totalCntType: typeof sub.totalCnt,
+            vendorType: vType,
+            vendorTypeAtSubmission: sub.vendorTypeAtSubmission || 'N/A',
+            vendorTypeSource: vendorTypeSource,
+            hasSavedVendorType: hasSavedVendorType,
+            rate: vType === '우수' ? 1000 : 1500,
+            commission: commission,
+            expectedCommission: expectedComm,
+            difference: commission - expectedComm,
+            calculation: `${sub.totalCnt} × ${vType === '우수' ? 1000 : 1500} = ${expectedComm}`,
+            accumulatedSum: totalCommission + commission,
+            submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null
+          });
+        }
+        
+        totalCommission += commission;
       }
-      
-      // 4. 출금액 계산 (completed 상태만)
       const relevantWithdrawals = (withdrawals || []).filter(w => {
-        const matchesVendor = vendorId ? 
-          ((w.vendorId && w.vendorId === vendorId) || (w.companyCode && w.companyCode === vendorId)) : 
-          true;
+        const matchesVendor = vendorId ? ((w.vendorId && w.vendorId === vendorId) || (!w.vendorId && !vendorId)) : true;
         return matchesVendor && w.status === 'completed';
       });
-      
       const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
-      
-      // 5. 출금가능액 계산
       const result = {
         totalCommission,
         totalWithdrawn,
         availableAmount: totalCommission - totalWithdrawn,
-        subsCount: sortedSubs.length
+        subsCount: subs.length
       };
+      // 주식회사 천호(AD91) 전용 상세 로그
+      const 천호Subs = sortedSubs.filter(s => {
+        const code = s.companyCode ? String(s.companyCode).trim() : '';
+        return code === 'AD91' || s.companyName?.includes('천호');
+      });
+      
+      if (천호Subs.length > 0) {
+        let 천호TotalCommission = 0;
+        const 천호Details = 천호Subs.map(s => {
+          const normalizedCode = s.companyCode ? String(s.companyCode).trim() : '';
+          
+          // 핵심: fixedUnitFee가 있으면 그것을 우선 사용
+          let rate;
+          if (s.fixedUnitFee != null && (s.fixedUnitFee === 1000 || s.fixedUnitFee === 1500)) {
+            rate = s.fixedUnitFee;
+          } else if (s.vendorTypeAtSubmission && (s.vendorTypeAtSubmission === '우수' || s.vendorTypeAtSubmission === '일반')) {
+            rate = s.vendorTypeAtSubmission === '우수' ? 1000 : 1500;
+          } else {
+            rate = 0;
+          }
+          
+          let totalCnt = 0;
+          if (s.totalCnt != null) {
+            if (typeof s.totalCnt === 'number') totalCnt = s.totalCnt;
+            else if (Array.isArray(s.totalCnt)) totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
+            else {
+              const strValue = String(s.totalCnt);
+              const firstNumber = strValue.split(/[\/\s]/)[0];
+              const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+              totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+            }
+          }
+          
+          // calcCommissionForSubmission을 사용하여 정확한 commission 계산
+          const commission = calcCommissionForSubmission(s, s.vendorTypeAtSubmission || '일반');
+          천호TotalCommission += commission;
+          
+          return {
+            no: s.no,
+            submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : null,
+            month: s.submittedAt ? `${new Date(s.submittedAt).getFullYear()}-${String(new Date(s.submittedAt).getMonth() + 1).padStart(2, '0')}` : 'N/A',
+            totalCnt: totalCnt,
+            vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A',
+            fixedUnitFee: s.fixedUnitFee || 'N/A',
+            rate: rate,
+            commission: commission
+          };
+        });
+        
+        console.warn('[WARN][천호-최종-정산]', {
+          vendorName: '주식회사 천호',
+          vendorCode: 'AD91',
+          submissionsCount: 천호Subs.length,
+          submissionsDetails: 천호Details,
+          totalCommission: 천호TotalCommission,
+          totalWithdrawn: result.totalWithdrawn,
+          availableAmount: result.availableAmount,
+          calculation: `총 ${천호Subs.length}건의 submission 합계: ${천호TotalCommission.toLocaleString()}원`
+        });
+      }
       
       console.log('[DEBUG][settlement]', {
         vendorId: vendorId || 'ALL',
         subsCount: result.subsCount,
         totalCommission: result.totalCommission,
         totalWithdrawn: result.totalWithdrawn,
-        availableAmount: result.availableAmount,
-        logic: 'NEW (전체 벤더 공통)'
+        availableAmount: result.availableAmount
       });
-      
       return result;
     }
 
@@ -5006,6 +5447,25 @@ ${r.optPlan}
         const withdrawals = await loadWithdrawals();
         const vendorTypes = await getAllVendorTypes(rows, true);
         
+        // 주식회사 천호(AD91) 제출 전 상태 로깅
+        const 천호Before = rows.filter(r => {
+          const code = r.companyCode ? String(r.companyCode).trim() : '';
+          return code === 'AD91' || r.companyName?.includes('천호');
+        });
+        if (천호Before.length > 0) {
+          console.warn('[WARN][천호-출금가능액-계산-전]', {
+            vendorName: '주식회사 천호',
+            vendorCode: 'AD91',
+            submissionsCount: 천호Before.length,
+            submissions: 천호Before.map(s => ({
+              no: s.no,
+              submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : null,
+              totalCnt: s.totalCnt,
+              vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A',
+              accepted: s.accepted
+            }))
+          });
+        }
         
         const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
         const { totalCommission, totalWithdrawn, availableAmount } = settlement;
@@ -7381,6 +7841,17 @@ ${r.optPlan}
                   rec ? rec.id : null // 현재 submission ID (신규인 경우 null)
                 );
                 
+                // 주식회사 천호(AD91) 특별 로깅
+                if (companyCode === 'AD91' || companyName?.includes('천호')) {
+                  console.warn('[WARN][천호-csv-upload] vendorTypeAtSubmission 계산:', {
+                    companyCode: companyCode,
+                    companyName: companyName,
+                    submittedAt: new Date(submittedAt).toISOString(),
+                    vendorTypeAtSubmission: vendorTypeAtSubmission,
+                    totalCnt: toInt(obj['총진행건수'] != null ? obj['총진행건수'] : (rec? rec.totalCnt : 0)),
+                    isNew: !rec
+                  });
+                }
               } catch (error) {
                 console.error('[ERROR][csv-vendorType-calculation]', {
                   companyCode: companyCode,
@@ -7392,6 +7863,11 @@ ${r.optPlan}
               vendorTypeAtSubmission = '일반';
             }
           }
+          
+          // 핵심: 제출 시점의 단가를 확정하여 저장
+          // vendorTypeAtSubmission에 따라 단가를 확정 저장
+          // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
+          const fixedUnitFee = vendorTypeAtSubmission === '우수' ? 1000 : 1500;
           
           const newRec = {
             id: rec ? rec.id : `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Firebase 문서 ID 추가
@@ -7414,7 +7890,9 @@ ${r.optPlan}
             accepted: obj['접수상태'] != null ? parseBool(obj['접수상태']) : (rec? rec.accepted : false),
             acceptedAt: obj['접수시간'] ? parseTs(obj['접수시간']) : (rec? rec.acceptedAt : null),
             // 핵심: 제출 시점의 vendorType을 확정하여 저장
-            vendorTypeAtSubmission: vendorTypeAtSubmission
+            vendorTypeAtSubmission: vendorTypeAtSubmission,
+            // 핵심: 제출 시점의 단가를 확정하여 저장
+            fixedUnitFee: fixedUnitFee
           };
           
           console.log('📋 매핑된 데이터 상세:', {
@@ -7818,180 +8296,6 @@ ${r.optPlan}
     }
 
     if(sessionStorage.getItem("wp_is_admin")==="1"){ goAdmin(); }
-    
-    /**
-     * 순수 함수: 제출 시점 기준 벤더 타입 판정
-     * @param {string} vendorCode - 업체 코드
-     * @param {number|string|Date} submittedAt - 제출 시점 (timestamp 또는 Date)
-     * @param {Array} allSubmissions - 모든 submission 배열 (제출 시점 이전의 것만 고려)
-     * @param {string|number} currentSubmissionId - 현재 submission ID (제외용)
-     * @returns {string} '우수' 또는 '일반'
-     */
-    function simulateGetVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions = [], currentSubmissionId = null) {
-      // 입력 검증
-      if (!vendorCode || !submittedAt) {
-        return '일반';
-      }
-      
-      // submittedAt을 timestamp로 변환
-      let submissionTime;
-      if (typeof submittedAt === 'number') {
-        submissionTime = new Date(submittedAt);
-      } else if (submittedAt instanceof Date) {
-        submissionTime = submittedAt;
-      } else {
-        submissionTime = new Date(submittedAt);
-      }
-      
-      if (isNaN(submissionTime.getTime())) {
-        return '일반';
-      }
-      
-      // companyCode 정규화
-      const normalizedVendorCode = String(vendorCode).trim();
-      
-      // 제출 시점 이전의 submission만 필터링 (현재 submission 제외)
-      const submissionsBeforeThis = allSubmissions.filter(s => {
-        if (!s.submittedAt || !s.companyCode) return false;
-        
-        // 현재 submission 제외 (ID 또는 no로 비교)
-        if (currentSubmissionId) {
-          if (s.id && String(s.id) === String(currentSubmissionId)) return false;
-          if (s.no && String(s.no) === String(currentSubmissionId)) return false;
-        }
-        
-        // companyCode 정규화하여 비교
-        const sCompanyCode = String(s.companyCode).trim();
-        if (sCompanyCode !== normalizedVendorCode) return false;
-        
-        // 제출 시점 이전만 포함 (같은 시점 제외)
-        const sTime = new Date(s.submittedAt);
-        if (isNaN(sTime.getTime())) return false;
-        
-        return sTime < submissionTime;
-      });
-      
-      // 이전 submission이 없으면 일반
-      if (submissionsBeforeThis.length === 0) {
-        return '일반';
-      }
-      
-      // 월별 건수 집계 (달력월 기준)
-      const monthCounts = {};
-      submissionsBeforeThis.forEach(s => {
-        try {
-          const sDate = new Date(s.submittedAt);
-          if (isNaN(sDate.getTime())) return;
-          
-          const year = sDate.getFullYear();
-          const month = sDate.getMonth() + 1;
-          const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-          
-          if (!monthCounts[monthKey]) {
-            monthCounts[monthKey] = 0;
-          }
-          
-          // totalCnt 안전하게 파싱
-          let totalCnt = 0;
-          if (s.totalCnt != null) {
-            if (typeof s.totalCnt === 'number') {
-              totalCnt = s.totalCnt;
-            } else if (Array.isArray(s.totalCnt)) {
-              totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
-            } else if (typeof s.totalCnt === 'object') {
-              totalCnt = 0;
-            } else {
-              const strValue = String(s.totalCnt);
-              const firstNumber = strValue.split(/[\/\s]/)[0];
-              const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-              totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-            }
-          }
-          
-          monthCounts[monthKey] += totalCnt;
-        } catch (err) {
-          // 오류 발생 시 해당 submission 건너뛰기
-        }
-      });
-      
-      // 연속된 2개월 이상 200건 달성 여부 확인
-      const sortedMonths = Object.keys(monthCounts).sort();
-      
-      for (let i = 0; i < sortedMonths.length - 1; i++) {
-        const month1 = sortedMonths[i];
-        const month2 = sortedMonths[i + 1];
-        
-        const month1Count = monthCounts[month1] || 0;
-        const month2Count = monthCounts[month2] || 0;
-        
-        // 연속 2개월 각각 200건 이상 달성
-        if (month1Count >= 200 && month2Count >= 200) {
-          // 달성한 날짜 확인 (마지막 submission의 날짜)
-          let lastSubmissionDate = null;
-          submissionsBeforeThis.forEach(s => {
-            const sDate = new Date(s.submittedAt);
-            if (!isNaN(sDate.getTime())) {
-              const year = sDate.getFullYear();
-              const month = sDate.getMonth() + 1;
-              const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-              
-              if (monthKey === month2) {
-                if (!lastSubmissionDate || sDate > lastSubmissionDate) {
-                  lastSubmissionDate = sDate;
-                }
-              }
-            }
-          });
-          
-          // 현재 제출 시점이 달성일 이후인지 확인 (다음날부터 우수 단가)
-          if (lastSubmissionDate && submissionTime > lastSubmissionDate) {
-            // 다음날인지 확인 (날짜만 비교)
-            const lastDate = new Date(lastSubmissionDate.getFullYear(), lastSubmissionDate.getMonth(), lastSubmissionDate.getDate());
-            const currentDate = new Date(submissionTime.getFullYear(), submissionTime.getMonth(), submissionTime.getDate());
-            
-            if (currentDate > lastDate) {
-              return '우수'; // 다음날부터 우수 단가
-            }
-          }
-          
-          // 달성한 당일은 일반 단가
-          return '일반';
-        }
-      }
-      
-      return '일반';
-    }
-    
-    /**
-     * 순수 함수: submission의 수수료 계산
-     * @param {Object} submission - submission 객체
-     * @param {string} vendorType - 벤더 타입 ('우수' 또는 '일반')
-     * @returns {number} 수수료 (원)
-     */
-    function simulateCalcCommissionForSubmission(submission, vendorType) {
-      // 단가 결정
-      const rate = vendorType === '우수' ? 1000 : 1500;
-      
-      // totalCnt 안전하게 파싱
-      let totalCnt = 0;
-      if (submission?.totalCnt != null) {
-        if (typeof submission.totalCnt === 'number') {
-          totalCnt = submission.totalCnt;
-        } else if (Array.isArray(submission.totalCnt)) {
-          totalCnt = submission.totalCnt.length > 0 ? Number(submission.totalCnt[0]) || 0 : 0;
-        } else if (typeof submission.totalCnt === 'object') {
-          totalCnt = 0;
-        } else {
-          const strValue = String(submission.totalCnt);
-          const firstNumber = strValue.split(/[\/\s]/)[0];
-          const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
-          totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-        }
-      }
-      
-      return totalCnt * rate;
-    }
-    
   </script>
 
   <!-- Firebase SDK -->
@@ -9253,6 +9557,185 @@ ${r.optPlan}
     };
     
     // ============================================
+    // 출금가능액 계산 버그 테스트 (주식회사 천호 일반→우수 전환 시나리오)
+    // ============================================
+    window.test천호Settlement = async function() {
+      console.log('🧪 [테스트 시작] 주식회사 천호 일반→우수 전환 시나리오 테스트');
+      console.log('='.repeat(80));
+      
+      try {
+        // 테스트 데이터 준비
+        const testCompanyCode = 'AD91';
+        const testCompanyName = '주식회사 천호';
+        
+        // 초기 상태: 11월 220건, 일반 벤더
+        const initialSubmissions = [
+          {
+            id: 'test_sub_1',
+            no: 1,
+            submittedAt: new Date('2024-11-15T10:00:00Z').getTime(),
+            companyCode: testCompanyCode,
+            companyName: testCompanyName,
+            totalCnt: 220,
+            dailyCnt: 10,
+            vendorTypeAtSubmission: '일반', // 제출 시점에 일반 벤더
+            accepted: true
+          }
+        ];
+        
+        // 출금 이력 없음
+        const testWithdrawals = [];
+        
+        // 테스트 1: 초기 상태 확인
+        console.log('\n📋 [테스트 1] 초기 상태 확인');
+        console.log('-'.repeat(80));
+        const settlement1 = await calcSettlementForVendor(initialSubmissions, testWithdrawals, null, {});
+        const expected1 = 220 * 1500; // 220건 × 1,500원 = 330,000원
+        console.log('초기 상태 결과:', {
+          totalCommission: settlement1.totalCommission,
+          expectedCommission: expected1,
+          availableAmount: settlement1.availableAmount,
+          match: settlement1.totalCommission === expected1 ? '✅ 통과' : '❌ 실패'
+        });
+        
+        if (settlement1.totalCommission !== expected1) {
+          console.error('❌ [테스트 1 실패] 초기 상태 계산 오류');
+          return false;
+        }
+        
+        // 테스트 2: 1월 첫 200건 추가 (여전히 일반 벤더 단가 적용)
+        console.log('\n📋 [테스트 2] 1월 첫 200건 추가 (일반 벤더 단가 유지)');
+        console.log('-'.repeat(80));
+        const submissions2 = [
+          ...initialSubmissions,
+          {
+            id: 'test_sub_2',
+            no: 2,
+            submittedAt: new Date('2025-01-05T12:00:00Z').getTime(),
+            companyCode: testCompanyCode,
+            companyName: testCompanyName,
+            totalCnt: 200,
+            dailyCnt: 100,
+            vendorTypeAtSubmission: '일반', // 제출 시점에 일반 벤더 (11월 220건만 있었으므로)
+            accepted: false
+          }
+        ];
+        
+        const settlement2 = await calcSettlementForVendor(submissions2, testWithdrawals, null, {});
+        const expected2 = (220 * 1500) + (200 * 1500); // 330,000 + 300,000 = 630,000원
+        const expectedIncrease = 200 * 1500; // 300,000원 증가
+        
+        console.log('1월 첫 200건 추가 후 결과:', {
+          totalCommission: settlement2.totalCommission,
+          expectedCommission: expected2,
+          availableAmount: settlement2.availableAmount,
+          increase: settlement2.totalCommission - settlement1.totalCommission,
+          expectedIncrease: expectedIncrease,
+          match: settlement2.totalCommission === expected2 ? '✅ 통과' : '❌ 실패',
+          increaseMatch: (settlement2.totalCommission - settlement1.totalCommission) === expectedIncrease ? '✅ 통과' : '❌ 실패'
+        });
+        
+        if (settlement2.totalCommission !== expected2) {
+          console.error('❌ [테스트 2 실패] 1월 첫 200건 추가 시 계산 오류');
+          console.error('   기대값:', expected2, '실제값:', settlement2.totalCommission);
+          return false;
+        }
+        
+        // 테스트 3: 벤더 등급이 우수로 전환된 후 두 번째 200건 추가
+        console.log('\n📋 [테스트 3] 우수 벤더 전환 후 두 번째 200건 추가');
+        console.log('-'.repeat(80));
+        const submissions3 = [
+          ...submissions2,
+          {
+            id: 'test_sub_3',
+            no: 3,
+            submittedAt: new Date('2025-01-20T14:00:00Z').getTime(),
+            companyCode: testCompanyCode,
+            companyName: testCompanyName,
+            totalCnt: 200,
+            dailyCnt: 100,
+            vendorTypeAtSubmission: '우수', // 제출 시점에 우수 벤더 (11월 220건 + 1월 첫 200건 = 420건, 연속 2개월 200건 이상)
+            accepted: false
+          }
+        ];
+        
+        const settlement3 = await calcSettlementForVendor(submissions3, testWithdrawals, null, {});
+        const expected3 = (220 * 1500) + (200 * 1500) + (200 * 1000); // 330,000 + 300,000 + 200,000 = 830,000원
+        const expectedIncrease3 = 200 * 1000; // 200,000원 증가 (우수 단가)
+        
+        console.log('두 번째 200건 추가 후 결과:', {
+          totalCommission: settlement3.totalCommission,
+          expectedCommission: expected3,
+          availableAmount: settlement3.availableAmount,
+          increase: settlement3.totalCommission - settlement2.totalCommission,
+          expectedIncrease: expectedIncrease3,
+          match: settlement3.totalCommission === expected3 ? '✅ 통과' : '❌ 실패',
+          increaseMatch: (settlement3.totalCommission - settlement2.totalCommission) === expectedIncrease3 ? '✅ 통과' : '❌ 실패'
+        });
+        
+        // 과거 건 단가 확인
+        console.log('\n📋 [테스트 3-1] 과거 건 단가 불변 확인');
+        const pastCommission1 = 220 * 1500; // 첫 번째 건 (11월)
+        const pastCommission2 = 200 * 1500; // 두 번째 건 (1월 첫 번째)
+        const pastCommission3 = 200 * 1000; // 세 번째 건 (1월 두 번째)
+        const totalPastCommission = pastCommission1 + pastCommission2 + pastCommission3;
+        
+        console.log('과거 건 단가 확인:', {
+          '11월 220건': pastCommission1,
+          '1월 첫 200건 (일반)': pastCommission2,
+          '1월 두 번째 200건 (우수)': pastCommission3,
+          totalPastCommission: totalPastCommission,
+          actualTotalCommission: settlement3.totalCommission,
+          match: totalPastCommission === settlement3.totalCommission ? '✅ 통과 (과거 건 단가 불변)' : '❌ 실패 (과거 건 단가 변경됨)'
+        });
+        
+        if (settlement3.totalCommission !== expected3) {
+          console.error('❌ [테스트 3 실패] 두 번째 200건 추가 시 계산 오류');
+          console.error('   기대값:', expected3, '실제값:', settlement3.totalCommission);
+          return false;
+        }
+        
+        // 테스트 4: 출금 이력 반영
+        console.log('\n📋 [테스트 4] 출금 이력 반영');
+        console.log('-'.repeat(80));
+        const testWithdrawals4 = [
+          {
+            id: 'test_withdrawal_1',
+            vendorId: null, // 전체 출금
+            amount: 100000,
+            status: 'completed',
+            createdAt: new Date('2025-01-10T10:00:00Z').getTime()
+          }
+        ];
+        
+        const settlement4 = await calcSettlementForVendor(submissions3, testWithdrawals4, null, {});
+        const expectedAvailable4 = expected3 - 100000; // 830,000 - 100,000 = 730,000원
+        
+        console.log('출금 이력 반영 후 결과:', {
+          totalCommission: settlement4.totalCommission,
+          totalWithdrawn: settlement4.totalWithdrawn,
+          availableAmount: settlement4.availableAmount,
+          expectedAvailableAmount: expectedAvailable4,
+          match: settlement4.availableAmount === expectedAvailable4 ? '✅ 통과' : '❌ 실패'
+        });
+        
+        if (settlement4.availableAmount !== expectedAvailable4) {
+          console.error('❌ [테스트 4 실패] 출금 이력 반영 오류');
+          console.error('   기대값:', expectedAvailable4, '실제값:', settlement4.availableAmount);
+          return false;
+        }
+        
+        console.log('\n' + '='.repeat(80));
+        console.log('✅ [모든 테스트 통과] 주식회사 천호 일반→우수 전환 시나리오 테스트 완료');
+        console.log('='.repeat(80));
+        return true;
+        
+      } catch (error) {
+        console.error('❌ [테스트 오류]', error);
+        console.error('스택:', error.stack);
+        return false;
+      }
+    };
     
     window.testDateFiltering = async function() {
       console.log('🧪 날짜 필터링 테스트 시작...');
@@ -9319,320 +9802,6 @@ ${r.optPlan}
         console.log('❌ 월별 정산 월 선택 요소를 찾을 수 없습니다.');
       }
     };
-    
-    // ============================================
-    // [1단계] 시뮬레이션 로직 - 순수 함수 구현
-    // (이 함수들은 위의 일반 스크립트 태그로 이동됨)
-    // ============================================
-    
-    // 함수들이 모듈 스크립트 밖으로 이동되었으므로 여기서는 제거
-    // (위의 일반 스크립트 태그에 정의됨)
-    
-    /**
-     * 순수 함수: 출금가능액 계산 (시뮬레이션 로직)
-     * @param {Array} submissions - 모든 submission 배열
-     * @param {Array} withdrawals - 모든 withdrawal 배열
-     * @param {string|null} vendorId - 벤더 ID (null이면 전체)
-     * @returns {Object} { totalCommission, totalWithdrawn, availableAmount }
-     */
-    function simulateCalcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null) {
-      // 1. 벤더별 필터링
-      const filteredSubs = submissions.filter(sub => {
-        if (!sub) return false;
-        
-        // 삭제/테스트 제외
-        if (sub.isDeleted === true || sub.isTest === true) return false;
-        
-        // 벤더 필터링
-        if (vendorId) {
-          const matchesVendor = (sub.vendorId && sub.vendorId === vendorId) || 
-                                (sub.companyCode && sub.companyCode === vendorId);
-          return matchesVendor;
-        }
-        
-        return true;
-      });
-      
-      // 2. 제출 시점 순으로 정렬
-      const sortedSubs = [...filteredSubs].sort((a, b) => {
-        const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
-        const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
-        return timeA - timeB;
-      });
-      
-      // 3. 각 submission의 수수료 계산
-      let totalCommission = 0;
-      
-      for (const sub of sortedSubs) {
-        // vendorTypeAtSubmission이 있으면 우선 사용
-        let vendorType = '일반';
-        
-        if (sub.vendorTypeAtSubmission && 
-            (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
-          vendorType = sub.vendorTypeAtSubmission;
-        } else if (sub.companyCode && sub.submittedAt) {
-          // 저장된 값이 없으면 제출 시점 기준 계산
-          vendorType = simulateGetVendorTypeAtSubmissionTime(
-            sub.companyCode,
-            sub.submittedAt,
-            submissions, // 전체 submissions 전달
-            sub.id || sub.no || null
-          );
-        }
-        
-        // 수수료 계산
-        const commission = simulateCalcCommissionForSubmission(sub, vendorType);
-        totalCommission += commission;
-      }
-      
-      // 4. 출금액 계산 (completed 상태만)
-      const relevantWithdrawals = (withdrawals || []).filter(w => {
-        const matchesVendor = vendorId ? 
-          ((w.vendorId && w.vendorId === vendorId) || (!w.vendorId && !vendorId)) : 
-          true;
-        return matchesVendor && w.status === 'completed';
-      });
-      
-      const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
-      
-      // 5. 출금가능액 계산
-      const availableAmount = totalCommission - totalWithdrawn;
-      
-      return {
-        totalCommission,
-        totalWithdrawn,
-        availableAmount
-      };
-    }
-    
-    /**
-     * [2단계] 단위 테스트 작성
-     * AD91(주식회사 천호) 시나리오 테스트
-     */
-    function runUnitTests() {
-      console.log('🧪 [2단계] 단위 테스트 시작');
-      console.log('='.repeat(60));
-      
-      let allTestsPassed = true;
-      const testResults = [];
-      
-      // 테스트 케이스: AD91 시나리오
-      function testAD91Scenario() {
-        console.log('\n📋 테스트 케이스: AD91(주식회사 천호) 시나리오');
-        console.log('-'.repeat(60));
-        
-        // 초기 상태 설정
-        // 사용자 시나리오:
-        // - 현재 총 출금액: 9,854,500원
-        // - 현재 출금가능액: 696,500원
-        // - 총 수수료 = 9,854,500 + 696,500 = 10,551,000원
-        
-        // 2025년 11월 220건 제출 (일반 벤더 = 220 * 1500 = 330,000원)
-        // 나머지 수수료: 10,551,000 - 330,000 = 10,221,000원
-        // 이를 여러 submission으로 구성 (일반 벤더 기준: 10,221,000 / 1500 = 6,814건)
-        
-        const initialSubmissions = [
-          {
-            id: 'sub-001',
-            no: 1,
-            companyCode: 'AD91',
-            companyName: '주식회사 천호',
-            totalCnt: 220,
-            submittedAt: '2025-11-15T10:00:00.000Z',
-            vendorTypeAtSubmission: '일반',
-            isDeleted: false,
-            isTest: false
-          },
-          {
-            id: 'sub-002',
-            no: 2,
-            companyCode: 'AD91',
-            companyName: '주식회사 천호',
-            totalCnt: 6814,
-            submittedAt: '2025-11-20T10:00:00.000Z',
-            vendorTypeAtSubmission: '일반',
-            isDeleted: false,
-            isTest: false
-          }
-        ];
-        
-        // 출금 내역: 9,854,500원
-        const withdrawals = [{
-          id: 'withdrawal-001',
-          vendorId: 'AD91',
-          amount: 9854500,
-          status: 'completed'
-        }];
-        
-        // 초기 상태 계산
-        const initialResult = simulateCalcSettlementForVendor(
-          initialSubmissions,
-          withdrawals,
-          'AD91'
-        );
-        
-        console.log('📊 초기 상태:');
-        console.log('  - 총 수수료:', initialResult.totalCommission.toLocaleString(), '원');
-        console.log('  - 총 출금액:', initialResult.totalWithdrawn.toLocaleString(), '원');
-        console.log('  - 출금가능액:', initialResult.availableAmount.toLocaleString(), '원');
-        
-        // 검증: 초기 출금가능액이 696,500원인지 확인
-        const expectedInitialAvailableAmount = 696500;
-        const initialTestPassed = Math.abs(initialResult.availableAmount - expectedInitialAvailableAmount) < 1;
-        
-        if (!initialTestPassed) {
-          console.error('❌ 초기 출금가능액 검증 실패');
-          console.error('  예상:', expectedInitialAvailableAmount.toLocaleString(), '원');
-          console.error('  실제:', initialResult.availableAmount.toLocaleString(), '원');
-          console.error('  차이:', Math.abs(initialResult.availableAmount - expectedInitialAvailableAmount).toLocaleString(), '원');
-        } else {
-          console.log('✅ 초기 출금가능액 검증 통과:', initialResult.availableAmount.toLocaleString(), '원');
-        }
-        
-        // 2026-01-06에 200건 추가
-        // 이 시점에서 vendorTypeAtSubmission이 없으므로 제출 시점 기준으로 계산
-        // 11월에 220건만 있었고, 2개월 연속 200건 이상이 아니므로 '일반' 벤더
-        const newSubmission = {
-          id: 'sub-003',
-          no: 3,
-          companyCode: 'AD91',
-          companyName: '주식회사 천호',
-          totalCnt: 200,
-          submittedAt: '2026-01-06T10:00:00.000Z',
-          vendorTypeAtSubmission: null, // 저장된 값 없음, 제출 시점 기준 계산
-          isDeleted: false,
-          isTest: false
-        };
-        
-        // 모든 submission 포함하여 재계산
-        const allSubmissions = [...initialSubmissions, newSubmission];
-        const finalResult = simulateCalcSettlementForVendor(
-          allSubmissions,
-          withdrawals,
-          'AD91'
-        );
-        
-        console.log('\n📊 200건 추가 후 상태:');
-        console.log('  - 총 수수료:', finalResult.totalCommission.toLocaleString(), '원');
-        console.log('  - 총 출금액:', finalResult.totalWithdrawn.toLocaleString(), '원');
-        console.log('  - 출금가능액:', finalResult.availableAmount.toLocaleString(), '원');
-        
-        // 검증: 최종 출금가능액이 996,500원이어야 함
-        const expectedFinalAvailableAmount = 996500;
-        const finalTestPassed = Math.abs(finalResult.availableAmount - expectedFinalAvailableAmount) < 1;
-        
-        if (!finalTestPassed) {
-          console.error('❌ 최종 출금가능액 검증 실패');
-          console.error('  예상:', expectedFinalAvailableAmount.toLocaleString(), '원');
-          console.error('  실제:', finalResult.availableAmount.toLocaleString(), '원');
-          console.error('  차이:', Math.abs(finalResult.availableAmount - expectedFinalAvailableAmount).toLocaleString(), '원');
-        } else {
-          console.log('✅ 최종 출금가능액 검증 통과:', finalResult.availableAmount.toLocaleString(), '원');
-        }
-        
-        // 추가 검증: 200건 추가로 인한 수수료 증가량
-        const commissionIncrease = finalResult.totalCommission - initialResult.totalCommission;
-        const expectedIncrease = 200 * 1500; // 300,000원 (일반 벤더)
-        const increaseTestPassed = Math.abs(commissionIncrease - expectedIncrease) < 1;
-        
-        if (!increaseTestPassed) {
-          console.error('❌ 수수료 증가량 검증 실패');
-          console.error('  예상 증가:', expectedIncrease.toLocaleString(), '원');
-          console.error('  실제 증가:', commissionIncrease.toLocaleString(), '원');
-        } else {
-          console.log('✅ 수수료 증가량 검증 통과:', commissionIncrease.toLocaleString(), '원 (200건 × 1,500원)');
-        }
-        
-        // 출금가능액 증가량 검증
-        const availableIncrease = finalResult.availableAmount - initialResult.availableAmount;
-        const expectedAvailableIncrease = 300000; // 300,000원
-        const availableIncreaseTestPassed = Math.abs(availableIncrease - expectedAvailableIncrease) < 1;
-        
-        if (!availableIncreaseTestPassed) {
-          console.error('❌ 출금가능액 증가량 검증 실패');
-          console.error('  예상 증가:', expectedAvailableIncrease.toLocaleString(), '원');
-          console.error('  실제 증가:', availableIncrease.toLocaleString(), '원');
-        } else {
-          console.log('✅ 출금가능액 증가량 검증 통과:', availableIncrease.toLocaleString(), '원');
-        }
-        
-        const allPassed = initialTestPassed && finalTestPassed && increaseTestPassed && availableIncreaseTestPassed;
-        
-        return {
-          name: 'AD91 시나리오 테스트',
-          passed: allPassed,
-          details: {
-            initialAvailableAmount: initialResult.availableAmount,
-            expectedInitialAvailableAmount,
-            finalAvailableAmount: finalResult.availableAmount,
-            expectedFinalAvailableAmount,
-            commissionIncrease,
-            expectedCommissionIncrease: expectedIncrease,
-            availableIncrease,
-            expectedAvailableIncrease
-          }
-        };
-      }
-      
-      // 테스트 실행
-      const ad91TestResult = testAD91Scenario();
-      testResults.push(ad91TestResult);
-      
-      if (!ad91TestResult.passed) {
-        allTestsPassed = false;
-      }
-      
-      // 결과 요약
-      console.log('\n' + '='.repeat(60));
-      console.log('📊 테스트 결과 요약');
-      console.log('='.repeat(60));
-      
-      testResults.forEach((result, index) => {
-        const status = result.passed ? '✅ 통과' : '❌ 실패';
-        console.log(`${index + 1}. ${result.name}: ${status}`);
-        if (!result.passed) {
-          console.log('   상세:', result.details);
-        }
-      });
-      
-      console.log('\n' + '='.repeat(60));
-      if (allTestsPassed) {
-        console.log('🎉 모든 테스트 통과!');
-      } else {
-        console.log('⚠️ 일부 테스트 실패. 실제 코드 연결 작업을 진행하지 마세요.');
-      }
-      console.log('='.repeat(60));
-      
-      return {
-        allTestsPassed,
-        testResults
-      };
-    }
-    
-    // 테스트를 즉시 실행하지 않고, 수동으로 호출할 수 있도록 전역 함수로 등록
-    window.runUnitTests = runUnitTests;
-    
-    // 디버깅: 함수가 올바르게 등록되었는지 확인
-    console.log('✅ [2단계] 단위 테스트 함수가 준비되었습니다.');
-    console.log('   함수 등록 확인:', typeof window.runUnitTests);
-    console.log('   테스트 실행 방법:');
-    console.log('   1. 브라우저 콘솔에서 runUnitTests() 입력');
-    console.log('   2. 또는 window.runUnitTests() 입력');
-    console.log('   3. 또는 URL에 ?runTests=true 추가 후 페이지 새로고침');
-    
-    // URL 파라미터로 자동 실행 제어 (예: ?runTests=true)
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('runTests') === 'true') {
-      console.log('🚀 URL 파라미터로 인해 테스트를 자동 실행합니다...');
-      setTimeout(() => {
-        if (window.runUnitTests && typeof window.runUnitTests === 'function') {
-          window.runUnitTests();
-        } else {
-          console.error('❌ runUnitTests 함수를 찾을 수 없습니다. 페이지를 새로고침해주세요.');
-        }
-      }, 1000);
-    }
-    
   </script>
 </body>
 </html>
