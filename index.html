@@ -4302,6 +4302,11 @@ ${r.optPlan}
       return await getVendorTypeWithRows(vendorCode, rows);
     }
 
+    // Vendor Type 캐시 관련 전역 변수 선언
+    let vendorTypeCache = null;
+    let vendorTypeCacheTimestamp = 0;
+    const VENDOR_TYPE_CACHE_DURATION = 5 * 60 * 1000; // 5분 (밀리초)
+
     // 캐시 무효화 함수
     function clearVendorTypeCache() {
       vendorTypeCache = null;
