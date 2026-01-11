@@ -4246,6 +4246,10 @@ ${r.optPlan}
             
             // effectiveFrom이 targetTimestamp보다 작거나 같으면 적용
             // 즉, 변경 시점 이후의 데이터에만 적용
+            // 예: 507번(01:44)을 우수로 변경하면 effectiveFrom=01:44
+            //   - 506번(01:43) 조회: 01:44 <= 01:43 → false → 적용 안됨 (일반벤더)
+            //   - 507번(01:44) 조회: 01:44 <= 01:44 → true → 적용됨 (우수벤더)
+            //   - 508번(01:45) 조회: 01:44 <= 01:45 → true → 적용됨 (우수벤더)
             if (effectiveFromTimestamp <= targetTimestamp) {
               if (!mostRecentChange || effectiveFromTimestamp > mostRecentChange.effectiveFrom) {
                 mostRecentChange = {
@@ -4259,6 +4263,16 @@ ${r.optPlan}
         
         // 가장 최근 변경 이력이 있으면 그 타입 반환
         if (mostRecentChange) {
+          // 디버깅: 특정 업체 코드에 대한 상세 로그
+          if (vendorCode === 'NK87' || vendorCode?.includes('테스트')) {
+            console.log('[DEBUG][getVendorTypeAtDate]', {
+              vendorCode: vendorCode,
+              targetDate: targetDate instanceof Date ? targetDate.toISOString() : new Date(targetDate).toISOString(),
+              targetTimestamp: targetTimestamp,
+              mostRecentChange: mostRecentChange,
+              result: mostRecentChange.type
+            });
+          }
           return mostRecentChange.type;
         }
       } catch(e) {
@@ -4553,13 +4567,22 @@ ${r.optPlan}
       
       // 성능 최적화: vendorTypeAtSubmission이 없는 submission들을 배치로 처리
       const subsNeedingCalculation = [];
-      const vendorTypeMap = new Map(); // 계산 결과 캐시
+      const vendorTypeMap = new Map(); // 계산 결과 캐시 (key: "companyCode_timestamp")
+      
+      // 캐시 키 생성 헬퍼 함수 (일관된 형식 보장)
+      function getCacheKey(companyCode, submittedAt) {
+        const normalizedCompanyCode = companyCode ? String(companyCode).trim() : '';
+        // submittedAt을 타임스탬프로 변환하여 일관된 키 생성
+        const timestamp = submittedAt instanceof Date ? submittedAt.getTime() : (typeof submittedAt === 'number' ? submittedAt : new Date(submittedAt).getTime());
+        return `${normalizedCompanyCode}_${timestamp}`;
+      }
       
       // 1단계: vendorTypeAtSubmission이 있는 경우 먼저 처리
       for (const sub of sortedSubs) {
         const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
         if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
-          vendorTypeMap.set(`${normalizedCompanyCode}_${sub.submittedAt}`, sub.vendorTypeAtSubmission);
+          const cacheKey = getCacheKey(normalizedCompanyCode, sub.submittedAt);
+          vendorTypeMap.set(cacheKey, sub.vendorTypeAtSubmission);
         } else if (normalizedCompanyCode && sub.submittedAt) {
           subsNeedingCalculation.push(sub);
         }
@@ -4569,7 +4592,7 @@ ${r.optPlan}
       if (subsNeedingCalculation.length > 0) {
         const calculationPromises = subsNeedingCalculation.map(async (sub) => {
           const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
-          const cacheKey = `${normalizedCompanyCode}_${sub.submittedAt}`;
+          const cacheKey = getCacheKey(normalizedCompanyCode, sub.submittedAt);
           
           // 캐시 확인
           if (vendorTypeMap.has(cacheKey)) {
@@ -4609,35 +4632,68 @@ ${r.optPlan}
         }
         // 2순위: 계산된 결과 사용 (캐시에서)
         else if (normalizedCompanyCode && sub.submittedAt) {
-          const cacheKey = `${normalizedCompanyCode}_${sub.submittedAt}`;
-          vType = vendorTypeMap.get(cacheKey) || '일반';
+          const cacheKey = getCacheKey(normalizedCompanyCode, sub.submittedAt);
+          vType = vendorTypeMap.get(cacheKey);
+          
+          // 캐시에서 찾지 못한 경우 직접 계산 (fallback)
+          if (!vType) {
+            try {
+              const submittedDate = new Date(sub.submittedAt);
+              vType = await getVendorTypeAtDate(normalizedCompanyCode, submittedDate);
+              // 계산 결과를 캐시에 저장
+              vendorTypeMap.set(cacheKey, vType);
+              
+              // 디버깅: 특정 업체 코드에 대한 상세 로그
+              if (normalizedCompanyCode === 'NK87' || sub.companyName?.includes('테스트')) {
+                console.log('[DEBUG][settlement-vendorType]', {
+                  no: sub.no,
+                  companyCode: normalizedCompanyCode,
+                  submittedAt: sub.submittedAt,
+                  submittedDate: submittedDate.toISOString(),
+                  calculatedVType: vType,
+                  cacheKey: cacheKey
+                });
+              }
+            } catch (error) {
+              console.error('[ERROR][vendorType-fallback]', {
+                no: sub.no,
+                companyCode: normalizedCompanyCode,
+                error: error.message
+              });
+              vType = '일반';
+            }
+          } else {
+            // 디버깅: 캐시에서 찾은 경우
+            if (normalizedCompanyCode === 'NK87' || sub.companyName?.includes('테스트')) {
+              console.log('[DEBUG][settlement-vendorType-cached]', {
+                no: sub.no,
+                companyCode: normalizedCompanyCode,
+                submittedAt: sub.submittedAt,
+                vType: vType,
+                cacheKey: cacheKey
+              });
+            }
+          }
         } else if (normalizedCompanyCode) {
-          // submittedAt이 없는 경우 현재 vendorType 사용
+          // submittedAt이 없는 경우에만 현재 vendorType 사용 (fallback)
+          // 주의: 이 경우는 매우 드물며, submittedAt이 없는 데이터에만 적용
           vType = vendorTypes[normalizedCompanyCode] || '일반';
         }
         
-        // vendorId로도 시도 (companyCode로 찾지 못한 경우)
-        if (vType === '일반' && normalizedVendorId) {
-          vType = vendorTypes[normalizedVendorId] || '일반';
-        }
-        
-        // 대소문자 무시 매칭 시도 (companyCode 매칭 실패 시)
-        if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0) {
-          const matchedKey = Object.keys(vendorTypes).find(key => 
-            key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
-          );
-          if (matchedKey) {
-            vType = vendorTypes[matchedKey];
-            console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
-              original: sub.companyCode,
-              normalized: normalizedCompanyCode,
-              matched: matchedKey,
-              vendorType: vType
-            });
-          }
-        }
-        
         const commission = calcCommissionForSubmission(sub, vType);
+        
+        // 디버깅: 특정 업체 코드에 대한 상세 로그
+        if (normalizedCompanyCode === 'NK87' || sub.companyName?.includes('테스트')) {
+          console.log('[DEBUG][settlement-commission]', {
+            no: sub.no,
+            companyCode: normalizedCompanyCode,
+            submittedAt: sub.submittedAt,
+            vendorType: vType,
+            totalCnt: sub.totalCnt,
+            commission: commission,
+            expectedCommission: vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500
+          });
+        }
         
         // 성능 최적화: 로깅 최소화 (오류 발생 시에만 로깅)
         const expectedComm = sub.totalCnt ? (vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500) : 0;
