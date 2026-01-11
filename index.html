@@ -4547,14 +4547,24 @@ ${r.optPlan}
       });
       
       // 중복 제거: 같은 no를 가진 submission이 여러 개 있을 수 있으므로, 가장 최신 것만 사용
-      const uniqueSubs = [];
-      const seenNos = new Set();
+      // submittedAt이 더 최신인 것을 우선 선택
+      const subsByNo = new Map();
       for (const sub of submissions) {
-        if (sub && sub.no && !seenNos.has(sub.no)) {
-          seenNos.add(sub.no);
-          uniqueSubs.push(sub);
+        if (!sub || !sub.no) continue;
+        
+        const existing = subsByNo.get(sub.no);
+        if (!existing) {
+          subsByNo.set(sub.no, sub);
+        } else {
+          // 더 최신 데이터 선택 (submittedAt 기준)
+          const existingTime = existing.submittedAt ? new Date(existing.submittedAt).getTime() : 0;
+          const currentTime = sub.submittedAt ? new Date(sub.submittedAt).getTime() : 0;
+          if (currentTime > existingTime) {
+            subsByNo.set(sub.no, sub);
+          }
         }
       }
+      const uniqueSubs = Array.from(subsByNo.values());
       
       // 출금 가능액은 접수된 데이터만 포함해야 함
       const subs = getSubsForVendor(uniqueSubs, vendorId, true);
@@ -4652,11 +4662,14 @@ ${r.optPlan}
           vType = vendorTypeMap.get(cacheKey);
           
           // 캐시에서 찾지 못한 경우 직접 계산 (fallback)
-          if (!vType) {
+          if (!vType || vType === undefined) {
             try {
               const submittedDate = new Date(sub.submittedAt);
               vType = await getVendorTypeAtDate(normalizedCompanyCode, submittedDate);
-              // 계산 결과를 캐시에 저장
+              // 계산 결과를 캐시에 저장 (vType이 없으면 기본값 설정)
+              if (!vType || vType === undefined) {
+                vType = '일반';
+              }
               vendorTypeMap.set(cacheKey, vType);
               
               // 디버깅: 특정 업체 코드에 대한 상세 로그
@@ -4696,6 +4709,17 @@ ${r.optPlan}
           vType = vendorTypes[normalizedCompanyCode] || '일반';
         }
         
+        // vType이 여전히 없거나 undefined인 경우 기본값 설정
+        if (!vType || vType === undefined) {
+          vType = '일반';
+          console.warn('[WARN][settlement-vendorType-default]', {
+            no: sub.no,
+            companyCode: normalizedCompanyCode,
+            submittedAt: sub.submittedAt,
+            fallbackTo: '일반'
+          });
+        }
+        
         const commission = calcCommissionForSubmission(sub, vType);
         
         // 디버깅: 특정 업체 코드에 대한 상세 로그
@@ -4727,11 +4751,36 @@ ${r.optPlan}
         
         totalCommission += commission;
       }
+      // 출금액 필터링: vendorId가 null이면 모든 출금액 포함, 아니면 해당 vendor의 출금액만 포함
       const relevantWithdrawals = (withdrawals || []).filter(w => {
-        const matchesVendor = vendorId ? ((w.vendorId && w.vendorId === vendorId) || (!w.vendorId && !vendorId)) : true;
-        return matchesVendor && w.status === 'completed';
+        // status가 'completed'인 것만 포함
+        if (w.status !== 'completed') return false;
+        
+        // vendorId가 null이면 모든 출금액 포함
+        if (!vendorId) return true;
+        
+        // vendorId가 있으면 해당 vendor의 출금액만 포함
+        // 출금 데이터에 vendorId가 없으면 전체 출금액으로 간주 (null vendorId는 전체를 의미)
+        return w.vendorId === vendorId || !w.vendorId;
       });
-      const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+      
+      const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => {
+        const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+        return sum + amount;
+      }, 0);
+      
+      console.log('[DEBUG][settlement-withdrawals]', {
+        totalWithdrawals: withdrawals?.length || 0,
+        relevantWithdrawals: relevantWithdrawals.length,
+        totalWithdrawn: totalWithdrawn,
+        vendorId: vendorId || 'ALL',
+        withdrawals: relevantWithdrawals.map(w => ({
+          id: w.id,
+          amount: w.amount,
+          status: w.status,
+          vendorId: w.vendorId
+        }))
+      });
       const result = {
         totalCommission,
         totalWithdrawn,
