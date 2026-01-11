@@ -14,6 +14,15 @@
   <title>WAY PROJECT X 임반장</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
   <link rel="shortcut icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind CSS 기본 스타일 리셋 방지 및 정산 LIST 화면에만 적용
+    tailwind.config = {
+      corePlugins: {
+        preflight: false, // 기본 스타일 리셋 방지
+      }
+    }
+  </script>
   <style>
     :root{ --brand:#5086a7; --brand-accent:#3c6f8b; --accent:#18d1a1; --bg:#f7f8fc; --text:#222; --panel:#ffffff; --border:#e7ecf2; }
     *{box-sizing:border-box}
@@ -29,6 +38,7 @@
     .card{background:#fff;border-radius:16px;padding:28px;box-shadow:0 6px 18px rgba(0,0,0,.06);margin:20px auto}
     h1{font-size:24px;margin:0 0 8px;color:var(--brand)}
     p{line-height:1.8;margin:0 0 10px}
+    .card p{line-height:1.5;margin:0 0 8px}
     .divider{height:1px;background:var(--border);margin:18px 0}
     .btn-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;align-items:center}
     .btn{ display:inline-block;text-decoration:none;padding:12px 16px;border-radius:10px; font-weight:800;background:var(--brand);color:#fff;transition:transform .08s ease,opacity .2s ease;white-space:nowrap }
@@ -695,10 +705,45 @@
   <main class="container" id="publicLanding">
     <section id="publicLandingCard" class="card">
       <h1>리뷰로 시작해 브랜드를 확산시키는 프로젝트</h1>
-      <p>WAY PROJECT는 리뷰 마케팅을 중심으로 브랜드의 신뢰를 설계하는 마케팅 전문 실행사입니다.</p>
-      <p>온라인 시장에서 제품의 첫인상은 곧 리뷰로 결정됩니다.</p>
-      <p>리뷰를 단순한 후기 이상의 전략적 자산으로 바라보며</p>
-      <p>리뷰 기획부터 실행, 품질관리까지 전 과정을 체계적으로 관리하는 통합 리뷰 마케팅 시스템을 제공합니다.</p>
+      <p>WAY PROJECT는 리뷰를 전략적 자산으로 바라보며 브랜드 신뢰를 구축합니다.</p>
+      <p>기획부터 실행·품질관리까지 체계적으로 운영하는 통합 리뷰 마케팅 전문사입니다.</p>
+
+      <div class="divider"></div>
+
+      <div style="margin-bottom:20px">
+        <h3 style="margin:0 0 8px;color:var(--brand);font-size:18px;display:inline-block;">체험단 이용단가</h3>
+        <span style="font-size:13px;color:#666;margin-left:8px;">(쿠팡,네이버,자사몰,각종오픈마켓가능)</span>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <div style="border:2px solid var(--border);border-radius:12px;padding:16px;background:#fff">
+          <h4 style="margin:0 0 12px;color:var(--brand);font-size:16px">이용단가</h4>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:#f6f9fc;border-radius:6px">
+              <span style="font-weight:800">일반 VENDOR 이용단가</span>
+              <span style="font-weight:900;color:var(--brand)">3,000원</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:#f6f9fc;border-radius:6px">
+              <span style="font-weight:800">우수 VENDOR 이용단가</span>
+              <span style="font-weight:900;color:var(--brand)">2,500원</span>
+            </div>
+          </div>
+        </div>
+        
+        <div style="border:2px solid var(--border);border-radius:12px;padding:16px;background:#fff">
+          <h4 style="margin:0 0 12px;color:var(--brand);font-size:16px">추가 서비스</h4>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:#f6f9fc;border-radius:6px">
+              <span style="font-weight:800">택배대행</span>
+              <span style="font-weight:900;color:var(--brand)">2,500원</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:#f6f9fc;border-radius:6px">
+              <span style="font-weight:800">실배송 미진행건</span>
+              <span style="font-weight:900;color:var(--brand)">+500원 추가</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="divider"></div>
 
@@ -807,6 +852,7 @@
             <a href="#" data-section="rate"><span>ㄴ 적용단가</span></a>
             <a href="#" data-section="settle-weekly"><span>ㄴ 주별 정산 LIST</span></a>
             <a href="#" data-section="settle-monthly"><span>ㄴ 월별 정산 LIST</span></a>
+            <a href="#" data-section="settle-withdrawal"><span>ㄴ 출금신청</span></a>
           </div>
         </div>
       </aside>
@@ -1399,16 +1445,83 @@
 
     // 제품 제출
     async function submitProduct(productData) {
+      console.log('[DEBUG][submit-product-start]', {
+        companyName: productData.companyName,
+        totalCnt: productData.totalCnt,
+        totalCntType: typeof productData.totalCnt,
+        dailyCnt: productData.dailyCnt
+      });
+      
       const companyCode = await stableIdForName(productData.companyName);
+      
+      console.log('[DEBUG][submit-product-code]', {
+        companyName: productData.companyName,
+        companyCode: companyCode,
+        totalCnt: productData.totalCnt
+      });
       
       // 고유 ID 생성
       const uniqueId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const displayNo = await getNextNo();
+      
+      // 핵심: 제출 시점에 vendorType을 계산하여 확정 저장
+      // 이렇게 하면 이후 벤더 등급이 변경되어도 과거 submission의 단가는 변경되지 않음
+      const submittedAt = Date.now();
+      let vendorTypeAtSubmission = '일반'; // 기본값
+      
+      try {
+        // 제출 시점 이전의 모든 submission 조회
+        const existingSubmissions = await loadSubs();
+        
+        // 제출 시점 기준 vendorType 계산
+        vendorTypeAtSubmission = await getVendorTypeAtSubmissionTime(
+          companyCode,
+          submittedAt,
+          existingSubmissions,
+          uniqueId // 현재 submission ID 전달하여 제외
+        );
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (companyCode === 'AD91' || productData.companyName?.includes('천호')) {
+          const submissionsBeforeThis = existingSubmissions.filter(s => {
+            if (!s.submittedAt || !s.companyCode) return false;
+            if (s.id === uniqueId || s.no === displayNo) return false;
+            const sCompanyCode = String(s.companyCode).trim();
+            if (sCompanyCode !== companyCode) return false;
+            const sTime = new Date(s.submittedAt);
+            const subTime = new Date(submittedAt);
+            return sTime < subTime;
+          });
+          
+          console.warn('[WARN][천호-submit] 제출 시점 vendorType 확정:', {
+            companyCode: companyCode,
+            companyName: productData.companyName,
+            submittedAt: new Date(submittedAt).toISOString(),
+            vendorTypeAtSubmission: vendorTypeAtSubmission,
+            totalCnt: productData.totalCnt,
+            expectedCommission: productData.totalCnt * (vendorTypeAtSubmission === '우수' ? 1000 : 1500),
+            submissionsBeforeThisCount: submissionsBeforeThis.length,
+            submissionsBeforeThis: submissionsBeforeThis.map(s => ({
+              no: s.no,
+              submittedAt: new Date(s.submittedAt).toISOString(),
+              totalCnt: s.totalCnt,
+              vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A'
+            }))
+          });
+        }
+      } catch (error) {
+        console.error('[ERROR][submit-vendorType-calculation]', {
+          companyCode: companyCode,
+          error: error.message
+        });
+        // 오류 발생 시 기본값 '일반' 사용
+        vendorTypeAtSubmission = '일반';
+      }
 
       const rec = {
         id: uniqueId,
         no: displayNo,
-        submittedAt: Date.now(),
+        submittedAt: submittedAt,
         companyCode,
         companyName: productData.companyName,
         bizNo: productData.bizNo,
@@ -1424,8 +1537,20 @@
         billWork: productData.billWork,
         billProd: productData.billProd,
         accepted: false,
-        acceptedAt: null
+        acceptedAt: null,
+        // 핵심: 제출 시점의 vendorType을 확정하여 저장
+        // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
+        vendorTypeAtSubmission: vendorTypeAtSubmission
       };
+      
+      console.log('[DEBUG][submit-product-rec]', {
+        no: rec.no,
+        companyCode: rec.companyCode,
+        companyName: rec.companyName,
+        totalCnt: rec.totalCnt,
+        totalCntType: typeof rec.totalCnt,
+        submittedAt: new Date(rec.submittedAt).toISOString()
+      });
 
       // Firebase에 직접 저장
       if (window.db) {
@@ -1449,10 +1574,10 @@
               console.error('❌ window.showPushNotification 함수를 찾을 수 없음');
             }
             
-            // 상단 알림 아이콘에도 알림 추가
+            // 상단 알림 아이콘에도 알림 추가 (요청건 ID 포함)
             if (window.addNotification) {
               console.log('🔔 상단 알림 아이콘에 알림 추가 시도');
-              window.addNotification(notificationTitle, notificationContent, 'success', rec.submittedAt);
+              window.addNotification(notificationTitle, notificationContent, 'success', rec.submittedAt, rec.id);
             } else {
               console.error('❌ window.addNotification 함수를 찾을 수 없음');
             }
@@ -1714,15 +1839,23 @@
     function drawRequestsChart(data) {
       const container = document.getElementById('requestsChart');
       if (!container || data.length === 0) return;
-      
+
       console.log('📊 요청 차트 그리기 시작');
-      
+
       const maxRequests = Math.max(...data.map(d => d.requests));
       const chartWidth = container.offsetWidth - 32;
       const chartHeight = container.offsetHeight - 32;
-      const barWidth = Math.max(40, chartWidth / data.length - 20);
-      
-      // Create SVG for combined chart (bars + line)
+
+      // 막대·선 그래프가 함께 사용하는 영역 (위 여백 20, 아래 여백 40)
+      const topPadding = 20;
+      const bottomPadding = 40;
+      const chartAreaHeight = chartHeight - topPadding - bottomPadding;
+
+      // 각 월의 중심 간격
+      const segment = chartWidth / (data.length + 1);
+      const maxBarWidth = 40;
+      const barWidth = Math.min(maxBarWidth, segment * 0.6);
+
       let chartHtml = `
         <svg width="100%" height="100%" viewBox="0 0 ${chartWidth} ${chartHeight}" style="overflow: visible;">
           <defs>
@@ -1732,68 +1865,82 @@
             </linearGradient>
           </defs>
       `;
-      
-      // Draw bars for requests
+
+      // 막대 그리기
+      const barTops = [];
       data.forEach((d, i) => {
-        const x = (i * (chartWidth / data.length)) + 20;
-        const barHeight = maxRequests > 0 ? (d.requests / maxRequests) * (chartHeight * 0.6) : 0;
-        const y = chartHeight - barHeight - 40;
-        
+        const centerX = segment * (i + 1);
+        const x = centerX - barWidth / 2;
+        const barHeight = maxRequests > 0 ? (d.requests / maxRequests) * chartAreaHeight : 0;
+        const y = topPadding + chartAreaHeight - barHeight;
+        barTops.push({ x: centerX, y });
+
+        // 막대만 그리고, 숫자 라벨은 선 그래프 쪽에서 한 번만 표시
         chartHtml += `
-          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" 
-                fill="url(#requestsBarGradient)" rx="2" ry="2"/>
-          <text x="${x + barWidth/2}" y="${y - 5}" text-anchor="middle" 
-                font-size="12" font-weight="800" fill="var(--brand)">${d.requests}</text>
+          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}"
+                fill="url(#requestsBarGradient)" rx="4" ry="4"/>
         `;
       });
-      
-      // Draw line connecting the tops of bars
+
+      // 막대 상단을 따라 선 그래프 겹치게 그리기
       let linePath = '';
-      data.forEach((d, i) => {
-        const x = (i * (chartWidth / data.length)) + 20 + barWidth/2;
-        const barHeight = maxRequests > 0 ? (d.requests / maxRequests) * (chartHeight * 0.6) : 0;
-        const y = chartHeight - barHeight - 40;
-        
+      barTops.forEach((p, i) => {
         if (i === 0) {
-          linePath += `M ${x} ${y}`;
+          linePath += `M ${p.x} ${p.y}`;
         } else {
-          linePath += ` L ${x} ${y}`;
+          linePath += ` L ${p.x} ${p.y}`;
         }
       });
-      
+
       chartHtml += `
-        <path d="${linePath}" stroke="var(--accent)" stroke-width="3" 
-              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="${linePath}" stroke="var(--accent)" stroke-width="3"
+              fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
       `;
-      
-      // Draw month labels
+
+      // 선 그래프 점 + 값
       data.forEach((d, i) => {
-        const x = (i * (chartWidth / data.length)) + 20 + barWidth/2;
-        const monthNumber = d.month.split('-')[1];
-        
+        const { x, y } = barTops[i];
+        // 선 그래프 점 + 숫자만 표시 (막대 숫자 라벨은 제거)
         chartHtml += `
-          <text x="${x}" y="${chartHeight - 10}" text-anchor="middle" 
-                font-size="10" fill="#6a7a89">${monthNumber}월</text>
+          <circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" stroke="#fff" stroke-width="2"/>
+          <text x="${x}" y="${y - 14}" text-anchor="middle"
+                font-size="13" font-weight="700" fill="var(--accent)">${d.requests}</text>
         `;
       });
-      
+
+      // 월 라벨
+      data.forEach((d, i) => {
+        const centerX = segment * (i + 1);
+        const monthNumber = d.month.split('-')[1];
+        chartHtml += `
+          <text x="${centerX}" y="${chartHeight - 10}" text-anchor="middle"
+                font-size="11" fill="#6a7a89" font-weight="600">${monthNumber}월</text>
+        `;
+      });
+
       chartHtml += '</svg>';
       container.innerHTML = chartHtml;
       console.log('📊 요청 차트 그리기 완료');
     }
-    
+
     function drawVendorsChart(data) {
       const container = document.getElementById('vendorsChart');
       if (!container || data.length === 0) return;
-      
+
       console.log('📊 벤더 차트 그리기 시작');
-      
+
       const maxVendors = Math.max(...data.map(d => d.vendors));
       const chartWidth = container.offsetWidth - 32;
       const chartHeight = container.offsetHeight - 32;
-      const barWidth = Math.max(40, chartWidth / data.length - 20);
-      
-      // Create SVG for combined chart (bars + line)
+
+      const topPadding = 20;
+      const bottomPadding = 40;
+      const chartAreaHeight = chartHeight - topPadding - bottomPadding;
+
+      const segment = chartWidth / (data.length + 1);
+      const maxBarWidth = 40;
+      const barWidth = Math.min(maxBarWidth, segment * 0.6);
+
       let chartHtml = `
         <svg width="100%" height="100%" viewBox="0 0 ${chartWidth} ${chartHeight}" style="overflow: visible;">
           <defs>
@@ -1803,51 +1950,55 @@
             </linearGradient>
           </defs>
       `;
-      
-      // Draw bars for vendors
+
+      const barTops = [];
       data.forEach((d, i) => {
-        const x = (i * (chartWidth / data.length)) + 20;
-        const barHeight = maxVendors > 0 ? (d.vendors / maxVendors) * (chartHeight * 0.6) : 0;
-        const y = chartHeight - barHeight - 40;
-        
+        const centerX = segment * (i + 1);
+        const x = centerX - barWidth / 2;
+        const barHeight = maxVendors > 0 ? (d.vendors / maxVendors) * chartAreaHeight : 0;
+        const y = topPadding + chartAreaHeight - barHeight;
+        barTops.push({ x: centerX, y });
+
+        // 막대만 그리고, 숫자 라벨은 선 그래프 쪽에서 한 번만 표시
         chartHtml += `
-          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" 
-                fill="url(#vendorsBarGradient)" rx="2" ry="2"/>
-          <text x="${x + barWidth/2}" y="${y - 5}" text-anchor="middle" 
-                font-size="12" font-weight="800" fill="var(--accent)">${d.vendors}</text>
+          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}"
+                fill="url(#vendorsBarGradient)" rx="4" ry="4"/>
         `;
       });
-      
-      // Draw line connecting the tops of bars
+
       let linePath = '';
-      data.forEach((d, i) => {
-        const x = (i * (chartWidth / data.length)) + 20 + barWidth/2;
-        const barHeight = maxVendors > 0 ? (d.vendors / maxVendors) * (chartHeight * 0.6) : 0;
-        const y = chartHeight - barHeight - 40;
-        
+      barTops.forEach((p, i) => {
         if (i === 0) {
-          linePath += `M ${x} ${y}`;
+          linePath += `M ${p.x} ${p.y}`;
         } else {
-          linePath += ` L ${x} ${y}`;
+          linePath += ` L ${p.x} ${p.y}`;
         }
       });
-      
+
       chartHtml += `
-        <path d="${linePath}" stroke="var(--brand)" stroke-width="3" 
-              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="${linePath}" stroke="var(--brand)" stroke-width="3"
+              fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
       `;
-      
-      // Draw month labels
+
       data.forEach((d, i) => {
-        const x = (i * (chartWidth / data.length)) + 20 + barWidth/2;
-        const monthNumber = d.month.split('-')[1];
-        
+        const { x, y } = barTops[i];
+        // 선 그래프 점 + 숫자만 표시 (막대 숫자 라벨은 제거)
         chartHtml += `
-          <text x="${x}" y="${chartHeight - 10}" text-anchor="middle" 
-                font-size="10" fill="#6a7a89">${monthNumber}월</text>
+          <circle cx="${x}" cy="${y}" r="5" fill="var(--brand)" stroke="#fff" stroke-width="2"/>
+          <text x="${x}" y="${y - 14}" text-anchor="middle"
+                font-size="13" font-weight="700" fill="var(--brand)">${d.vendors}</text>
         `;
       });
-      
+
+      data.forEach((d, i) => {
+        const centerX = segment * (i + 1);
+        const monthNumber = d.month.split('-')[1];
+        chartHtml += `
+          <text x="${centerX}" y="${chartHeight - 10}" text-anchor="middle"
+                font-size="11" fill="#6a7a89" font-weight="600">${monthNumber}월</text>
+        `;
+      });
+
       chartHtml += '</svg>';
       container.innerHTML = chartHtml;
       console.log('📊 벤더 차트 그리기 완료');
@@ -1880,14 +2031,9 @@
         console.error('❌ 알림 버튼을 찾을 수 없음');
       }
       
-      // 기존 알림 모두 제거 (강화)
-      if (window.clearAllExistingNotifications) {
-        window.clearAllExistingNotifications();
-      }
-      
-      // 추가 알림 초기화 (완전 삭제)
-      if (window.clearAllNotificationCache) {
-        window.clearAllNotificationCache();
+      // 읽지 않은 알림만 제거 (읽음 처리된 알림은 유지)
+      if (window.clearUnreadNotifications) {
+        window.clearUnreadNotifications();
       }
       
       // 알림 UI 강제 업데이트
@@ -1943,13 +2089,41 @@
                 });
                 
                 if (latestNewRequest && window.showPushNotification) {
-                  // 중복 알림 방지: 이미 같은 시간으로 알림이 있는지 확인
-                  const existingNotification = notifications.find(n => 
-                    n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                  // 읽음 처리된 알림 확인: 요청건 ID로 먼저 확인 (가장 정확)
+                  let readNotification = notifications.find(n => 
+                    n.submissionId === latestNewRequest.id &&
+                    (n.read === true || n.read === 'true')
                   );
                   
+                  // 요청건 ID로 찾지 못한 경우, 시간으로 확인
+                  if (!readNotification) {
+                    readNotification = notifications.find(n => 
+                      n.title === '신규 작업요청건이 있습니다' &&
+                      n.timestamp && 
+                      Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
+                      (n.read === true || n.read === 'true') // 읽음 처리된 알림
+                    );
+                  }
+                  
+                  if (readNotification) {
+                    console.log('🚫 관리자 로그인 후 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id, '요청건 ID:', latestNewRequest.id);
+                    return;
+                  }
+                  
+                  // 중복 알림 방지: 요청건 ID로 먼저 확인
+                  let existingNotification = notifications.find(n => 
+                    n.submissionId === latestNewRequest.id
+                  );
+                  
+                  // 요청건 ID로 찾지 못한 경우, 시간으로 확인
+                  if (!existingNotification) {
+                    existingNotification = notifications.find(n => 
+                      n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                    );
+                  }
+                  
                   if (existingNotification) {
-                    console.log('🚫 관리자 로그인 후 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id);
+                    console.log('🚫 관리자 로그인 후 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id, '요청건 ID:', latestNewRequest.id);
                     return;
                   }
                   
@@ -1961,7 +2135,7 @@
                   window.showPushNotification(notificationTitle, notificationContent);
                   
                   if (window.addNotification) {
-                    window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
+                    window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt, latestNewRequest.id);
                   }
                 }
               } else {
@@ -2496,6 +2670,66 @@
     function escapeHtml(s){ return (s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
     function escapeAttr(s){ return escapeHtml(s); }
     
+    // 모바일 상세 시트 열기/닫기 함수
+    function openMobileDetail(detailId) {
+      const sheet = document.getElementById(detailId);
+      const overlay = document.getElementById(detailId + '-overlay');
+      if (sheet && overlay) {
+        sheet.classList.remove('translate-y-full');
+        overlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+    
+    function closeMobileDetail(detailId) {
+      const sheet = document.getElementById(detailId);
+      const overlay = document.getElementById(detailId + '-overlay');
+      if (sheet && overlay) {
+        sheet.classList.add('translate-y-full');
+        overlay.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+    }
+    
+    // 월별 정산 모바일 필터 열기/닫기
+    function openMonthlyMobileFilter() {
+      openMobileDetail('monthlyMobileFilterSheet');
+    }
+    
+    function closeMonthlyMobileFilter() {
+      closeMobileDetail('monthlyMobileFilterSheet');
+    }
+    
+    // 주별 정산 모바일 필터 열기/닫기
+    function openWeeklyMobileFilter() {
+      openMobileDetail('weeklyMobileFilterSheet');
+    }
+    
+    function closeWeeklyMobileFilter() {
+      closeMobileDetail('weeklyMobileFilterSheet');
+    }
+    
+    // VENDOR LIST 모바일 검색 열기/닫기
+    function openVendorMobileSearch() {
+      openMobileDetail('vendorMobileSearchSheet');
+    }
+    
+    function closeVendorMobileSearch() {
+      closeMobileDetail('vendorMobileSearchSheet');
+    }
+    
+    // VENDOR LIST 모바일 검색 실행 (전역 함수로 정의 - 나중에 showVendorList에서 재정의됨)
+    window.performVendorMobileSearch = function() {
+      // 이 함수는 showVendorList 함수 내에서 재정의됩니다
+      closeVendorMobileSearch();
+    };
+    
+    // VENDOR LIST 모바일 검색 초기화 (전역 함수로 정의 - 나중에 showVendorList에서 재정의됨)
+    window.resetVendorMobileSearch = function() {
+      // 이 함수는 showVendorList 함수 내에서 재정의됩니다
+      closeVendorMobileSearch();
+    };
+    
     // Y/N chip helper function
     function yn(value) {
       return `<span class="yn ${value === 'Y' ? 'y' : 'n'}">${value || 'N'}</span>`;
@@ -2640,55 +2874,190 @@ ${r.optPlan}
       showLoading();
       try {
       const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
+      // 모든 vendor type을 한 번에 계산 (건당 제휴 수수료 표시용)
+      const vendorTypes = await getAllVendorTypes(rows, true);
+      let sortOrder = 'desc'; // 기본값: 최신순(내림차순)
       const title = isAccepted ? "접수 완료건" : "신규요청건";
       const main = document.getElementById("adminMain");
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">${title}`;
       
-      // 신규요청건에만 모든 요청건 접수처리 버튼 추가
+      // 상단 영역 (모바일에서 sticky)
+      let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+        <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">${title}`;
+      
+      // 정렬 토글 UI (접수 완료건, 신규요청건 공통 제공)
+      html += `
+        <button id="reqSortToggle" class="btn" style="margin-left:12px;padding:4px 10px;font-size:12px;background:#eef2f7;color:#22303d;border:1px solid var(--border);border-radius:4px;">
+          정렬: 최신순
+        </button>`;
+      
+      // 신규요청건에만 모든 요청건 접수처리 버튼 추가 (데스크탑만 표시)
       if (!isAccepted && rows.length > 0) {
-        html += ` <button class="btn" id="bulkAcceptAll" style="margin-left:12px;padding:4px 12px;font-size:14px;background:var(--brand);color:white;border:none;border-radius:4px;">[모든 요청건 접수처리]</button>`;
+        html += ` <button class="req-desktop-bulk-btn btn" id="bulkAcceptAll" style="display:none;margin-left:12px;padding:4px 12px;font-size:14px;background:var(--brand);color:white;border:none;border-radius:4px;">
+          <style>
+            @media (min-width: 768px) {
+              .req-desktop-bulk-btn { display: inline-block !important; }
+            }
+          </style>
+          [모든 요청건 접수처리]
+        </button>`;
       }
       
-      html += `</h2>`;
-      html += '<div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table">';
-      html += '<thead><tr>'+
-        '<th rowspan="2">no.</th>'+
-        '<th rowspan="2">제출시간</th>'+
-        '<th colspan="4" class="company-info">업체 기본 정보</th>'+
-        '<th rowspan="2">구매키워드</th>'+
-        '<th rowspan="2">총/일</th>'+
-        (isAccepted ? '<th rowspan="2">접수 시간</th>' : '<th rowspan="2">접수 여부</th>')+
-        '<th rowspan="2">전문</th>'+
-      '</tr><tr>'+
-        '<th class="company-info">업체코드</th>'+
-        '<th class="company-info">업체명</th>'+
-        '<th class="company-info">사업자번호</th>'+
-        '<th class="company-info">카톡/번호</th>'+
-      '</tr></thead><tbody>';
-
-      if(rows.length===0){
-        html += '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
-      } else {
-        for(const r of rows){
-          html += `<tr data-no="${r.no}">`+
-            `<td>${r.no}</td>`+
-            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
-            `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td>${escapeHtml(r.companyName)}</td>`+
-            `<td>${escapeHtml(r.bizNo)}</td>`+
-            `<td>${escapeHtml(r.contact)}</td>`+
-            `<td>${escapeHtml(r.keywords)}</td>`+
-            `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
-            (isAccepted
-              ? `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
-              : `<td style="text-align:center"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""}></td>`
-            )+
-            `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
-          `</tr>`;
+      html += `</h2>
+      </div>`;
+      
+      // Desktop Table - 데스크탑에서만 표시
+      html += `<div class="req-desktop-table" style="display:none;">
+        <style>
+          @media (min-width: 768px) {
+            .req-desktop-table { display: block !important; }
+          }
+        </style>
+        <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+          <table class="admin-table">
+            <thead><tr>
+              <th rowspan="2">no.</th>
+              <th rowspan="2">제출시간</th>
+              <th colspan="4" class="company-info">업체 기본 정보</th>
+              <th rowspan="2">구매키워드</th>
+              <th rowspan="2">총/일</th>
+              <th rowspan="2">건당 제휴 수수료</th>
+              ${isAccepted ? '<th rowspan="2">접수 시간</th>' : '<th rowspan="2">접수 여부</th>'}
+              <th rowspan="2">전문</th>
+            </tr><tr>
+              <th class="company-info">업체코드</th>
+              <th class="company-info">업체명</th>
+              <th class="company-info">사업자번호</th>
+              <th class="company-info">카톡/번호</th>
+            </tr></thead>
+            <tbody id="reqDesktopTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+      
+      // Mobile List - 모바일에서만 표시
+      html += `<div id="reqMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
+      
+      main.innerHTML = html;
+      
+      // 렌더링 함수
+      function renderReqList() {
+        // 정렬 적용
+        const sorted = [...rows].sort((a, b) => {
+          // 접수 완료건은 acceptedAt 기준, 그 외는 submittedAt 기준
+          const key = isAccepted ? 'acceptedAt' : 'submittedAt';
+          const av = a[key] ?? 0;
+          const bv = b[key] ?? 0;
+          return sortOrder === 'desc' ? (bv - av) : (av - bv);
+        });
+        
+        // Desktop Table
+        const desktopTbody = document.getElementById('reqDesktopTableBody');
+        if (desktopTbody) {
+          if(sorted.length===0){
+            desktopTbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
+          } else {
+            let desktopHtml = '';
+            for(const r of sorted){
+              const vendorType = vendorTypes[r.companyCode] || '일반';
+              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              desktopHtml += `<tr data-no="${r.no}">`+
+                `<td>${r.no}</td>`+
+                `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
+                `<td>${escapeHtml(r.companyCode)}</td>`+
+                `<td>${escapeHtml(r.companyName)}</td>`+
+                `<td>${escapeHtml(r.bizNo)}</td>`+
+                `<td>${escapeHtml(r.contact)}</td>`+
+                `<td>${escapeHtml(r.keywords)}</td>`+
+                `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
+                `<td>${commissionPerUnit}</td>`+
+                (isAccepted
+                  ? `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
+                  : `<td style="text-align:center"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""}></td>`
+                )+
+                `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
+              `</tr>`;
+            }
+            desktopTbody.innerHTML = desktopHtml;
+          }
+        }
+        
+        // Mobile List
+        const mobileList = document.getElementById('reqMobileList');
+        if (mobileList) {
+          if(sorted.length===0){
+            mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">표시할 데이터가 없습니다.</div>';
+          } else {
+            let mobileHtml = '';
+            for(const r of sorted){
+              const detailId = `reqDetail-${r.no}`;
+              const vendorType = vendorTypes[r.companyCode] || '일반';
+              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              mobileHtml += `
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${escapeHtml(r.companyName)}</span>
+                          <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">NO.${r.no}</span>
+                        </div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(r.companyCode)}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">제출: ${formatCompactDateTime(r.submittedAt)}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">${escapeHtml(r.keywords)} | ${r.totalCnt}/${r.dailyCnt}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">건당 제휴 수수료: ${commissionPerUnit}</div>
+                        ${!isAccepted ? `<div class="mt-2"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""} onchange="event.stopPropagation();"> <span class="text-xs text-neutral-500">접수처리</span></div>` : ''}
+                        ${isAccepted && r.acceptedAt ? `<div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mt-1">접수: ${formatCompactDateTime(r.acceptedAt)}</div>` : ''}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                
+                <!-- Mobile Detail Sheet -->
+                <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+                  <div class="p-4">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                      <h3 class="text-lg font-bold">상세 정보</h3>
+                      <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                    </div>
+                    <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                      <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${r.no}</span></div>
+                        <div><span class="text-neutral-500">제출시간:</span> <span class="font-semibold">${formatCompactDateTime(r.submittedAt)}</span></div>
+                        <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(r.companyCode)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(r.companyName)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">사업자번호:</span> <span class="font-semibold">${escapeHtml(r.bizNo)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
+                        <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
+                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorTypes[r.companyCode] === '우수' ? '1,000원' : '1,500원'}</span></div>
+                        ${isAccepted ? `<div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>` : ''}
+                      </div>
+                      <div class="pt-4 border-t">
+                        <button onclick="closeMobileDetail('${detailId}'); document.querySelector('[data-no=\\'${r.no}\\'] .view-detail').click();" class="w-full btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">전문 보기</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+              `;
+            }
+            mobileList.innerHTML = mobileHtml;
+          }
         }
       }
-      html += '</tbody></table></div>';
-      main.innerHTML = html;
+      
+      renderReqList();
+      
+      // 정렬 토글 이벤트
+      const sortBtn = document.getElementById('reqSortToggle');
+      if (sortBtn) {
+        sortBtn.addEventListener('click', () => {
+          sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+          sortBtn.textContent = `정렬: ${sortOrder === 'desc' ? '최신순' : '오름차순'}`;
+          renderReqList();
+        });
+      }
       
       // 모든 요청건 접수처리 버튼 이벤트 리스너 추가
       const bulkAcceptBtn = document.getElementById('bulkAcceptAll');
@@ -2803,44 +3172,167 @@ ${r.optPlan}
       showLoading();
       try {
       const rows = await loadSubs();
+      // 모든 vendor type을 한 번에 계산 (건당 제휴 수수료 표시용)
+      const vendorTypes = await getAllVendorTypes(rows, true);
+      let sortOrder = 'desc'; // 기본값: 최신순(내림차순)
       const main = document.getElementById("adminMain");
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">전체요청건</h2>`;
-      html += '<div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table">';
-      html += '<thead><tr>'+
-        '<th rowspan="2">no.</th>'+
-        '<th rowspan="2">제출시간</th>'+
-        '<th colspan="4" class="company-info">업체 기본 정보</th>'+
-        '<th rowspan="2">구매키워드</th>'+
-        '<th rowspan="2">총/일</th>'+
-        '<th rowspan="2">접수시간</th>'+
-        '<th rowspan="2">전문</th>'+
-      '</tr><tr>'+
-        '<th class="company-info">업체코드</th>'+
-        '<th class="company-info">업체명</th>'+
-        '<th class="company-info">사업자번호</th>'+
-        '<th class="company-info">카톡/번호</th>'+
-      '</tr></thead><tbody>';
-
-      if(rows.length===0){
-        html += '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
-      } else {
-        for(const r of rows){
-          html += `<tr data-no="${r.no}">`+
-            `<td>${r.no}</td>`+
-            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
-            `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td>${escapeHtml(r.companyName)}</td>`+
-            `<td>${escapeHtml(r.bizNo)}</td>`+
-            `<td>${escapeHtml(r.contact)}</td>`+
-            `<td>${escapeHtml(r.keywords)}</td>`+
-            `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
-            `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
-            `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
-          `</tr>`;
+      
+      // 상단 영역 (모바일에서 sticky)
+      let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+        <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">전체요청건</h2>
+        <button id="reqAllSortToggle" class="btn" style="margin-top:8px;padding:4px 10px;font-size:12px;background:#eef2f7;color:#22303d;border:1px solid var(--border);border-radius:4px;">
+          정렬: 최신순
+        </button>
+      </div>`;
+      
+      // Desktop Table - 데스크탑에서만 표시
+      html += `<div class="req-desktop-table" style="display:none;">
+        <style>
+          @media (min-width: 768px) {
+            .req-desktop-table { display: block !important; }
+          }
+        </style>
+        <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+          <table class="admin-table">
+            <thead><tr>
+              <th rowspan="2">no.</th>
+              <th rowspan="2">제출시간</th>
+              <th colspan="4" class="company-info">업체 기본 정보</th>
+              <th rowspan="2">구매키워드</th>
+              <th rowspan="2">총/일</th>
+              <th rowspan="2">건당 제휴 수수료</th>
+              <th rowspan="2">접수시간</th>
+              <th rowspan="2">전문</th>
+            </tr><tr>
+              <th class="company-info">업체코드</th>
+              <th class="company-info">업체명</th>
+              <th class="company-info">사업자번호</th>
+              <th class="company-info">카톡/번호</th>
+            </tr></thead>
+            <tbody id="reqAllDesktopTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+      
+      // Mobile List - 모바일에서만 표시
+      html += `<div id="reqAllMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
+      
+      main.innerHTML = html;
+      
+      // 렌더링 함수
+      function renderAllReqList() {
+        // 전체요청건은 제출시간 기준 정렬
+        const sorted = [...rows].sort((a, b) => {
+          const av = a.submittedAt ?? 0;
+          const bv = b.submittedAt ?? 0;
+          return sortOrder === 'desc' ? (bv - av) : (av - bv);
+        });
+        
+        // Desktop Table
+        const desktopTbody = document.getElementById('reqAllDesktopTableBody');
+        if (desktopTbody) {
+          if(sorted.length===0){
+            desktopTbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
+          } else {
+            let desktopHtml = '';
+            for(const r of sorted){
+              const vendorType = vendorTypes[r.companyCode] || '일반';
+              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              desktopHtml += `<tr data-no="${r.no}">`+
+                `<td>${r.no}</td>`+
+                `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
+                `<td>${escapeHtml(r.companyCode)}</td>`+
+                `<td>${escapeHtml(r.companyName)}</td>`+
+                `<td>${escapeHtml(r.bizNo)}</td>`+
+                `<td>${escapeHtml(r.contact)}</td>`+
+                `<td>${escapeHtml(r.keywords)}</td>`+
+                `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
+                `<td>${commissionPerUnit}</td>`+
+                `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
+                `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
+              `</tr>`;
+            }
+            desktopTbody.innerHTML = desktopHtml;
+          }
+        }
+        
+        // Mobile List
+        const mobileList = document.getElementById('reqAllMobileList');
+        if (mobileList) {
+          if(sorted.length===0){
+            mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">표시할 데이터가 없습니다.</div>';
+          } else {
+            let mobileHtml = '';
+            for(const r of sorted){
+              const detailId = `reqAllDetail-${r.no}`;
+              const vendorType = vendorTypes[r.companyCode] || '일반';
+              const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
+              mobileHtml += `
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${escapeHtml(r.companyName)}</span>
+                          <span class="text-xs px-2 py-0.5 rounded ${r.accepted ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${r.accepted ? '접수완료' : '신규'}</span>
+                          <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">NO.${r.no}</span>
+                        </div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(r.companyCode)}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">제출: ${formatCompactDateTime(r.submittedAt)}</div>
+                        ${r.acceptedAt ? `<div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">접수: ${formatCompactDateTime(r.acceptedAt)}</div>` : ''}
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">${escapeHtml(r.keywords)} | ${r.totalCnt}/${r.dailyCnt}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">건당 제휴 수수료: ${commissionPerUnit}</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                
+                <!-- Mobile Detail Sheet -->
+                <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+                  <div class="p-4">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                      <h3 class="text-lg font-bold">상세 정보</h3>
+                      <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                    </div>
+                    <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                      <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${r.no}</span></div>
+                        <div><span class="text-neutral-500">제출시간:</span> <span class="font-semibold">${formatCompactDateTime(r.submittedAt)}</span></div>
+                        <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(r.companyCode)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(r.companyName)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">사업자번호:</span> <span class="font-semibold">${escapeHtml(r.bizNo)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
+                        <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
+                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorTypes[r.companyCode] === '우수' ? '1,000원' : '1,500원'}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>
+                      </div>
+                      <div class="pt-4 border-t">
+                        <button onclick="closeMobileDetail('${detailId}'); document.querySelector('[data-no=\\'${r.no}\\'] .view-detail').click();" class="w-full btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">전문 보기</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+              `;
+            }
+            mobileList.innerHTML = mobileHtml;
+          }
         }
       }
-      html += '</tbody></table></div>';
-      main.innerHTML = html;
+      
+      renderAllReqList();
+      
+      // 정렬 토글 이벤트
+      const sortBtn = document.getElementById('reqAllSortToggle');
+      if (sortBtn) {
+        sortBtn.addEventListener('click', () => {
+          sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+          sortBtn.textContent = `정렬: ${sortOrder === 'desc' ? '최신순' : '오름차순'}`;
+          renderAllReqList();
+        });
+      }
       } finally {
         hideLoading();
       }
@@ -2851,6 +3343,9 @@ ${r.optPlan}
       try {
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
+      
+      // 모든 vendor type을 한 번에 계산 (최적화)
+      const vendorTypes = await getAllVendorTypes(rows);
       
       // Calculate vendor statistics
       const vendorStats = {};
@@ -2866,7 +3361,7 @@ ${r.optPlan}
             companyName: r.companyName,
             monthlyCount: 0,
             totalCount: 0,
-            vendorType: await getVendorType(r.companyCode)
+            vendorType: vendorTypes[r.companyCode] || '일반'
           };
         }
         
@@ -3024,6 +3519,9 @@ ${r.optPlan}
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
+      // 모든 vendor type을 한 번에 계산 (최적화)
+      const vendorTypes = await getAllVendorTypes(rows);
+      
       // Calculate vendor statistics
       const vendorStats = {};
       const currentMonth = new Date().getMonth();
@@ -3038,7 +3536,7 @@ ${r.optPlan}
             companyName: r.companyName,
             monthlyCount: 0,
             totalCount: 0,
-            vendorType: await getVendorType(r.companyCode)
+            vendorType: vendorTypes[r.companyCode] || '일반'
           };
         }
         
@@ -3048,26 +3546,187 @@ ${r.optPlan}
         }
       }
       
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">VENDOR LIST</h2>`;
-      html += `<div style="margin-bottom:8px;"><button class="btn ghost" id="vendorListExcel" type="button">엑셀 다운로드</button></div>`;
-      html += '<div class="vendor-list-table-scroll"><table class="admin-table">';
-      html += '<thead><tr>'+
-        '<th>NO</th>'+
-        '<th>업체코드</th>'+
-        '<th>업체명</th>'+
-        '<th>VENDOR 유형</th>'+
-        '<th>당월 진행건수</th>'+
-        '<th>누적 진행건수</th>'+
-        '<th>상세보기</th>'+
-      '</tr></thead><tbody>';
-
-      const vendorCodes = Object.keys(vendorStats).sort();
-      if(vendorCodes.length===0){
-        html += '<tr><td colspan="6" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
-      } else {
-        vendorCodes.forEach((code, idx)=>{
+      // 상단 영역 (모바일에서 sticky)
+      let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+        <div class="flex items-center justify-between mb-2 md:mb-0">
+          <h2 style="margin:0;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">VENDOR LIST</h2>
+          <!-- 모바일 전용 검색 버튼 -->
+          <button onclick="openVendorMobileSearch()" class="md:hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-semibold flex items-center gap-1" aria-label="검색">
+            <span>🔍</span>
+            <span>검색</span>
+          </button>
+        </div>
+        
+        <!-- 검색 필터 - 데스크탑만 표시 -->
+        <div class="vendor-desktop-filter" style="display:none;margin-bottom:12px;">
+          <style>
+            @media (min-width: 768px) {
+              .vendor-desktop-filter { display: flex !important; }
+            }
+          </style>
+          <input type="text" id="vendorSearchInput" class="input" placeholder="업체명 또는 업체코드로 검색" style="width:300px;margin-right:8px;">
+          <button id="vendorSearchBtn" class="btn" style="background:var(--brand);color:white;padding:8px 16px;border:none;border-radius:4px;cursor:pointer;">검색</button>
+          <button id="vendorSearchReset" class="btn ghost" style="margin-left:8px;">초기화</button>
+        </div>
+        
+        <!-- 엑셀 다운로드 버튼 - 데스크탑만 표시 -->
+        <div class="vendor-desktop-excel" style="display:none;margin-bottom:8px;">
+          <style>
+            @media (min-width: 768px) {
+              .vendor-desktop-excel { display: block !important; }
+            }
+          </style>
+          <button class="btn ghost" id="vendorListExcel" type="button">엑셀 다운로드</button>
+        </div>
+      </div>`;
+      
+      // 모바일 검색 시트
+      html += `<div id="vendorMobileSearchSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
+        <div class="p-4">
+          <div class="flex items-center justify-between mb-4 pb-4 border-b">
+            <h3 class="text-lg font-bold">검색</h3>
+            <button onclick="closeVendorMobileSearch()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+          </div>
+          <div class="mb-4">
+            <label class="block text-sm font-semibold mb-2 text-neutral-700">업체명 또는 업체코드</label>
+            <input type="text" id="vendorSearchInputMobile" class="input w-full px-3 py-3 border border-gray-300 rounded-md" placeholder="업체명 또는 업체코드로 검색">
+          </div>
+          <div class="flex gap-2">
+            <button onclick="performVendorMobileSearch()" class="flex-1 btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">검색</button>
+            <button onclick="resetVendorMobileSearch()" class="btn ghost px-4 py-3">초기화</button>
+          </div>
+        </div>
+      </div>`;
+      html += `<div id="vendorMobileSearchSheet-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden md:hidden" onclick="closeVendorMobileSearch()"></div>`;
+      
+      // Desktop Table - 데스크탑에서만 표시
+      html += `<div class="vendor-desktop-table" style="display:none;">
+        <style>
+          @media (min-width: 768px) {
+            .vendor-desktop-table { display: block !important; }
+          }
+        </style>
+        <div class="vendor-list-table-scroll"><table class="admin-table" id="vendorDesktopTable">
+          <thead><tr>
+            <th>NO</th>
+            <th>업체코드</th>
+            <th>업체명</th>
+            <th>VENDOR 유형</th>
+            <th>당월 진행건수</th>
+            <th>누적 진행건수</th>
+            <th>상세보기</th>
+          </tr></thead>
+          <tbody id="vendorDesktopTableBody">
+          </tbody>
+        </table></div>
+      </div>`;
+      
+      // Mobile List - 모바일에서만 표시
+      html += `<div id="vendorMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
+      
+      main.innerHTML = html;
+      
+      // 전체 vendorCodes 저장 (검색용)
+      const allVendorCodes = Object.keys(vendorStats).sort();
+      
+      // 초기 렌더링
+      renderVendorList(allVendorCodes, vendorStats);
+      
+      // 검색 기능
+      const searchInput = document.getElementById('vendorSearchInput');
+      const searchInputMobile = document.getElementById('vendorSearchInputMobile');
+      const searchBtn = document.getElementById('vendorSearchBtn');
+      const searchReset = document.getElementById('vendorSearchReset');
+      
+      // 검색 함수 (전역에서 접근 가능하도록)
+      window.performVendorSearch = function() {
+        const desktopTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        const mobileTerm = searchInputMobile ? searchInputMobile.value.trim().toLowerCase() : '';
+        const searchTerm = desktopTerm || mobileTerm;
+        
+        // 모바일과 데스크탑 입력 동기화
+        if (searchInput && searchInputMobile) {
+          if (desktopTerm) {
+            searchInputMobile.value = searchInput.value;
+          } else if (mobileTerm) {
+            searchInput.value = searchInputMobile.value;
+          }
+        }
+        
+        if (!searchTerm) {
+          renderVendorList(allVendorCodes, vendorStats);
+          return;
+        }
+        
+        const filteredCodes = allVendorCodes.filter(code => {
           const stats = vendorStats[code];
-          html += `<tr>`+
+          const codeMatch = code.toLowerCase().includes(searchTerm);
+          const nameMatch = stats.companyName.toLowerCase().includes(searchTerm);
+          return codeMatch || nameMatch;
+        });
+        
+        renderVendorList(filteredCodes, vendorStats);
+      };
+      
+      if (searchBtn) {
+        searchBtn.addEventListener('click', window.performVendorSearch);
+      }
+      
+      if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            window.performVendorSearch();
+          }
+        });
+        
+        // 실시간 검색 (입력 시마다)
+        searchInput.addEventListener('input', () => {
+          window.performVendorSearch();
+        });
+      }
+      
+      if (searchInputMobile) {
+        searchInputMobile.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            window.performVendorSearch();
+            closeVendorMobileSearch();
+          }
+        });
+      }
+      
+      if (searchReset) {
+        searchReset.addEventListener('click', () => {
+          if (searchInput) searchInput.value = '';
+          if (searchInputMobile) searchInputMobile.value = '';
+          renderVendorList(allVendorCodes, vendorStats);
+        });
+      }
+      
+      // 모바일 검색 함수 재정의
+      window.performVendorMobileSearch = function() {
+        window.performVendorSearch();
+        closeVendorMobileSearch();
+      };
+      
+      window.resetVendorMobileSearch = function() {
+        if (searchInput) searchInput.value = '';
+        if (searchInputMobile) searchInputMobile.value = '';
+        window.performVendorSearch();
+        closeVendorMobileSearch();
+      };
+      
+      // 렌더링 함수
+      function renderVendorList(vendorCodes, vendorStats) {
+        // Desktop Table
+        const desktopTbody = document.getElementById('vendorDesktopTableBody');
+        if (desktopTbody) {
+          if (vendorCodes.length === 0) {
+            desktopTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
+      } else {
+            let desktopHtml = '';
+            vendorCodes.forEach((code, idx) => {
+          const stats = vendorStats[code];
+              desktopHtml += `<tr>`+
             `<td>${idx+1}</td>`+
             `<td>${escapeHtml(code)}</td>`+
             `<td>${escapeHtml(stats.companyName)}</td>`+
@@ -3077,16 +3736,86 @@ ${r.optPlan}
             `<td><button class="btn ghost view-vendor-detail" data-code="${code}" type="button">상세보기</button></td>`+
           `</tr>`;
         });
+            desktopTbody.innerHTML = desktopHtml;
+          }
+        }
+        
+        // Mobile List
+        const mobileList = document.getElementById('vendorMobileList');
+        if (mobileList) {
+          if (vendorCodes.length === 0) {
+            mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">표시할 데이터가 없습니다.</div>';
+          } else {
+            let mobileHtml = '';
+            vendorCodes.forEach((code, idx) => {
+              const stats = vendorStats[code];
+              const detailId = `vendorDetail-${code}`;
+              mobileHtml += `
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${escapeHtml(stats.companyName)}</span>
+                          <span class="text-xs px-2 py-0.5 rounded ${stats.vendorType === '우수' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}">${stats.vendorType}</span>
+                        </div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(code)}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">당월: ${stats.monthlyCount}건 | 누적: ${stats.totalCount}건</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                
+                <!-- Mobile Detail Sheet -->
+                <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+                  <div class="p-4">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                      <h3 class="text-lg font-bold">상세 정보</h3>
+                      <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                    </div>
+                    <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                      <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${idx+1}</span></div>
+                        <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(code)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(stats.companyName)}</span></div>
+                        <div><span class="text-neutral-500">VENDOR 유형:</span> <span class="font-semibold">${stats.vendorType}</span></div>
+                        <div><span class="text-neutral-500">당월 진행건수:</span> <span class="font-semibold">${stats.monthlyCount}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">누적 진행건수:</span> <span class="font-semibold">${stats.totalCount}</span></div>
+                      </div>
+                      <div class="pt-4 border-t">
+                        <button onclick="closeMobileDetail('${detailId}'); document.querySelector('[data-code=\\'${code}\\']').click();" class="w-full btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">상세보기</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+              `;
+            });
+            mobileList.innerHTML = mobileHtml;
+          }
+        }
       }
-      html += '</tbody></table></div>';
-      main.innerHTML = html;
 
       // 이벤트 리스너를 즉시 바인딩
       setTimeout(() => {
         const excelBtn = document.getElementById('vendorListExcel');
         if (excelBtn) {
           excelBtn.addEventListener('click', ()=>{
-            const data = vendorCodes.map((code, i)=>{
+            // 현재 표시된 vendorCodes 가져오기 (검색 필터 적용)
+            const desktopTbody = document.getElementById('vendorDesktopTableBody');
+            const currentCodes = [];
+            if (desktopTbody) {
+              const rows = desktopTbody.querySelectorAll('tr');
+              rows.forEach(row => {
+                const codeCell = row.querySelector('td:nth-child(2)');
+                if (codeCell) {
+                  currentCodes.push(codeCell.textContent.trim());
+                }
+              });
+            }
+            
+            const codesToExport = currentCodes.length > 0 ? currentCodes : allVendorCodes;
+            const data = codesToExport.map((code, i)=>{
               const s = vendorStats[code];
               return {
                 'NO': i+1,
@@ -3181,7 +3910,9 @@ ${r.optPlan}
 
     // Vendor detail modal functions
     async function openVendorModal(vendorCode) {
+      clearVendorTypeCache();
       const rows = await loadSubs();
+      const vendorTypes = await getAllVendorTypes(rows, true);
       const vendorRows = rows.filter(r => r.companyCode === vendorCode);
       
       if (vendorRows.length === 0) return;
@@ -3209,7 +3940,7 @@ ${r.optPlan}
       });
       
       // Determine vendor type automatically
-      const vendorType = await getVendorType(vendorCode);
+      const vendorType = vendorTypes[vendorCode] || '일반';
       const remainingCount = Math.max(0, 200 - monthlyCount);
       
       // Update modal content
@@ -3237,21 +3968,8 @@ ${r.optPlan}
       if (vendorRows.length === 0) {
         requestsList.innerHTML = '<div style="text-align:center;color:#6a7a89;padding:20px;">의뢰 내역이 없습니다.</div>';
       } else {
-        let listHtml = '<div class="scroll-x" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table">';
-        listHtml += '<thead><tr>'+
-          '<th rowspan="2">no.</th>'+
-          '<th rowspan="2">제출시간</th>'+
-          '<th colspan="4" class="company-info">업체 기본 정보</th>'+
-          '<th rowspan="2">구매키워드</th>'+
-          '<th rowspan="2">총/일</th>'+
-          '<th rowspan="2">접수시간</th>'+
-          '<th rowspan="2">전문</th>'+
-        '</tr><tr>'+
-          '<th class="company-info">업체코드</th>'+
-          '<th class="company-info">업체명</th>'+
-          '<th class="company-info">사업자번호</th>'+
-          '<th class="company-info">카톡/번호</th>'+
-        '</tr></thead><tbody>';
+        // Desktop Table
+        let listHtml = '<div class="vendor-requests-desktop" style="display:none;"><style>@media (min-width: 768px) { .vendor-requests-desktop { display: block !important; } }</style><div class="scroll-x" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table"><thead><tr><th rowspan="2">no.</th><th rowspan="2">제출시간</th><th colspan="4" class="company-info">업체 기본 정보</th><th rowspan="2">구매키워드</th><th rowspan="2">총/일</th><th rowspan="2">접수시간</th><th rowspan="2">전문</th></tr><tr><th class="company-info">업체코드</th><th class="company-info">업체명</th><th class="company-info">사업자번호</th><th class="company-info">카톡/번호</th></tr></thead><tbody>';
         
         vendorRows.forEach(r => {
           listHtml += `<tr data-no="${r.no}">`+
@@ -3268,7 +3986,59 @@ ${r.optPlan}
           `</tr>`;
         });
         
-        listHtml += '</tbody></table></div>';
+        listHtml += '</tbody></table></div></div>';
+        
+        // Mobile List
+        listHtml += '<div id="vendorRequestsMobileList" class="block md:hidden space-y-3 max-h-[400px] overflow-y-auto">';
+        vendorRows.forEach(r => {
+          const detailId = `vendorReqDetail-${r.no}`;
+          listHtml += `
+            <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+              <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">NO.${r.no}</span>
+                      <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">${escapeHtml(r.companyName)}</span>
+                    </div>
+                    <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">제출: ${formatCompactDateTime(r.submittedAt)}</div>
+                    <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(r.keywords)} | ${r.totalCnt}/${r.dailyCnt}</div>
+                    ${r.acceptedAt ? `<div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">접수: ${formatCompactDateTime(r.acceptedAt)}</div>` : ''}
+                  </div>
+                </div>
+              </button>
+            </div>
+            
+            <!-- Mobile Detail Sheet -->
+            <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[70] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+              <div class="p-4">
+                <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                  <h3 class="text-lg font-bold">상세 정보</h3>
+                  <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                </div>
+                <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                  <div class="grid grid-cols-2 gap-2">
+                    <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${r.no}</span></div>
+                    <div><span class="text-neutral-500">제출시간:</span> <span class="font-semibold">${formatCompactDateTime(r.submittedAt)}</span></div>
+                    <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(r.companyCode)}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(r.companyName)}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">사업자번호:</span> <span class="font-semibold">${escapeHtml(r.bizNo)}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
+                    <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>
+                  </div>
+                  <div class="pt-4 border-t">
+                    <button onclick="closeMobileDetail('${detailId}'); document.querySelector('[data-no=\\'${r.no}\\'] .view-detail').click();" class="w-full btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">전문 보기</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[65] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+          `;
+        });
+        listHtml += '</div>';
+        
         requestsList.innerHTML = listHtml;
       }
       
@@ -3418,6 +4188,7 @@ ${r.optPlan}
       document.getElementById('vendorModal').style.display = 'none';
     }
     
+<<<<<<< HEAD
     // 특정 날짜 기준으로 벤더 타입 판단 (과거 데이터 수수료 계산용)
     async function getVendorTypeAtDate(vendorCode, targetDate) {
       // targetDate가 없으면 현재 시점 기준으로 판단
@@ -3448,6 +4219,244 @@ ${r.optPlan}
             }
           }
         }
+=======
+    // 캐시를 위한 전역 변수
+    let vendorTypeCache = null;
+    let vendorTypeCacheTimestamp = 0;
+    const VENDOR_TYPE_CACHE_DURATION = 60000; // 1분 캐시
+
+    // 제출 시점 기준 vendorType 계산 함수 (모든 업체에 대해 안정적으로 작동)
+    // 핵심: 현재 submission을 제외하고, 제출 시점 이전의 submission만 고려
+    async function getVendorTypeAtSubmissionTime(vendorCode, submittedAt, allSubmissions, currentSubmissionId = null) {
+      if (!vendorCode || !submittedAt) {
+        return '일반';
+      }
+      
+      try {
+        const submissionTime = new Date(submittedAt);
+        if (isNaN(submissionTime.getTime())) {
+          console.warn('[WARN][vendorType-at-time] 잘못된 submittedAt:', submittedAt);
+          return '일반';
+        }
+        
+        // companyCode 정규화
+        const normalizedVendorCode = String(vendorCode).trim();
+        
+        // 제출 시점 이전의 submission만 필터링 (현재 submission 제외)
+        // 핵심: 현재 submission은 제외하고, 그 이전의 submission만 고려
+        // 같은 시점에 제출된 다른 submission도 제외 (현재 submission의 vendorType 결정에 영향을 주면 안 됨)
+        const submissionsBeforeThis = allSubmissions.filter(s => {
+          if (!s.submittedAt || !s.companyCode) return false;
+          
+          // 현재 submission 제외 (ID, no로 비교)
+          // 핵심: 현재 submission은 제외하여 제출 시점 기준 계산이 정확하게 이루어지도록 함
+          if (currentSubmissionId) {
+            // ID로 비교
+            if (s.id && String(s.id) === String(currentSubmissionId)) {
+              return false;
+            }
+            // no로 비교
+            if (s.no && String(s.no) === String(currentSubmissionId)) {
+              return false;
+            }
+          }
+          
+          // companyCode 정규화하여 비교
+          const sCompanyCode = String(s.companyCode).trim();
+          if (sCompanyCode !== normalizedVendorCode) return false;
+          
+          const sTime = new Date(s.submittedAt);
+          if (isNaN(sTime.getTime())) return false;
+          
+          // 제출 시점 이전만 포함 (같은 시점 제외)
+          // 핵심: 현재 submission이 제출되는 시점에서, 그 시점까지의 이전 submission만 고려
+          return sTime < submissionTime;
+        });
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-vendorType-at-time-start]', {
+            vendorCode: vendorCode,
+            submittedAt: submissionTime.toISOString(),
+            totalSubmissions: allSubmissions.length,
+            submissionsBeforeThis: submissionsBeforeThis.length,
+            submissionsBeforeThisDetails: submissionsBeforeThis.map(s => ({
+              no: s.no,
+              submittedAt: new Date(s.submittedAt).toISOString(),
+              totalCnt: s.totalCnt,
+              totalCntType: typeof s.totalCnt
+            }))
+          });
+        }
+        
+        if (submissionsBeforeThis.length === 0) {
+          if (vendorCode === 'AD91') {
+            console.warn('[WARN][천호-vendorType] 제출 시점 이전 submission이 없음');
+          }
+          return '일반';
+        }
+        
+        // 제출 시점 기준으로 월별 건수 계산
+        const monthCounts = {};
+        submissionsBeforeThis.forEach(s => {
+          try {
+            const sDate = new Date(s.submittedAt);
+            if (isNaN(sDate.getTime())) return;
+            
+            const monthKey = `${sDate.getFullYear()}-${pad(sDate.getMonth() + 1)}`;
+            if (!monthCounts[monthKey]) {
+              monthCounts[monthKey] = 0;
+            }
+            
+            // totalCnt 안전하게 파싱 (calcCommissionForSubmission과 동일한 로직)
+            let totalCnt = 0;
+            if (s.totalCnt != null) {
+              if (typeof s.totalCnt === 'number') {
+                totalCnt = s.totalCnt;
+              } else if (Array.isArray(s.totalCnt)) {
+                totalCnt = s.totalCnt.length > 0 ? Number(s.totalCnt[0]) || 0 : 0;
+              } else if (typeof s.totalCnt === 'object') {
+                totalCnt = 0;
+              } else {
+                const strValue = String(s.totalCnt);
+                const firstNumber = strValue.split(/[\/\s]/)[0];
+                const parsed = parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+                totalCnt = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+              }
+            }
+            
+            monthCounts[monthKey] += totalCnt;
+          } catch (err) {
+            console.warn('[WARN][vendorType-at-time] submission 처리 오류:', err, s);
+          }
+        });
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-monthCounts]', {
+            vendorCode: vendorCode,
+            monthCounts: monthCounts,
+            sortedMonths: Object.keys(monthCounts).sort()
+          });
+        }
+        
+        // 연속된 2개월 이상 200건 달성 여부 확인
+        const sortedMonths = Object.keys(monthCounts).sort();
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-연속월체크]', {
+            vendorCode: vendorCode,
+            sortedMonths: sortedMonths,
+            monthCounts: monthCounts,
+            checkPairs: sortedMonths.slice(0, -1).map((month1, i) => {
+              const month2 = sortedMonths[i + 1];
+              return {
+                month1: month1,
+                month1Count: monthCounts[month1] || 0,
+                month2: month2,
+                month2Count: monthCounts[month2] || 0,
+                isPremium: (monthCounts[month1] || 0) >= 200 && (monthCounts[month2] || 0) >= 200
+              };
+            })
+          });
+        }
+        
+        for (let i = 0; i < sortedMonths.length - 1; i++) {
+          const month1 = sortedMonths[i];
+          const month2 = sortedMonths[i + 1];
+          
+          const month1Count = monthCounts[month1] || 0;
+          const month2Count = monthCounts[month2] || 0;
+          
+          if (month1Count >= 200 && month2Count >= 200) {
+            if (vendorCode === 'AD91') {
+              console.warn('[WARN][천호-우수판정]', {
+                vendorCode: vendorCode,
+                month1: month1,
+                month1Count: month1Count,
+                month2: month2,
+                month2Count: month2Count
+              });
+            }
+            return '우수';
+          }
+        }
+        
+        if (vendorCode === 'AD91') {
+          console.log('[DEBUG][천호-일반판정]', {
+            vendorCode: vendorCode,
+            monthCounts: monthCounts,
+            sortedMonths: sortedMonths
+          });
+        }
+        
+        return '일반';
+      } catch (error) {
+        console.error('[ERROR][vendorType-at-time]', {
+          vendorCode,
+          submittedAt,
+          error: error.message,
+          stack: error.stack
+        });
+        return '일반';
+      }
+    }
+
+    // rows를 파라미터로 받는 최적화된 버전
+    async function getVendorTypeWithRows(vendorCode, rows, vendorTypeOverrides = null) {
+      // 먼저 데이터 관리탭에서 설정한 override 값 확인
+      const vendorRow = rows.find(r => r.companyCode === vendorCode);
+      if (vendorRow && vendorRow.vendorTypeOverride) {
+        return vendorRow.vendorTypeOverride;
+      }
+      
+      // Firebase override 확인 (vendorTypeOverrides가 제공된 경우)
+      if (vendorTypeOverrides) {
+        const override = vendorTypeOverrides.find(o => o.companyCode === vendorCode);
+        if (override) {
+          return override.type;
+        }
+      } else {
+        // vendorTypeOverrides가 없으면 Firebase에서 직접 확인
+        try{
+          if (window.db) {
+            const overridesRef = window.collection(window.db, 'vendorTypeOverrides');
+            const snapshot = await window.getDocs(overridesRef);
+            
+            for(const doc of snapshot.docs) {
+              const data = doc.data();
+              if(data.companyCode === vendorCode) {
+                return data.type;
+              }
+            }
+          }
+        }catch(e){}
+      }
+      
+      // Otherwise: Check if vendor is premium (200+ requests for 2 consecutive months)
+      const vendorRows = rows.filter(r => r.companyCode === vendorCode);
+      
+      if (vendorRows.length === 0) return '일반';
+      
+      // Check if vendor was ever premium (한번 우수 VENDOR가 되면 계속 유지)
+      let wasEverPremium = false;
+      
+      // 전체 기간에 대해 우수 VENDOR 달성 여부 확인
+      const allMonths = new Set();
+      vendorRows.forEach(r => {
+        const submissionDate = new Date(r.submittedAt);
+        const monthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
+        allMonths.add(monthKey);
+      });
+      
+      const sortedAllMonths = Array.from(allMonths).sort();
+      
+      // 연속된 2개월 이상 200건 달성 여부 확인
+      for (let i = 0; i < sortedAllMonths.length - 1; i++) {
+        const month1 = sortedAllMonths[i];
+        const month2 = sortedAllMonths[i + 1];
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
         
         // 가장 최근 변경 이력이 있으면 그 타입 반환
         if (mostRecentChange) {
@@ -3499,11 +4508,432 @@ ${r.optPlan}
       return '일반';
     }
 
+    // 기존 호환성을 위한 래퍼 함수 (단일 vendor type 조회)
+    async function getVendorType(vendorCode) {
+      const rows = await loadSubs();
+      return await getVendorTypeWithRows(vendorCode, rows);
+    }
+
+    // 캐시 무효화 함수
+    function clearVendorTypeCache() {
+      vendorTypeCache = null;
+      vendorTypeCacheTimestamp = 0;
+      console.log('🔄 vendorType 캐시 무효화');
+    }
+
+    // 모든 vendor type을 한 번에 계산하는 최적화된 함수
+    async function getAllVendorTypes(rows, forceRefresh = false) {
+      // 강제 새로고침이 요청된 경우 캐시 무시
+      if (forceRefresh) {
+        console.log('🔄 vendorType 강제 새로고침 요청');
+        clearVendorTypeCache();
+      }
+      
+      const now = Date.now();
+      
+      // 캐시가 유효한 경우 재사용
+      if (vendorTypeCache && (now - vendorTypeCacheTimestamp) < VENDOR_TYPE_CACHE_DURATION) {
+        // rows가 변경되었는지 확인 (간단한 길이 체크)
+        if (vendorTypeCache.rowsLength === rows.length) {
+          console.log('📦 vendorType 캐시 사용 (길이:', rows.length, ')');
+          return vendorTypeCache.types;
+        } else {
+          console.log('🔄 vendorType 캐시 무효화 (길이 변경:', vendorTypeCache.rowsLength, '->', rows.length, ')');
+        }
+      }
+      
+      // Firebase override 데이터 한 번에 로드
+      let vendorTypeOverrides = [];
+      try {
+        if (window.db) {
+          const overridesRef = window.collection(window.db, 'vendorTypeOverrides');
+          const snapshot = await window.getDocs(overridesRef);
+          vendorTypeOverrides = snapshot.docs.map(doc => doc.data());
+        }
+      } catch(e) {
+        console.warn('vendorTypeOverrides 로드 실패:', e);
+      }
+      
+      // 모든 고유한 vendor code 수집
+      const vendorCodes = [...new Set(rows.map(r => r.companyCode))];
+      
+      // 각 vendor code별로 vendor rows 그룹화
+      const vendorRowsMap = {};
+      rows.forEach(r => {
+        if (!vendorRowsMap[r.companyCode]) {
+          vendorRowsMap[r.companyCode] = [];
+        }
+        vendorRowsMap[r.companyCode].push(r);
+      });
+      
+      // 모든 vendor type을 병렬로 계산
+      const typePromises = vendorCodes.map(async (vendorCode) => {
+        // Override 확인
+        const vendorRow = rows.find(r => r.companyCode === vendorCode);
+        if (vendorRow && vendorRow.vendorTypeOverride) {
+          return { vendorCode, type: vendorRow.vendorTypeOverride };
+        }
+        
+        const override = vendorTypeOverrides.find(o => o.companyCode === vendorCode);
+        if (override) {
+          return { vendorCode, type: override.type };
+        }
+        
+        // Premium 여부 계산
+        const vendorRows = vendorRowsMap[vendorCode];
+        if (vendorRows.length === 0) {
+          return { vendorCode, type: '일반' };
+        }
+        
+        // 전체 기간에 대해 우수 VENDOR 달성 여부 확인
+        const allMonths = new Set();
+        vendorRows.forEach(r => {
+          const submissionDate = new Date(r.submittedAt);
+          const monthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
+          allMonths.add(monthKey);
+        });
+        
+        const sortedAllMonths = Array.from(allMonths).sort();
+        let wasEverPremium = false;
+        
+        // 연속된 2개월 이상 200건 달성 여부 확인
+        for (let i = 0; i < sortedAllMonths.length - 1; i++) {
+          const month1 = sortedAllMonths[i];
+          const month2 = sortedAllMonths[i + 1];
+          
+          let month1Count = 0;
+          let month2Count = 0;
+          
+          vendorRows.forEach(r => {
+            const submissionDate = new Date(r.submittedAt);
+            const submissionMonthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
+            if (submissionMonthKey === month1) {
+              month1Count += r.totalCnt;
+            }
+            if (submissionMonthKey === month2) {
+              month2Count += r.totalCnt;
+            }
+          });
+          
+          if (month1Count >= 200 && month2Count >= 200) {
+            wasEverPremium = true;
+            break;
+          }
+        }
+        
+        return { vendorCode, type: wasEverPremium ? '우수' : '일반' };
+      });
+      
+      const typeResults = await Promise.all(typePromises);
+      
+      // Map 형태로 변환
+      const typesMap = {};
+      typeResults.forEach(({ vendorCode, type }) => {
+        typesMap[vendorCode] = type;
+      });
+      
+      // 캐시 저장
+      vendorTypeCache = {
+        types: typesMap,
+        rowsLength: rows.length
+      };
+      vendorTypeCacheTimestamp = now;
+      
+      return typesMap;
+    }
+
+    function getSubsForVendor(allSubs = [], vendorId = null, acceptedOnly = false) {
+      return (allSubs || []).filter(sub => {
+        if (!sub) return false;
+        const matchesVendor = vendorId ? ((sub.vendorId && sub.vendorId === vendorId) || (sub.companyCode === vendorId)) : true;
+        const notDeleted = sub.isDeleted !== true;
+        const notTest = sub.isTest !== true;
+        const isAccepted = acceptedOnly ? (sub.accepted === true) : true;
+        return matchesVendor && notDeleted && notTest && isAccepted;
+      });
+    }
+
+    function calcCommissionForSubmission(submission, vendorType) {
+      const rate = vendorType === '우수' ? 1000 : 1500;
+      // totalCnt를 안전하게 숫자로 변환 (문자열, 숫자, null, undefined 모두 처리)
+      let totalCnt = 0;
+      if (submission?.totalCnt != null) {
+        // 배열이나 객체인 경우 처리
+        if (Array.isArray(submission.totalCnt)) {
+          console.warn('[WARN][commission-calc] totalCnt가 배열입니다:', submission.totalCnt);
+          totalCnt = submission.totalCnt.length > 0 ? Number(submission.totalCnt[0]) || 0 : 0;
+        } else if (typeof submission.totalCnt === 'object') {
+          console.warn('[WARN][commission-calc] totalCnt가 객체입니다:', submission.totalCnt);
+          totalCnt = 0;
+        } else {
+          // 숫자 또는 문자열 처리
+          // "200/100" 같은 형태는 첫 번째 숫자만 추출
+          const strValue = String(submission.totalCnt);
+          // 슬래시나 공백으로 구분된 경우 첫 번째 숫자만 추출
+          const firstNumber = strValue.split(/[\/\s]/)[0];
+          const cnt = typeof submission.totalCnt === 'number' 
+            ? submission.totalCnt 
+            : parseInt(firstNumber.replace(/[^0-9-]/g, ''), 10);
+          totalCnt = isNaN(cnt) || cnt < 0 ? 0 : cnt;
+        }
+      }
+      
+      // 디버깅: 계산 과정 상세 로그 (항상 출력)
+      const calculatedCommission = totalCnt * rate;
+      console.log('[DEBUG][commission-calc]', {
+        no: submission?.no,
+        companyName: submission?.companyName,
+        companyCode: submission?.companyCode,
+        totalCntRaw: submission?.totalCnt,
+        totalCntParsed: totalCnt,
+        totalCntType: typeof submission?.totalCnt,
+        totalCntIsArray: Array.isArray(submission?.totalCnt),
+        vendorType: vendorType,
+        rate: rate,
+        commission: calculatedCommission,
+        calculation: `${totalCnt} × ${rate} = ${calculatedCommission}`
+      });
+      
+      // 주식회사 천호(AD91) 특별 로깅
+      if (submission?.companyCode === 'AD91' || submission?.companyName?.includes('천호')) {
+        console.warn('[WARN][천호-commission]', {
+          no: submission?.no,
+          companyName: submission?.companyName,
+          companyCode: submission?.companyCode,
+          totalCntRaw: submission?.totalCnt,
+          totalCntParsed: totalCnt,
+          vendorType: vendorType,
+          rate: rate,
+          commission: calculatedCommission,
+          expectedCommission: totalCnt === 200 ? (vendorType === '우수' ? 200000 : 300000) : 'N/A'
+        });
+      }
+      
+      return totalCnt * rate;
+    }
+
+    async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
+      // 출금가능액 계산: 접수 여부와 관계없이 모든 submission 포함
+      // 신규 요청서도 포함되어야 하며, 접수되면 추가로 증액됨
+      console.log('[DEBUG][settlement-start]', {
+        totalSubmissions: submissions.length,
+        vendorId: vendorId || 'ALL',
+        vendorTypesCount: Object.keys(vendorTypes).length
+      });
+      
+      const subs = getSubsForVendor(submissions, vendorId, false);
+      
+      console.log('[DEBUG][settlement-filtered]', {
+        filteredCount: subs.length,
+        excludedCount: submissions.length - subs.length
+      });
+      
+      // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
+      // 핵심: submissions를 제출 시점 순으로 정렬하여 순차 처리
+      const sortedSubs = [...subs].sort((a, b) => {
+        const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+        const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+        return timeA - timeB;
+      });
+      
+      let totalCommission = 0;
+      for (const sub of sortedSubs) {
+        // companyCode 정규화 (공백 제거, 대소문자 통일)
+        const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
+        const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
+        
+        // 핵심: 저장된 vendorTypeAtSubmission을 우선 사용
+        // 제출 시점에 확정된 vendorType이 저장되어 있으면 그것을 사용
+        // 저장된 값이 없으면 제출 시점 기준으로 계산 (하위 호환성)
+        let vType = '일반';
+        
+        // 1순위: 저장된 vendorTypeAtSubmission 사용 (가장 확실한 방법)
+        if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
+          vType = sub.vendorTypeAtSubmission;
+          
+          // 주식회사 천호(AD91) 특별 로깅
+          if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+            console.log('[INFO][천호-settlement] 저장된 vendorTypeAtSubmission 사용:', {
+              no: sub.no,
+              vendorTypeAtSubmission: sub.vendorTypeAtSubmission,
+              totalCnt: sub.totalCnt
+            });
+          }
+        }
+        // 2순위: 제출 시점 기준 계산 (저장된 값이 없는 경우, 하위 호환성)
+        else if (normalizedCompanyCode && sub.submittedAt) {
+          try {
+            // 제출 시점 기준으로 vendorType 계산
+            // 주의: sortedSubs를 전달하여 제출 시점 순으로 정렬된 submission만 고려
+            // 현재 submission의 ID를 전달하여 제외 (제출 시점 기준 확정)
+            const calculatedVType = await getVendorTypeAtSubmissionTime(
+              normalizedCompanyCode, 
+              sub.submittedAt, 
+              sortedSubs, // 정렬된 submissions 사용
+              sub.id || sub.no || String(sub.submittedAt) // ID가 없으면 submittedAt으로 대체
+            );
+            
+            // 제출 시점 기준 계산 결과 사용
+            vType = calculatedVType;
+            
+            // 주식회사 천호(AD91) 특별 로깅 (저장된 값이 없어서 계산한 경우)
+            if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+              console.warn('[WARN][천호-settlement] vendorTypeAtSubmission이 없어서 계산:', {
+                no: sub.no,
+                calculatedVType: calculatedVType,
+                totalCnt: sub.totalCnt
+              });
+            }
+            
+            // 디버깅 로그 (주식회사 천호 특별 로깅)
+            if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+              const submissionsBeforeThis = sortedSubs.filter(s => {
+                if (!s.submittedAt || !s.companyCode) return false;
+                // 현재 submission 제외
+                if ((s.id && s.id === sub.id) || (s.no && s.no === sub.no)) return false;
+                const sCompanyCode = String(s.companyCode).trim();
+                if (sCompanyCode !== normalizedCompanyCode) return false;
+                const sTime = new Date(s.submittedAt);
+                const subTime = new Date(sub.submittedAt);
+                return sTime < subTime;
+              });
+              
+              console.warn('[WARN][천호-vendorType-calculation]', {
+                no: sub.no,
+                id: sub.id,
+                companyCode: normalizedCompanyCode,
+                submittedAt: new Date(sub.submittedAt).toISOString(),
+                calculatedVType: calculatedVType,
+                currentVendorType: vendorTypes[normalizedCompanyCode] || '일반',
+                totalCnt: sub.totalCnt,
+                submissionsBeforeThisCount: submissionsBeforeThis.length,
+                submissionsBeforeThis: submissionsBeforeThis.map(s => ({
+                  no: s.no,
+                  submittedAt: new Date(s.submittedAt).toISOString(),
+                  totalCnt: s.totalCnt
+                }))
+              });
+            }
+          } catch (error) {
+            console.error('[ERROR][vendorType-calculation]', {
+              no: sub.no,
+              companyCode: normalizedCompanyCode,
+              error: error.message,
+              stack: error.stack
+            });
+            // 오류 발생 시 제출 시점 기준 계산 실패이므로 '일반'으로 설정
+            vType = '일반';
+          }
+        } else if (normalizedCompanyCode) {
+          // submittedAt이 없는 경우 현재 vendorType 사용
+          vType = vendorTypes[normalizedCompanyCode] || '일반';
+        }
+        
+        // vendorId로도 시도 (companyCode로 찾지 못한 경우)
+        if (vType === '일반' && normalizedVendorId) {
+          vType = vendorTypes[normalizedVendorId] || '일반';
+        }
+        
+        // 대소문자 무시 매칭 시도 (companyCode 매칭 실패 시)
+        if (vType === '일반' && normalizedCompanyCode && Object.keys(vendorTypes).length > 0) {
+          const matchedKey = Object.keys(vendorTypes).find(key => 
+            key && normalizedCompanyCode.toLowerCase() === key.toLowerCase()
+          );
+          if (matchedKey) {
+            vType = vendorTypes[matchedKey];
+            console.warn('[WARN][settlement] companyCode 대소문자 불일치 발견:', {
+              original: sub.companyCode,
+              normalized: normalizedCompanyCode,
+              matched: matchedKey,
+              vendorType: vType
+            });
+          }
+        }
+        
+        const commission = calcCommissionForSubmission(sub, vType);
+        
+        // 디버깅: 각 submission의 계산 상세 로그
+        const expectedComm = sub.totalCnt ? (vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500) : 0;
+        const commissionMatch = commission === expectedComm ? '✅' : '❌ MISMATCH';
+        
+        console.log('[DEBUG][settlement-detail]', {
+          no: sub.no,
+          companyCode: sub.companyCode,
+          companyCodeNormalized: normalizedCompanyCode,
+          submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null,
+          companyCodeInVendorTypes: normalizedCompanyCode in vendorTypes,
+          vendorId: sub.vendorId,
+          vendorIdNormalized: normalizedVendorId,
+          companyName: sub.companyName,
+          accepted: sub.accepted,
+          isDeleted: sub.isDeleted,
+          isTest: sub.isTest,
+          totalCnt: sub.totalCnt,
+          totalCntType: typeof sub.totalCnt,
+          totalCntIsArray: Array.isArray(sub.totalCnt),
+          vendorType: vType,
+          vendorTypeSource: (normalizedCompanyCode && sub.submittedAt && vType !== '일반') ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'),
+          rate: vType === '우수' ? 1000 : 1500,
+          commission: commission,
+          expectedCommission: expectedComm,
+          commissionMatch: commissionMatch,
+          difference: commission - expectedComm,
+          accumulatedSum: totalCommission + commission,
+          calculation: `${sub.totalCnt} × ${vType === '우수' ? 1000 : 1500} = ${expectedComm}`
+        });
+        
+        // 주식회사 천호(AD91) 특별 로깅
+        if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
+          console.warn('[WARN][천호-settlement]', {
+            no: sub.no,
+            companyName: sub.companyName,
+            companyCode: normalizedCompanyCode,
+            totalCnt: sub.totalCnt,
+            totalCntType: typeof sub.totalCnt,
+            vendorType: vType,
+            vendorTypeSource: (normalizedCompanyCode && sub.submittedAt && vType !== '일반') ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'),
+            rate: vType === '우수' ? 1000 : 1500,
+            commission: commission,
+            expectedCommission: expectedComm,
+            difference: commission - expectedComm,
+            calculation: `${sub.totalCnt} × ${vType === '우수' ? 1000 : 1500} = ${expectedComm}`,
+            accumulatedSum: totalCommission + commission
+          });
+        }
+        
+        totalCommission += commission;
+      }
+      const relevantWithdrawals = (withdrawals || []).filter(w => {
+        const matchesVendor = vendorId ? ((w.vendorId && w.vendorId === vendorId) || (!w.vendorId && !vendorId)) : true;
+        return matchesVendor && w.status === 'completed';
+      });
+      const totalWithdrawn = relevantWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+      const result = {
+        totalCommission,
+        totalWithdrawn,
+        availableAmount: totalCommission - totalWithdrawn,
+        subsCount: subs.length
+      };
+      console.log('[DEBUG][settlement]', {
+        vendorId: vendorId || 'ALL',
+        subsCount: result.subsCount,
+        totalCommission: result.totalCommission,
+        totalWithdrawn: result.totalWithdrawn,
+        availableAmount: result.availableAmount
+      });
+      return result;
+    }
+
     async function showSettlementDashboard(){
       showLoading();
       try {
+      // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
+      clearVendorTypeCache();
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
+      
+      // 모든 vendor type을 한 번에 계산 (강제 새로고침)
+      const vendorTypes = await getAllVendorTypes(rows, true);
       
       // Calculate current month statistics
       const currentDate = new Date();
@@ -3515,12 +4945,17 @@ ${r.optPlan}
       let monthlyRegularRequests = 0;
       let monthlyPremiumFee = 0;
       let monthlyRegularFee = 0;
-      
-      // Filter current month requests
+
+      // Filter current month requests (날짜 필터링 개선)
       const currentMonthRequests = rows.filter(r => {
+        if (!r.submittedAt) return false;
         const submissionDate = new Date(r.submittedAt);
-        return submissionDate.getMonth() === currentMonth && submissionDate.getFullYear() === currentYear;
+        const submissionYear = submissionDate.getFullYear();
+        const submissionMonth = submissionDate.getMonth(); // 0-based (0=1월, 11=12월)
+        // 정확한 년월 비교
+        return submissionMonth === currentMonth && submissionYear === currentYear;
       });
+<<<<<<< HEAD
       
       // Calculate statistics (각 데이터의 submittedAt 기준)
       for (const r of currentMonthRequests) {
@@ -3528,12 +4963,26 @@ ${r.optPlan}
         const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
         monthlyTotalRequests += r.totalCnt;
         
+=======
+
+      console.log('📊 당월 필터링된 데이터 수:', currentMonthRequests.length);
+      console.log('📅 현재 년월:', currentYear, '년', currentMonth + 1, '월');
+      console.log('📊 당월 총 진행건수:', currentMonthRequests.reduce((sum, r) => sum + r.totalCnt, 0));
+
+      // Calculate statistics (병렬 처리로 최적화)
+      for (const r of currentMonthRequests) {
+        const vendorType = vendorTypes[r.companyCode] || '일반';
+        const commission = calcCommissionForSubmission(r, vendorType);
+        const cnt = parseInt(r.totalCnt, 10) || 0;
+        monthlyTotalRequests += cnt;
+
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
         if (vendorType === '우수') {
-          monthlyPremiumRequests += r.totalCnt;
-          monthlyPremiumFee += r.totalCnt * 1000; // 우수 VENDOR 제휴수수료: 1,000원
+          monthlyPremiumRequests += cnt;
+          monthlyPremiumFee += commission;
         } else {
-          monthlyRegularRequests += r.totalCnt;
-          monthlyRegularFee += r.totalCnt * 1500; // 일반 VENDOR 제휴수수료: 1,500원
+          monthlyRegularRequests += cnt;
+          monthlyRegularFee += commission;
         }
       }
       
@@ -3573,9 +5022,14 @@ ${r.optPlan}
         html += '<tr><td colspan="6" style="text-align:center;color:#6a7a89">당월 진행 요청이 없습니다.</td></tr>';
       } else {
         for (const r of currentMonthRequests) {
+<<<<<<< HEAD
           const submittedDate = new Date(r.submittedAt);
           const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
           const fee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+=======
+          const vendorType = vendorTypes[r.companyCode] || '일반';
+          const fee = calcCommissionForSubmission(r, vendorType);
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
           html += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
@@ -3607,6 +5061,7 @@ ${r.optPlan}
       html += `<div class="vendor-lists-section" style="margin-top:20px;">`;
       
       // Premium vendors list
+<<<<<<< HEAD
       const premiumRequests = [];
       for (const r of currentMonthRequests) {
         const submittedDate = new Date(r.submittedAt);
@@ -3615,6 +5070,12 @@ ${r.optPlan}
           premiumRequests.push(r);
         }
       }
+=======
+      const premiumRequests = currentMonthRequests.filter(r => {
+        const vendorType = vendorTypes[r.companyCode] || '일반';
+        return vendorType === '우수';
+      });
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
       html += `<div class="vendor-list-box">
         <div class="vendor-list-title">우수 VENDOR 진행 요청건수: ${monthlyPremiumRequests}</div>
         <div style="margin-bottom:8px;">
@@ -3628,7 +5089,7 @@ ${r.optPlan}
         html += '<tr><td colspan="5" style="text-align:center;color:#6a7a89">우수 VENDOR 진행 요청이 없습니다.</td></tr>';
       } else {
         premiumRequests.forEach(r => {
-          const fee = r.totalCnt * 1000;
+          const fee = calcCommissionForSubmission(r, '우수');
           html += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
@@ -3641,6 +5102,7 @@ ${r.optPlan}
       html += '</tbody></table></div></div>';
       
       // Regular vendors list
+<<<<<<< HEAD
       const regularRequests = [];
       for (const r of currentMonthRequests) {
         const submittedDate = new Date(r.submittedAt);
@@ -3649,6 +5111,12 @@ ${r.optPlan}
           regularRequests.push(r);
         }
       }
+=======
+      const regularRequests = currentMonthRequests.filter(r => {
+        const vendorType = vendorTypes[r.companyCode] || '일반';
+        return vendorType === '일반';
+      });
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
       html += `<div class="vendor-list-box">
         <div class="vendor-list-title">일반 VENDOR 진행 요청건수: ${monthlyRegularRequests}</div>
         <div style="margin-bottom:8px;">
@@ -3662,7 +5130,8 @@ ${r.optPlan}
         html += '<tr><td colspan="5" style="text-align:center;color:#6a7a89">일반 VENDOR 진행 요청이 없습니다.</td></tr>';
       } else {
         regularRequests.forEach(r => {
-          const fee = r.totalCnt * 1500;
+          const vendorType = vendorTypes[r.companyCode] || '일반';
+          const fee = calcCommissionForSubmission(r, vendorType);
           html += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
@@ -3738,39 +5207,71 @@ ${r.optPlan}
       
       console.log('📋 현재 날짜 기준 기본 선택 완료, 현재 월 포함:', hasCurrentMonth);
       
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">월별 정산 LIST</h2>`;
-      
-      // Year/Month dropdown
-      html += `<div style="margin-bottom:20px;">
+      // 상단 영역 (모바일에서 sticky)
+      let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+        <div class="flex items-center justify-between mb-2 md:mb-0">
+          <h2 style="margin:0;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">월별 정산 LIST</h2>
+          <!-- 모바일 전용 필터 버튼 -->
+          <button onclick="openMonthlyMobileFilter()" class="md:hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-semibold flex items-center gap-1" aria-label="필터">
+            <span>🔍</span>
+            <span>필터</span>
+          </button>
+        </div>
+        
+        <!-- 모바일 전용 안내 멘트 - 필터 버튼 바로 아래 -->
+        <div class="block md:hidden text-center text-neutral-500 text-sm px-4 mb-2">
+          검색필터를 통해 조회 희망하시는 날을 선택해주세요
+        </div>
+        
+        <!-- Year/Month dropdown - 데스크탑만 표시 -->
+        <div class="monthly-desktop-filter" style="display:none;margin-bottom:20px;">
+          <style>
+            @media (min-width: 768px) {
+              .monthly-desktop-filter { display: block !important; }
+            }
+          </style>
         <label style="display:block;font-weight:800;margin-bottom:8px;color:var(--brand);">년도/월 선택</label>
         <select id="yearMonthSelect" class="select" style="width:200px;">
           ${yearMonthOptions}
         </select>
-      </div>`;
-      
-      // Summary boxes - horizontal layout
-      html += `<div id="monthlySummary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px;">
-        <div class="stat-box">
-          <div class="stat-title">요청 VENDOR 수</div>
-          <div class="stat-value" id="vendorCount">0</div>
         </div>
-        <div class="stat-box">
-          <div class="stat-title">총 요청건수</div>
-          <div class="stat-value" id="totalRequests">0</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-title">당월 정산액 (제휴 수수료)</div>
-          <div class="stat-value" id="monthlyAmount">0원</div>
+        
+        <!-- 엑셀 다운로드 버튼 - 데스크탑만 표시 -->
+        <div class="monthly-desktop-excel" style="display:none;margin-bottom:8px;">
+          <style>
+            @media (min-width: 768px) {
+              .monthly-desktop-excel { display: block !important; }
+            }
+          </style>
+          <button class="btn ghost" onclick="downloadMonthlyExcel()" type="button">엑셀 다운로드</button>
         </div>
       </div>`;
       
-      // Table with download button
-      html += `<div style="margin-bottom:8px;">
-        <button class="btn ghost" onclick="downloadMonthlyExcel()" type="button">엑셀 다운로드</button>
+      // Summary boxes - 모바일 2열, 데스크탑 3열
+      html += `<div id="monthlySummary" class="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-5 mb-4 md:mb-5 px-4 md:px-0">
+        <div class="stat-box">
+          <div class="stat-title text-neutral-500 text-[clamp(12px,1.2vw,14px)]">요청 VENDOR 수</div>
+          <div class="stat-value font-semibold text-[clamp(14px,1.5vw,18px)]" id="vendorCount">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-title text-neutral-500 text-[clamp(12px,1.2vw,14px)]">총 요청건수</div>
+          <div class="stat-value font-semibold text-[clamp(14px,1.5vw,18px)]" id="totalRequests">0</div>
+        </div>
+        <div class="stat-box col-span-2 md:col-span-1">
+          <div class="stat-title text-neutral-500 text-[clamp(12px,1.2vw,14px)]">당월 정산액 (제휴 수수료)</div>
+          <div class="stat-value font-semibold text-[clamp(14px,1.5vw,18px)]" id="monthlyAmount">0원</div>
+        </div>
       </div>`;
       
-      // Table
-      html += `<div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+      // Desktop Table - 데스크탑에서만 표시 (모바일에서 숨김)
+      html += `<div class="scroll-x" style="display:block;max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <style>
+          @media (max-width: 768px) {
+            #monthlyTable { display: none !important; }
+            #monthlyTableWrapper { display: none !important; }
+          }
+        </style>
+        <div id="monthlyTableWrapper">
         <table class="admin-table" id="monthlyTable">
           <thead>
             <tr>
@@ -3795,17 +5296,48 @@ ${r.optPlan}
           <tfoot id="monthlyTableFooter">
           </tfoot>
         </table>
+        </div>
       </div>`;
+      
+      // Mobile List - md 이하에서만 표시
+      html += `<div id="monthlyMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
+      
+      // 모바일 필터 시트
+      html += `<div id="monthlyMobileFilterSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
+        <div class="p-4">
+          <div class="flex items-center justify-between mb-4 pb-4 border-b">
+            <h3 class="text-lg font-bold">필터</h3>
+            <button onclick="closeMonthlyMobileFilter()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+          </div>
+          <div class="mb-4">
+            <label class="block text-sm font-semibold mb-2 text-neutral-700">년도/월 선택</label>
+            <select id="yearMonthSelectMobile" class="select w-full px-3 py-3 border border-gray-300 rounded-md">
+              ${yearMonthOptions}
+            </select>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="closeMonthlyMobileFilter(); document.getElementById('yearMonthSelect').value = document.getElementById('yearMonthSelectMobile').value; document.getElementById('yearMonthSelect').dispatchEvent(new Event('change'));" class="flex-1 btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">조회하기</button>
+            <button onclick="downloadMonthlyExcel()" class="btn ghost px-4 py-3">엑셀 다운로드</button>
+          </div>
+        </div>
+      </div>`;
+      html += `<div id="monthlyMobileFilterSheet-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden md:hidden" onclick="closeMonthlyMobileFilter()"></div>`;
       
       main.innerHTML = html;
       
       // 이벤트 리스너를 즉시 바인딩
       setTimeout(() => {
         const yearMonthSelect = document.getElementById('yearMonthSelect');
+        const yearMonthSelectMobile = document.getElementById('yearMonthSelectMobile');
+        
         if (yearMonthSelect) {
           console.log('🔗 월별 정산 - 이벤트 리스너 바인딩 시도');
           yearMonthSelect.addEventListener('change', async () => {
             console.log('🔄 월별 정산 - 기간 변경 감지, 로딩 시작');
+            // 모바일 셀렉트와 동기화
+            if (yearMonthSelectMobile) {
+              yearMonthSelectMobile.value = yearMonthSelect.value;
+            }
             showLoading();
             try {
             await updateMonthlyData();
@@ -3821,6 +5353,14 @@ ${r.optPlan}
         } else {
           console.error('❌ 월별 정산 - yearMonthSelect 요소를 찾을 수 없음');
         }
+        
+        if (yearMonthSelectMobile) {
+          yearMonthSelectMobile.addEventListener('change', () => {
+            if (yearMonthSelect) {
+              yearMonthSelect.value = yearMonthSelectMobile.value;
+            }
+          });
+        }
       }, 100);
       
       // Initial load
@@ -3830,10 +5370,346 @@ ${r.optPlan}
       }
     }
     
+    // 출금신청 화면
+    async function showWithdrawalRequest(){
+      showLoading();
+      try {
+        const main = document.getElementById("adminMain");
+        
+        // 정산 관련 화면은 항상 최신 데이터 사용
+        clearVendorTypeCache();
+        
+        // 데이터 캐시 강제 초기화 플래그 설정
+        window.wp_data_cache_cleared = true;
+        
+        const rows = await loadSubs();
+        const withdrawals = await loadWithdrawals();
+        const vendorTypes = await getAllVendorTypes(rows, true);
+        const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
+        const { totalCommission, totalWithdrawn, availableAmount } = settlement;
+        
+        // 상단 영역 (모바일에서 sticky)
+        let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+          <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">출금신청</h2>
+        </div>`;
+        
+        // 상단 KPI 카드 (모바일에서 2열)
+        html += `<div class="grid grid-cols-2 md:grid-cols-2 gap-4 md:gap-5 mb-5 md:mb-5">
+          <div class="stat-box">
+            <div class="stat-title">출금 가능액</div>
+            <div class="stat-value" id="availableAmount">${availableAmount.toLocaleString()}원</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-title">총 출금액</div>
+            <div class="stat-value" id="totalWithdrawn">${totalWithdrawn.toLocaleString()}원</div>
+          </div>
+        </div>`;
+        
+        // 출금신청 입력 폼 (모바일에서 세로 배치)
+        html += `<div style="background:var(--panel);padding:16px md:padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
+          <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">출금 신청</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-3">
+            <div>
+              <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">은행명</label>
+              <input type="text" id="withdrawalBank" class="input" placeholder="예: 국민은행" style="width:100%;">
+            </div>
+            <div>
+              <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">계좌번호</label>
+              <input type="text" id="withdrawalAccount" class="input" placeholder="예: 123-456-789012" style="width:100%;">
+            </div>
+            <div>
+              <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">출금 신청액</label>
+              <input type="number" id="withdrawalAmount" class="input" placeholder="출금 가능액 이하" style="width:100%;" max="${availableAmount}">
+            </div>
+          </div>
+          <button id="submitWithdrawalBtn" class="btn w-full md:w-auto" style="margin-top:16px;background:var(--brand);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer;">출금 신청</button>
+        </div>`;
+        
+        // 출금신청 리스트
+        html += `<div style="background:var(--panel);padding:16px md:padding:20px;border-radius:8px;border:1px solid var(--border);">
+          <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">출금 신청 리스트</h3>`;
+        
+        // Desktop Table
+        html += `<div class="withdrawal-desktop-table" style="display:none;">
+          <style>
+            @media (min-width: 768px) {
+              .withdrawal-desktop-table { display: block !important; }
+            }
+          </style>
+          <div class="scroll-x" style="max-height:600px;overflow-y:auto;">
+            <table class="admin-table" id="withdrawalTable">
+              <thead>
+                <tr>
+                  <th>신청일</th>
+                  <th>입금정보</th>
+                  <th>금액</th>
+                  <th>상태</th>
+                  <th>처리일</th>
+                </tr>
+              </thead>
+              <tbody id="withdrawalTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+        
+        // Mobile List
+        html += `<div id="withdrawalMobileList" class="block md:hidden space-y-3"></div>
+        </div>`;
+        
+        main.innerHTML = html;
+        
+        // 출금신청 리스트 렌더링
+        await renderWithdrawalList();
+        
+        // 출금 신청 버튼 이벤트
+        const submitBtn = document.getElementById('submitWithdrawalBtn');
+        if (submitBtn) {
+          submitBtn.addEventListener('click', async () => {
+            const bank = document.getElementById('withdrawalBank').value.trim();
+            const account = document.getElementById('withdrawalAccount').value.trim();
+            const amount = parseInt(document.getElementById('withdrawalAmount').value);
+            
+            if (!bank || !account || !amount) {
+              alert('모든 항목을 입력해주세요.');
+              return;
+            }
+            
+            if (amount <= 0) {
+              alert('출금 신청액은 0보다 커야 합니다.');
+              return;
+            }
+            
+            if (amount > availableAmount) {
+              alert(`출금 가능액(${availableAmount.toLocaleString()}원)을 초과할 수 없습니다.`);
+              return;
+            }
+            
+            await submitWithdrawal(bank, account, amount);
+          });
+        }
+        
+      } finally {
+        hideLoading();
+      }
+    }
+    
+    // 출금신청 데이터 로드
+    async function loadWithdrawals() {
+      if (!window.db) {
+        const localData = JSON.parse(localStorage.getItem("wp_withdrawals") || "[]");
+        return localData;
+      }
+      
+      try {
+        const withdrawalsRef = window.collection(window.db, 'withdrawals');
+        const snapshot = await window.getDocs(withdrawalsRef);
+        const withdrawals = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // localStorage에도 백업
+        localStorage.setItem("wp_withdrawals", JSON.stringify(withdrawals));
+        return withdrawals.sort((a, b) => b.requestedAt - a.requestedAt);
+      } catch (error) {
+        console.error('출금신청 데이터 로드 오류:', error);
+        const localData = JSON.parse(localStorage.getItem("wp_withdrawals") || "[]");
+        return localData;
+      }
+    }
+    
+    // 출금신청 제출
+    async function submitWithdrawal(bank, account, amount) {
+      showLoading();
+      try {
+        const withdrawal = {
+          bank: bank,
+          account: account,
+          amount: amount,
+          status: 'pending',
+          requestedAt: Date.now(),
+          processedAt: null
+        };
+        
+        // Firebase에 저장
+        if (window.db) {
+          try {
+            const withdrawalsRef = window.collection(window.db, 'withdrawals');
+            const docRef = await window.addDoc(withdrawalsRef, withdrawal);
+            withdrawal.id = docRef.id;
+            console.log('✅ 출금신청 저장 완료:', docRef.id);
+          } catch (error) {
+            console.error('Firebase 저장 오류:', error);
+            // Firebase 저장 실패 시 임시 ID 생성
+            if (!withdrawal.id) {
+              withdrawal.id = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+          }
+        } else {
+          // Firebase가 없으면 임시 ID 생성
+          if (!withdrawal.id) {
+            withdrawal.id = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          }
+        }
+        
+        // localStorage에도 저장
+        const existingData = JSON.parse(localStorage.getItem("wp_withdrawals") || "[]");
+        existingData.unshift(withdrawal);
+        localStorage.setItem("wp_withdrawals", JSON.stringify(existingData));
+        
+        // 알림 표시
+        if (sessionStorage.getItem("wp_is_admin") === "1") {
+          const notificationTitle = '출금신청이 등록되었습니다';
+          const notificationContent = `${amount.toLocaleString()}원 출금신청이 등록되었습니다.`;
+          
+          if (window.showPushNotification) {
+            window.showPushNotification(notificationTitle, notificationContent);
+          }
+          
+          if (window.addNotification) {
+            window.addNotification(notificationTitle, notificationContent, 'success', Date.now());
+          }
+        }
+        
+        // 입력 필드 초기화
+        document.getElementById('withdrawalBank').value = '';
+        document.getElementById('withdrawalAccount').value = '';
+        document.getElementById('withdrawalAmount').value = '';
+        
+        // 화면 새로고침
+        await showWithdrawalRequest();
+        
+      } catch (error) {
+        console.error('출금신청 제출 오류:', error);
+        alert('출금신청 등록 중 오류가 발생했습니다.');
+      } finally {
+        hideLoading();
+      }
+    }
+    
+    // 출금신청 리스트 렌더링
+    async function renderWithdrawalList() {
+      const withdrawals = await loadWithdrawals();
+      const tbody = document.getElementById('withdrawalTableBody');
+      const mobileList = document.getElementById('withdrawalMobileList');
+      
+      // Desktop Table
+      if (tbody) {
+        if (withdrawals.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6a7a89">출금신청 내역이 없습니다.</td></tr>';
+        } else {
+          let html = '';
+          withdrawals.forEach(w => {
+            const requestedDate = new Date(w.requestedAt);
+            const processedDate = w.processedAt ? new Date(w.processedAt) : null;
+            
+            html += `<tr data-id="${w.id}">
+              <td>${formatDateTime(requestedDate)}</td>
+              <td>${escapeHtml(w.bank)} / ${escapeHtml(w.account)}</td>
+              <td>${w.amount.toLocaleString()}원</td>
+              <td>
+                <input type="checkbox" ${w.status === 'completed' ? 'checked' : ''} 
+                       onchange="toggleWithdrawalStatus('${w.id}', this.checked)" 
+                       style="cursor:pointer;">
+              </td>
+              <td>${processedDate ? formatDateTime(processedDate) : '-'}</td>
+            </tr>`;
+          });
+          
+          tbody.innerHTML = html;
+        }
+      }
+      
+      // Mobile List
+      if (mobileList) {
+        if (withdrawals.length === 0) {
+          mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">출금신청 내역이 없습니다.</div>';
+        } else {
+          let mobileHtml = '';
+          withdrawals.forEach(w => {
+            const requestedDate = new Date(w.requestedAt);
+            const processedDate = w.processedAt ? new Date(w.processedAt) : null;
+            
+            mobileHtml += `
+              <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden p-3">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${w.amount.toLocaleString()}원</span>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" ${w.status === 'completed' ? 'checked' : ''} 
+                           onchange="toggleWithdrawalStatus('${w.id}', this.checked)" 
+                           class="cursor-pointer">
+                    <span class="text-xs ${w.status === 'completed' ? 'text-green-600' : 'text-yellow-600'}">${w.status === 'completed' ? '처리완료' : '대기중'}</span>
+                  </label>
+                </div>
+                <div class="space-y-1 text-[clamp(11px,1.1vw,13px)] text-neutral-500">
+                  <div>신청일: ${formatDateTime(requestedDate)}</div>
+                  <div>입금정보: ${escapeHtml(w.bank)} / ${escapeHtml(w.account)}</div>
+                  ${processedDate ? `<div>처리일: ${formatDateTime(processedDate)}</div>` : ''}
+                </div>
+              </div>
+            `;
+          });
+          
+          mobileList.innerHTML = mobileHtml;
+        }
+      }
+    }
+    
+    // 출금신청 상태 변경
+    async function toggleWithdrawalStatus(withdrawalId, isCompleted) {
+      showLoading();
+      try {
+        const withdrawals = await loadWithdrawals();
+        const withdrawal = withdrawals.find(w => w.id === withdrawalId);
+        
+        if (!withdrawal) {
+          alert('출금신청을 찾을 수 없습니다.');
+          return;
+        }
+        
+        withdrawal.status = isCompleted ? 'completed' : 'pending';
+        withdrawal.processedAt = isCompleted ? Date.now() : null;
+        
+        // Firebase 업데이트
+        if (window.db) {
+          try {
+            const docRef = window.doc(window.db, 'withdrawals', withdrawalId);
+            await window.updateDoc(docRef, {
+              status: withdrawal.status,
+              processedAt: withdrawal.processedAt
+            });
+            console.log('✅ 출금신청 상태 업데이트 완료:', withdrawalId);
+          } catch (error) {
+            console.error('Firebase 업데이트 오류:', error);
+          }
+        }
+        
+        // localStorage 업데이트
+        const existingData = JSON.parse(localStorage.getItem("wp_withdrawals") || "[]");
+        const index = existingData.findIndex(w => w.id === withdrawalId);
+        if (index !== -1) {
+          existingData[index] = withdrawal;
+          localStorage.setItem("wp_withdrawals", JSON.stringify(existingData));
+        }
+        
+        // 화면 새로고침
+        await showWithdrawalRequest();
+        
+      } catch (error) {
+        console.error('출금신청 상태 변경 오류:', error);
+        alert('상태 변경 중 오류가 발생했습니다.');
+      } finally {
+        hideLoading();
+      }
+    }
+    
     // Weekly settlement list (similar to monthly, with Y/M/Week selectors)
     async function showWeeklySettlementList(){
       showLoading();
       try {
+      // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
+      clearVendorTypeCache();
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       // Generate year/month options based on actual data
@@ -3922,20 +5798,72 @@ ${r.optPlan}
       }
       
       console.log('📋 현재 날짜 기준 기본 선택 완료, 현재 년도 포함:', hasCurrentYear, '현재 월 포함:', hasCurrentMonth);
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">주별 정산 LIST</h2>`;
-      html += `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+      
+      // 상단 영역 (모바일에서 sticky)
+      let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+        <div class="flex items-center justify-between mb-2 md:mb-0">
+          <h2 style="margin:0;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">주별 정산 LIST</h2>
+          <!-- 모바일 전용 필터 버튼 -->
+          <button onclick="openWeeklyMobileFilter()" class="md:hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-semibold flex items-center gap-1" aria-label="필터">
+            <span>🔍</span>
+            <span>필터</span>
+          </button>
+        </div>
+        
+        <!-- 모바일 전용 안내 멘트 - 필터 버튼 바로 아래 -->
+        <div class="block md:hidden text-center text-neutral-500 text-sm px-4 mb-2">
+          검색필터를 통해 조회 희망하시는 날을 선택해주세요
+        </div>
+        
+        <!-- 필터 영역 - 데스크탑만 표시 -->
+        <div class="weekly-desktop-filter" style="display:none;gap:10px;align-items:center;margin-bottom:12px;">
+          <style>
+            @media (min-width: 768px) {
+              .weekly-desktop-filter { display: flex !important; }
+            }
+          </style>
         <select id="wlYear" class="select" style="width:120px;">${yearOptions}</select>
         <select id="wlMonth" class="select" style="width:120px;">${monthOptions}</select>
         <select id="wlWeek" class="select" style="width:200px;"></select>
         <button id="wlSearchBtn" class="btn" style="background:var(--brand);color:white;padding:8px 16px;border:none;border-radius:4px;cursor:pointer;">조회하기</button>
+        </div>
+        
+        <!-- 엑셀 다운로드 버튼 - 데스크탑만 표시 -->
+        <div class="weekly-desktop-excel" style="display:none;margin-bottom:8px;">
+          <style>
+            @media (min-width: 768px) {
+              .weekly-desktop-excel { display: block !important; }
+            }
+          </style>
+          <button class="btn ghost" id="wExcel" type="button">엑셀 다운로드</button>
+        </div>
       </div>`;
-      html += `<div id="wlSummary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px;">
-        <div class="stat-box"><div class="stat-title">요청 VENDOR 수</div><div class="stat-value" id="wVendorCount">0</div></div>
-        <div class="stat-box"><div class="stat-title">총 요청건수</div><div class="stat-value" id="wTotalRequests">0</div></div>
-        <div class="stat-box"><div class="stat-title">정산액 (제휴 수수료)</div><div class="stat-value" id="wAmount">0원</div></div>
+      
+      // Summary boxes - 모바일 2열, 데스크탑 3열
+      html += `<div id="wlSummary" class="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-5 mb-4 md:mb-5 px-4 md:px-0">
+        <div class="stat-box">
+          <div class="stat-title text-neutral-500 text-[clamp(12px,1.2vw,14px)]">요청 VENDOR 수</div>
+          <div class="stat-value font-semibold text-[clamp(14px,1.5vw,18px)]" id="wVendorCount">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-title text-neutral-500 text-[clamp(12px,1.2vw,14px)]">총 요청건수</div>
+          <div class="stat-value font-semibold text-[clamp(14px,1.5vw,18px)]" id="wTotalRequests">0</div>
+        </div>
+        <div class="stat-box col-span-2 md:col-span-1">
+          <div class="stat-title text-neutral-500 text-[clamp(12px,1.2vw,14px)]">정산액 (제휴 수수료)</div>
+          <div class="stat-value font-semibold text-[clamp(14px,1.5vw,18px)]" id="wAmount">0원</div>
+        </div>
       </div>`;
-      html += `<div style="margin-bottom:8px;"><button class="btn ghost" id="wExcel" type="button">엑셀 다운로드</button></div>`;
-      html += `<div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+      
+      // Desktop Table - 데스크탑에서만 표시 (모바일에서 숨김)
+      html += `<div class="scroll-x" style="display:block;max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <style>
+          @media (max-width: 768px) {
+            #wTable { display: none !important; }
+            #wTableWrapper { display: none !important; }
+          }
+        </style>
+        <div id="wTableWrapper">
         <table class="admin-table" id="wTable">
           <thead><tr>
             <th>NO</th><th>제출시간</th><th>업체코드</th><th>VENDOR 유형</th><th>업체명</th><th>사업자번호</th>
@@ -3945,7 +5873,40 @@ ${r.optPlan}
           <tbody id="wBody"></tbody>
           <tfoot id="wFoot"></tfoot>
         </table>
+        </div>
       </div>`;
+      
+      // Mobile List - md 이하에서만 표시
+      html += `<div id="wMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
+      
+      // 모바일 필터 시트
+      html += `<div id="weeklyMobileFilterSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 md:hidden max-h-[80vh] overflow-y-auto">
+        <div class="p-4">
+          <div class="flex items-center justify-between mb-4 pb-4 border-b">
+            <h3 class="text-lg font-bold">필터</h3>
+            <button onclick="closeWeeklyMobileFilter()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+          </div>
+          <div class="space-y-3 mb-4">
+            <div>
+              <label class="block text-sm font-semibold mb-2 text-neutral-700">년도</label>
+              <select id="wlYearMobile" class="select w-full px-3 py-3 border border-gray-300 rounded-md">${yearOptions}</select>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-2 text-neutral-700">월</label>
+              <select id="wlMonthMobile" class="select w-full px-3 py-3 border border-gray-300 rounded-md">${monthOptions}</select>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-2 text-neutral-700">주</label>
+              <select id="wlWeekMobile" class="select w-full px-3 py-3 border border-gray-300 rounded-md"></select>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="closeWeeklyMobileFilter(); document.getElementById('wlYear').value = document.getElementById('wlYearMobile').value; document.getElementById('wlYear').dispatchEvent(new Event('change')); document.getElementById('wlMonth').value = document.getElementById('wlMonthMobile').value; document.getElementById('wlMonth').dispatchEvent(new Event('change')); setTimeout(() => { document.getElementById('wlWeek').value = document.getElementById('wlWeekMobile').value; document.getElementById('wlSearchBtn').click(); }, 100);" class="flex-1 btn px-4 py-3 text-white rounded-md" style="background:var(--brand);">조회하기</button>
+            <button onclick="document.getElementById('wExcel').click();" class="btn ghost px-4 py-3">엑셀 다운로드</button>
+          </div>
+        </div>
+      </div>`;
+      html += `<div id="weeklyMobileFilterSheet-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden md:hidden" onclick="closeWeeklyMobileFilter()"></div>`;
       main.innerHTML = html;
 
       function buildWeeks(y,m){
@@ -3991,6 +5952,10 @@ ${r.optPlan}
 
       function pad2(n){ return String(n).padStart(2,'0'); }
       function fmt(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+      // 주차 셀렉트박스 라벨용: "15일 ~ 21일" 형태
+      function fmtWeekLabel(startDate, endDate){ 
+        return `${startDate.getDate()}일 ~ ${endDate.getDate()}일`; 
+      }
 
       async function refreshWeeks(){
         const y = parseInt(document.getElementById('wlYear').value,10);
@@ -4054,7 +6019,15 @@ ${r.optPlan}
           console.log(`📅 현재 년월이 아니므로 첫 번째 주 선택`);
         }
         
-        sel.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmt(w.start)} ~ ${fmt(w.end)}</option>`).join('');
+        // 값(value)은 그대로 "YYYY-MM-DD|YYYY-MM-DD" 유지, 화면에 보이는 라벨만 "15일 ~ 21일"로 변경
+        sel.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmtWeekLabel(w.start, w.end)}</option>`).join('');
+        
+        // 모바일 주 선택도 동기화
+        const mobileWeekSelect = document.getElementById('wlWeekMobile');
+        if (mobileWeekSelect) {
+          mobileWeekSelect.innerHTML = weeks.map((w,i)=>`<option value="${fmt(w.start)}|${fmt(w.end)}" ${i===selectedIndex?'selected':''}>${fmtWeekLabel(w.start, w.end)}</option>`).join('');
+        }
+        
         await updateWeekly();
       }
 
@@ -4070,6 +6043,8 @@ ${r.optPlan}
         console.log('🔍 주별 정산 - 날짜 필터링 시작');
         console.log('📅 선택된 주 범위:', s, '~', e);
         
+        // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
+        clearVendorTypeCache();
         // rows 데이터를 다시 가져오기
         const rows = await loadSubs();
         console.log('📊 전체 데이터 수:', rows.length);
@@ -4127,20 +6102,28 @@ ${r.optPlan}
         
         const vendorSet = new Set(fil.map(r=>r.companyCode));
         const vendorCount = vendorSet.size;
-        const totalRequests = fil.reduce((a,b)=>a+b.totalCnt,0);
+        const totalRequests = fil.reduce((a,b)=>a+(parseInt(b.totalCnt,10)||0),0);
         let totalUsage=0,totalComm=0;
         
         // 모든 비동기 작업을 순차적으로 처리
         try {
+<<<<<<< HEAD
           // 1단계: VENDOR 타입 조회 및 계산 (각 데이터의 submittedAt 기준)
           console.log('🔄 1단계: VENDOR 타입 조회 및 계산 시작');
           const vendorResults = await Promise.all(fil.map(async r => {
             const submittedDate = new Date(r.submittedAt);
             const vt = await getVendorTypeAtDate(r.companyCode, submittedDate);
+=======
+          // 1단계: VENDOR 타입 조회 및 계산 (강제 새로고침)
+          console.log('🔄 1단계: VENDOR 타입 조회 및 계산 시작');
+          const vendorTypes = await getAllVendorTypes(rows, true);
+          const vendorResults = fil.map(r => {
+            const vt = vendorTypes[r.companyCode] || '일반';
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
             const usage = r.totalCnt*(vt==='우수'?2500:3000);
-            const comm = r.totalCnt*(vt==='우수'?1000:1500);
+            const comm = calcCommissionForSubmission(r, vt);
             return { r, vt, usage, comm };
-          }));
+          });
           
           // 총합 계산
           vendorResults.forEach(({r, vt, usage, comm}) => {
@@ -4161,26 +6144,37 @@ ${r.optPlan}
           console.log('🔄 3단계: 테이블 데이터 생성 시작');
           const body = document.getElementById('wBody');
           const foot = document.getElementById('wFoot');
+          const mobileList = document.getElementById('wMobileList');
           let htmlRows=''; 
+          let mobileHtml='';
           let sumU=0,sumC=0;
           
           if(fil.length===0){ 
             htmlRows = '<tr><td colspan="14" style="text-align:center;color:#6a7a89">해당 기간 데이터가 없습니다.</td></tr>'; 
             body.innerHTML = htmlRows;
             foot.innerHTML='';
+            if (mobileList) {
+              mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">해당 기간 데이터가 없습니다.</div>';
+            }
           } else {
+<<<<<<< HEAD
             // 테이블 행 데이터 생성 (각 데이터의 submittedAt 기준)
             const tableResults = await Promise.all(fil.map(async r => {
               const submittedDate = new Date(r.submittedAt);
               const vt = await getVendorTypeAtDate(r.companyCode, submittedDate);
+=======
+            // 테이블 행 데이터 생성 (최적화)
+            const tableResults = fil.map(r => {
+              const vt = vendorTypes[r.companyCode] || '일반';
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
               const u = r.totalCnt*(vt==='우수'?2500:3000);
-              const c = r.totalCnt*(vt==='우수'?1000:1500);
+              const c = calcCommissionForSubmission(r, vt);
               sumU+=u; 
               sumC+=c;
               return { r, vt, u, c };
-            }));
+            });
             
-            // HTML 생성
+            // Desktop Table HTML 생성
             tableResults.forEach(({r, vt, u, c}) => {
               htmlRows += `<tr>`+
                 `<td>${r.no}</td><td>${formatCompactDateTime(r.submittedAt)}</td><td>${escapeHtml(r.companyCode)}</td>`+
@@ -4192,7 +6186,65 @@ ${r.optPlan}
               `</tr>`;
             });
             
+            // Mobile Card HTML 생성
+            tableResults.forEach(({r, vt, u, c}) => {
+              const detailId = `weeklyDetail-${r.no}`;
+              const submittedDateStr = formatCompactDateTime(r.submittedAt).replace(/<[^>]*>/g, '');
+              mobileHtml += `
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${escapeHtml(r.companyName)}</span>
+                          <span class="text-xs px-2 py-0.5 rounded ${vt === '우수' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}">${vt}</span>
+                        </div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(r.companyCode)}</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">${submittedDateStr}</div>
+                      </div>
+                      <div class="flex flex-col items-end gap-1">
+                        <div class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${r.totalCnt}건</div>
+                        <div class="text-[clamp(11px,1.1vw,13px)] font-semibold text-blue-600">${c.toLocaleString()}원</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                
+                <!-- Mobile Detail Sheet -->
+                <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+                  <div class="p-4">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                      <h3 class="text-lg font-bold">상세 정보</h3>
+                      <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                    </div>
+                    <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                      <div class="grid grid-cols-2 gap-2">
+                        <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${r.no}</span></div>
+                        <div><span class="text-neutral-500">제출시간:</span> <span class="font-semibold">${submittedDateStr}</span></div>
+                        <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(r.companyCode)}</span></div>
+                        <div><span class="text-neutral-500">VENDOR 유형:</span> <span class="font-semibold">${vt}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(r.companyName)}</span></div>
+                        <div><span class="text-neutral-500">사업자번호:</span> <span class="font-semibold">${escapeHtml(r.bizNo)}</span></div>
+                        <div><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">구매 키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
+                        <div><span class="text-neutral-500">총 진행건수:</span> <span class="font-semibold">${r.totalCnt}</span></div>
+                        <div><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt ? formatCompactDateTime(r.acceptedAt).replace(/<[^>]*>/g, '') : '-'}</span></div>
+                        <div><span class="text-neutral-500">건당 이용 단가:</span> <span class="font-semibold">${vt==='우수'?'2,500원':'3,000원'}</span></div>
+                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vt==='우수'?'1,000원':'1,500원'}</span></div>
+                        <div><span class="text-neutral-500">총 이용 단가:</span> <span class="font-semibold">${u.toLocaleString()}원</span></div>
+                        <div><span class="text-neutral-500">총 제휴 수수료:</span> <span class="font-semibold text-blue-600">${c.toLocaleString()}원</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+              `;
+            });
+            
             body.innerHTML = htmlRows;
+            if (mobileList) {
+              mobileList.innerHTML = mobileHtml;
+            }
             if(fil.length>0){ 
               foot.innerHTML = `<tr style="background:#f6f9fc;font-weight:800;"><td colspan="12" style="text-align:center;">SUM</td><td>${sumU.toLocaleString()}원</td><td>${sumC.toLocaleString()}원</td></tr>`; 
             } else { 
@@ -4208,8 +6260,12 @@ ${r.optPlan}
           // 오류 발생 시 기본 메시지 표시
           const body = document.getElementById('wBody');
           const foot = document.getElementById('wFoot');
+          const mobileList = document.getElementById('wMobileList');
           body.innerHTML = '<tr><td colspan="14" style="text-align:center;color:#e74c3c">데이터 처리 중 오류가 발생했습니다.</td></tr>';
           foot.innerHTML='';
+          if (mobileList) {
+            mobileList.innerHTML = '<div class="text-center text-red-500 py-8 text-[clamp(12px,1.2vw,14px)]">데이터 처리 중 오류가 발생했습니다.</div>';
+          }
         }
       }
 
@@ -4220,6 +6276,40 @@ ${r.optPlan}
         const weekSelect = document.getElementById('wlWeek');
         const excelBtn = document.getElementById('wExcel');
         const searchBtn = document.getElementById('wlSearchBtn');
+        const yearSelectMobile = document.getElementById('wlYearMobile');
+        const monthSelectMobile = document.getElementById('wlMonthMobile');
+        const weekSelectMobile = document.getElementById('wlWeekMobile');
+        
+        // 데스크탑과 모바일 필터 동기화
+        if (yearSelect && yearSelectMobile) {
+          yearSelect.addEventListener('change', () => {
+            yearSelectMobile.value = yearSelect.value;
+          });
+          yearSelectMobile.addEventListener('change', () => {
+            yearSelect.value = yearSelectMobile.value;
+            yearSelect.dispatchEvent(new Event('change'));
+          });
+        }
+        
+        if (monthSelect && monthSelectMobile) {
+          monthSelect.addEventListener('change', () => {
+            monthSelectMobile.value = monthSelect.value;
+          });
+          monthSelectMobile.addEventListener('change', () => {
+            monthSelect.value = monthSelectMobile.value;
+            monthSelect.dispatchEvent(new Event('change'));
+          });
+        }
+        
+        if (weekSelect && weekSelectMobile) {
+          weekSelect.addEventListener('change', () => {
+            weekSelectMobile.value = weekSelect.value;
+          });
+          weekSelectMobile.addEventListener('change', () => {
+            weekSelect.value = weekSelectMobile.value;
+            weekSelect.dispatchEvent(new Event('change'));
+          });
+        }
         
         if (yearSelect) {
           console.log('🔗 주별 정산 - 년도 이벤트 리스너 바인딩 시도');
@@ -4265,6 +6355,11 @@ ${r.optPlan}
                   monthOptions += `<option value="${String(month).padStart(2,'0')}" ${isSelected}>${month}월</option>`;
                 });
                 monthSelect.innerHTML = monthOptions;
+                
+                // 모바일 월 선택도 업데이트
+                if (monthSelectMobile) {
+                  monthSelectMobile.innerHTML = monthOptions;
+                }
                 
                 console.log('📅 월 옵션 업데이트 완료:', monthOptions);
               }
@@ -4335,18 +6430,33 @@ ${r.optPlan}
         if (excelBtn) {
           excelBtn.addEventListener('click', async ()=>{
             const val = document.getElementById('wlWeek').value; 
+            if (!val) {
+              alert('주를 선택해주세요.');
+              return;
+            }
             const [s,e]=val.split('|');
             const sDate = new Date(s+'T00:00:00'); 
             const eDate = new Date(e+'T23:59:59');
+            // 이벤트 리스너 안에서 다시 데이터 로드
+            const rows = await loadSubs();
             const fil = rows.filter(r=>{ const d=new Date(r.submittedAt); return d>=sDate && d<=eDate; });
             if(fil.length===0){ alert('다운로드할 데이터가 없습니다.'); return; }
+<<<<<<< HEAD
             const data = await Promise.all(fil.map(async r=>{ 
               const submittedDate = new Date(r.submittedAt);
               const vt = await getVendorTypeAtDate(r.companyCode, submittedDate); 
               const u = r.totalCnt*(vt==='우수'?2500:3000); 
               const c = r.totalCnt*(vt==='우수'?1000:1500);
+=======
+            // 모든 vendor type을 한 번에 계산 (최적화)
+            const vendorTypes = await getAllVendorTypes(rows);
+            const data = fil.map(r=>{ 
+              const vt = vendorTypes[r.companyCode] || '일반';
+              const u = r.totalCnt*(vt==='우수'?2500:3000);
+              const c = calcCommissionForSubmission(r, vt);
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
               return { 'NO':r.no,'제출시간':formatDateTime(r.submittedAt),'업체코드':r.companyCode,'VENDOR 유형':vt,'업체명':r.companyName,'사업자번호':r.bizNo,'카톡/번호':r.contact,'구매 키워드':r.keywords,'총 진행건수':r.totalCnt,'접수 시간':r.acceptedAt?formatDateTime(r.acceptedAt):'','건당 이용 단가': vt==='우수'?'2,500원':'3,000원','건당 제휴 수수료': vt==='우수'?'1,000원':'1,500원','총 이용 단가':u,'총 제휴 수수료':c }; 
-            }));
+            });
             const headers = Object.keys(data[0]);
             const csv = [headers.join(','), ...data.map(row=> headers.map(h=>`"${row[h]}"`).join(','))].join('\n');
             const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
@@ -4444,6 +6554,8 @@ ${r.optPlan}
       console.log('🔍 월별 정산 - 날짜 필터링 시작');
       console.log('📅 선택된 년월:', year, '년', month, '월');
       
+      // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
+      clearVendorTypeCache();
       const rows = await loadSubs();
       const selectedMonthRequests = rows.filter(r => {
         const submissionDate = new Date(r.submittedAt);
@@ -4459,6 +6571,9 @@ ${r.optPlan}
       console.log('📊 월별 필터링된 데이터 수:', selectedMonthRequests.length);
       console.log('📊 월별 필터링된 데이터:', selectedMonthRequests.map(r => ({ no: r.no, submittedAt: r.submittedAt, companyName: r.companyName })));
       
+      // 모든 vendor type을 한 번에 계산 (강제 새로고침)
+      const vendorTypes = await getAllVendorTypes(rows, true);
+      
       // Calculate summary
       const vendorSet = new Set(selectedMonthRequests.map(r => r.companyCode));
       const vendorCount = vendorSet.size;
@@ -4468,10 +6583,14 @@ ${r.optPlan}
       let totalCommissionFee = 0;
       
       for (const r of selectedMonthRequests) {
+<<<<<<< HEAD
         const submittedDate = new Date(r.submittedAt);
         const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
+=======
+        const vendorType = vendorTypes[r.companyCode] || '일반';
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
         const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000); // 우수 2,500 / 일반 3,000
-        const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+        const commissionFee = calcCommissionForSubmission(r, vendorType);
         
         totalUsageFee += usageFee;
         totalCommissionFee += commissionFee;
@@ -4487,23 +6606,33 @@ ${r.optPlan}
       // Update table
       const tbody = document.getElementById('monthlyTableBody');
       const tfoot = document.getElementById('monthlyTableFooter');
+      const mobileList = document.getElementById('monthlyMobileList');
       
       let tableHtml = '';
+      let mobileHtml = '';
       let sumUsageFee = 0;
       let sumCommissionFee = 0;
       
       if(selectedMonthRequests.length === 0){
         tableHtml = '<tr><td colspan="14" style="text-align:center;color:#6a7a89">해당 월의 데이터가 없습니다.</td></tr>';
+        if (mobileList) {
+          mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">해당 월의 데이터가 없습니다.</div>';
+        }
       } else {
         for (const r of selectedMonthRequests) {
+<<<<<<< HEAD
           const submittedDate = new Date(r.submittedAt);
           const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
+=======
+          const vendorType = vendorTypes[r.companyCode] || '일반';
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
           const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
-          const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+          const commissionFee = calcCommissionForSubmission(r, vendorType);
           
           sumUsageFee += usageFee;
           sumCommissionFee += commissionFee;
           
+          // Desktop Table HTML
           tableHtml += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
@@ -4520,10 +6649,66 @@ ${r.optPlan}
             `<td>${usageFee.toLocaleString()}원</td>`+
             `<td>${commissionFee.toLocaleString()}원</td>`+
           `</tr>`;
+          
+          // Mobile Card HTML
+          const detailId = `monthlyDetail-${r.no}`;
+          const submittedDateStr = formatCompactDateTime(r.submittedAt).replace(/<[^>]*>/g, '');
+          mobileHtml += `
+            <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+              <button onclick="openMobileDetail('${detailId}')" class="w-full px-3 py-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="상세보기">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${escapeHtml(r.companyName)}</span>
+                      <span class="text-xs px-2 py-0.5 rounded ${vendorType === '우수' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}">${vendorType}</span>
+                    </div>
+                    <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(r.companyCode)}</div>
+                    <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">${submittedDateStr}</div>
+                  </div>
+                  <div class="flex flex-col items-end gap-1">
+                    <div class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${r.totalCnt}건</div>
+                    <div class="text-[clamp(11px,1.1vw,13px)] font-semibold text-blue-600">${commissionFee.toLocaleString()}원</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+            
+            <!-- Mobile Detail Sheet -->
+            <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+              <div class="p-4">
+                <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                  <h3 class="text-lg font-bold">상세 정보</h3>
+                  <button onclick="closeMobileDetail('${detailId}')" class="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="닫기">×</button>
+                </div>
+                <div class="space-y-3 text-[clamp(12px,1.2vw,14px)]">
+                  <div class="grid grid-cols-2 gap-2">
+                    <div><span class="text-neutral-500">NO:</span> <span class="font-semibold">${r.no}</span></div>
+                    <div><span class="text-neutral-500">제출시간:</span> <span class="font-semibold">${submittedDateStr}</span></div>
+                    <div><span class="text-neutral-500">업체코드:</span> <span class="font-semibold">${escapeHtml(r.companyCode)}</span></div>
+                    <div><span class="text-neutral-500">VENDOR 유형:</span> <span class="font-semibold">${vendorType}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">업체명:</span> <span class="font-semibold">${escapeHtml(r.companyName)}</span></div>
+                    <div><span class="text-neutral-500">사업자번호:</span> <span class="font-semibold">${escapeHtml(r.bizNo)}</span></div>
+                    <div><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">구매 키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
+                    <div><span class="text-neutral-500">총 진행건수:</span> <span class="font-semibold">${r.totalCnt}</span></div>
+                    <div><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt ? formatCompactDateTime(r.acceptedAt).replace(/<[^>]*>/g, '') : '-'}</span></div>
+                    <div><span class="text-neutral-500">건당 이용 단가:</span> <span class="font-semibold">${vendorType === '우수' ? '2,500원' : '3,000원'}</span></div>
+                    <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorType === '우수' ? '1,000원' : '1,500원'}</span></div>
+                    <div><span class="text-neutral-500">총 이용 단가:</span> <span class="font-semibold">${usageFee.toLocaleString()}원</span></div>
+                    <div><span class="text-neutral-500">총 제휴 수수료:</span> <span class="font-semibold text-blue-600">${commissionFee.toLocaleString()}원</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="${detailId}-overlay" class="fixed inset-0 bg-black/50 z-[55] hidden" onclick="closeMobileDetail('${detailId}')"></div>
+          `;
         }
       }
       
       tbody.innerHTML = tableHtml;
+      if (mobileList) {
+        mobileList.innerHTML = mobileHtml;
+      }
       
       // SUM row
       if(selectedMonthRequests.length > 0){
@@ -4541,6 +6726,7 @@ ${r.optPlan}
       const selectedValue = document.getElementById('yearMonthSelect').value;
       const [year, month] = selectedValue.split('-');
       
+      clearVendorTypeCache();
       const rows = await loadSubs();
       const selectedMonthRequests = rows.filter(r => {
         const submissionDate = new Date(r.submittedAt);
@@ -4552,11 +6738,17 @@ ${r.optPlan}
         return;
       }
       
+<<<<<<< HEAD
       const data = await Promise.all(selectedMonthRequests.map(async r => {
         const submittedDate = new Date(r.submittedAt);
         const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
+=======
+      const vendorTypes = await getAllVendorTypes(rows, true);
+      const data = selectedMonthRequests.map(r => {
+        const vendorType = vendorTypes[r.companyCode] || '일반';
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
         const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
-        const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+        const commissionFee = calcCommissionForSubmission(r, vendorType);
         
         return {
           'NO': r.no,
@@ -4574,7 +6766,7 @@ ${r.optPlan}
           '총 이용 단가': usageFee,
           '총 제휴 수수료': commissionFee
         };
-      }));
+      });
       
       // Add SUM row
       const sumUsageFee = data.reduce((sum, row) => sum + row['총 이용 단가'], 0);
@@ -4620,10 +6812,13 @@ ${r.optPlan}
 
     // Excel download function
     async function downloadExcel(type) {
-      const rows = loadSubs();
+      const rows = await loadSubs();
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
+      
+      // 모든 vendor type을 한 번에 계산 (최적화)
+      const vendorTypes = await getAllVendorTypes(rows);
       
       // Filter current month requests
       const currentMonthRequests = rows.filter(r => {
@@ -4635,10 +6830,16 @@ ${r.optPlan}
       let filename = '';
       
       if (type === 'all') {
+<<<<<<< HEAD
         const dataPromises = currentMonthRequests.map(async r => {
           const submittedDate = new Date(r.submittedAt);
           const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
           const fee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
+=======
+        data = currentMonthRequests.map(r => {
+          const vendorType = vendorTypes[r.companyCode] || '일반';
+          const fee = calcCommissionForSubmission(r, vendorType);
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
           return {
             '번호': r.no,
             '업체코드': r.companyCode,
@@ -4649,9 +6850,9 @@ ${r.optPlan}
             '제출일시': formatDateTime(r.submittedAt)
           };
         });
-        data = await Promise.all(dataPromises);
         filename = `당월_진행_요청_LIST_${currentYear}${pad(currentMonth + 1)}.csv`;
       } else if (type === 'premium') {
+<<<<<<< HEAD
         const premiumRequests = [];
         for (const r of currentMonthRequests) {
           const submittedDate = new Date(r.submittedAt);
@@ -4660,8 +6861,14 @@ ${r.optPlan}
             premiumRequests.push(r);
           }
         }
+=======
+        const premiumRequests = currentMonthRequests.filter(r => {
+          const vendorType = vendorTypes[r.companyCode] || '일반';
+          return vendorType === '우수';
+        });
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
         data = premiumRequests.map(r => {
-          const fee = r.totalCnt * 1000;
+          const fee = calcCommissionForSubmission(r, '우수');
           return {
             '번호': r.no,
             '업체코드': r.companyCode,
@@ -4673,6 +6880,7 @@ ${r.optPlan}
         });
         filename = `우수_VENDOR_진행_요청_LIST_${currentYear}${pad(currentMonth + 1)}.csv`;
       } else if (type === 'regular') {
+<<<<<<< HEAD
         const regularRequests = [];
         for (const r of currentMonthRequests) {
           const submittedDate = new Date(r.submittedAt);
@@ -4681,8 +6889,14 @@ ${r.optPlan}
             regularRequests.push(r);
           }
         }
+=======
+        const regularRequests = currentMonthRequests.filter(r => {
+          const vendorType = vendorTypes[r.companyCode] || '일반';
+          return vendorType === '일반';
+        });
+>>>>>>> 07c77fad964a52cbea4ac053e28e654f921fda0c
         data = regularRequests.map(r => {
-          const fee = r.totalCnt * 1500;
+          const fee = calcCommissionForSubmission(r, '일반');
           return {
             '번호': r.no,
             '업체코드': r.companyCode,
@@ -4719,6 +6933,56 @@ ${r.optPlan}
       document.body.removeChild(link);
     }
 
+    async function downloadVendorSubmissionCsv() {
+      try {
+        showLoading();
+        const rows = await loadSubs();
+        if (!rows || rows.length === 0) {
+          alert('다운로드할 데이터가 없습니다.');
+          return;
+        }
+        const vendorTypes = await getAllVendorTypes(rows, true);
+        const records = rows.map(r => {
+          const vendorType = vendorTypes[r.companyCode] || '일반';
+          const commission = calcCommissionForSubmission(r, vendorType);
+          return {
+            id: r.id || '',
+            vendorId: r.companyCode || '',
+            status: r.accepted ? 'accepted' : 'pending',
+            vendorType,
+            submittedAt: r.submittedAt ? formatDateTime(r.submittedAt) : '',
+            commission,
+            productPrice: r.productPrice != null ? r.productPrice : ''
+          };
+        });
+        
+        const headers = Object.keys(records[0]);
+        const csvContent = [
+          headers.join(','),
+          ...records.map(row =>
+            headers.map(header => {
+              const value = row[header] ?? '';
+              return `"${value.toString().replace(/"/g, '""')}"`;
+            }).join(',')
+          )
+        ].join('\n');
+        
+        const filename = `vendor_submissions_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (error) {
+        console.error('❌ VENDOR CSV 다운로드 실패:', error);
+        alert('CSV 다운로드 중 오류가 발생했습니다. 콘솔을 확인해주세요.');
+      } finally {
+        hideLoading();
+      }
+    }
+
     function showRateInfo(){
       const main = document.getElementById("adminMain");
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">적용단가</h2>`;
@@ -4751,7 +7015,7 @@ ${r.optPlan}
                 <span style="font-weight:900;color:var(--brand);">2,500원</span>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:#f6f9fc;border-radius:6px;">
-                <span style="font-weight:800;">빈박스 진행건</span>
+                <span style="font-weight:800;">실배송 미진행건</span>
                 <span style="font-weight:900;color:var(--brand);">+500원 추가</span>
               </div>
             </div>
@@ -4818,7 +7082,10 @@ ${r.optPlan}
         <div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
           <h3 style="margin:0 0 12px;color:var(--brand);font-size:16px;">데이터 내보내기</h3>
           <p style="margin:0 0 12px;color:#6a7a89;font-size:14px;">현재 저장된 데이터를 CSV로 추출합니다. 업로드 양식과 동일한 헤더로 생성됩니다.</p>
-          <div class="right"><button class="btn" onclick="exportAllData()" type="button">엑셀 파일로 추출하기</button></div>
+          <div class="right" style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+            <button class="btn" onclick="exportAllData()" type="button" style="width:100%;">엑셀 파일로 추출하기</button>
+            <button class="btn ghost" id="debugVendorCsvBtn" type="button" style="width:100%;">디버그: VENDOR CSV 다운로드</button>
+          </div>
         </div>
         
         <div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
@@ -4826,6 +7093,19 @@ ${r.optPlan}
           <p style="margin:0 0 16px;color:#6a7a89;font-size:14px;">모든 데이터를 삭제합니다. 신중하게 진행하세요.</p>
           <button class="btn" onclick="confirmDeleteAll()" type="button" style="background:#8a2b2b;">전체 데이터 삭제</button>
         </div>
+      </div>`;
+
+      // Company rename panel
+      html += `<div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;margin-bottom:20px;">
+        <h3 style="margin:0 0 12px;color:var(--brand);font-size:16px;">업체명 변경</h3>
+        <p style="margin:0 0 12px;color:#6a7a89;font-size:14px;">기존 업체명의 모든 데이터(업체명/업체코드)를 새 업체명 기준으로 일괄 변경합니다.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+          <input id="renameOldName" class="input" placeholder="기존 업체명" style="max-width:280px;">
+          <span class="pipe">→</span>
+          <input id="renameNewName" class="input" placeholder="새 업체명" style="max-width:280px;">
+          <button class="btn" id="applyCompanyRename" type="button">업체명 변경 적용</button>
+        </div>
+        <p class="muted" style="margin:8px 0 0;font-size:13px;color:#6a7a89;">주의: 변경 후 되돌리려면 다시 실행해야 합니다. 데이터는 삭제되지 않습니다.</p>
       </div>`;
       
       // Recent data table
@@ -4893,6 +7173,10 @@ ${r.optPlan}
       `;
       const saveBtn = document.getElementById('dmSaveBtn');
       saveBtn?.addEventListener('click', ()=>{ applyPendingEdits(); });
+      const applyCompanyRenameBtn = document.getElementById('applyCompanyRename');
+      applyCompanyRenameBtn?.addEventListener('click', ()=>{ handleCompanyRename(); });
+      const debugVendorCsvBtn = document.getElementById('debugVendorCsvBtn');
+      debugVendorCsvBtn?.addEventListener('click', async () => { await downloadVendorSubmissionCsv(); });
       } finally {
         hideLoading();
       }
@@ -5035,8 +7319,8 @@ ${r.optPlan}
       openDetail(buildDetailText(targetRow));
     }
     
-    function updateProgressCount(no, newCount){
-      const rows = loadSubs();
+    async function updateProgressCount(no, newCount){
+      const rows = await loadSubs();
       const targetRow = rows.find(r => r.no === no);
       
       if(!targetRow){
@@ -5141,6 +7425,58 @@ ${r.optPlan}
       if(btn) btn.setAttribute('disabled','true');
       alert(updated+ '건 저장되었습니다.');
       await showDataManagement();
+    }
+
+    // 업체명 변경 핸들러
+    async function handleCompanyRename(){
+      const oldNameInput = document.getElementById('renameOldName');
+      const newNameInput = document.getElementById('renameNewName');
+      const oldName = (oldNameInput?.value||'').trim();
+      const newName = (newNameInput?.value||'').trim();
+      if(!oldName || !newName){ alert('기존 업체명과 새 업체명을 모두 입력해주세요.'); return; }
+      if(oldName === newName){ alert('기존 업체명과 새 업체명이 같습니다.'); return; }
+      if(!confirm(`정말로 "${oldName}" 을(를) "${newName}"(으)로 변경하시겠습니까?`)) return;
+
+      showLoading();
+      try{
+        const rows = await loadSubs();
+        const oldCode = await stableIdForName(oldName);
+        const newCode = await stableIdForName(newName);
+        if(!oldCode){ alert('기존 업체명으로 생성된 업체코드를 찾을 수 없습니다. 철자/공백을 확인해주세요.'); return; }
+        if(!newCode){ alert('새 업체명으로 업체코드를 생성하지 못했습니다. 다시 시도해주세요.'); return; }
+
+        let affected = 0; 
+        for(const r of rows){
+          if(r.companyCode === oldCode){
+            r.companyCode = newCode;
+            r.companyName = newName;
+            affected++;
+            // Firebase 동기화 시도
+            try{
+              if(window.db && r.id){
+                const docRef = window.doc(window.db, 'submissions', r.id);
+                await window.updateDoc(docRef, { companyCode:newCode, companyName:newName });
+              }
+            }catch(e){
+              console.warn('Firebase 업데이트 실패(무시하고 로컬 저장 진행):', e);
+            }
+          }
+        }
+
+        if(affected === 0){
+          alert('해당 업체명으로 연결된 데이터가 없습니다. 업체명을 다시 확인해주세요.');
+          return;
+        }
+
+        await saveSubs(rows);
+        alert(`업체명 변경 완료: ${affected}건 업데이트되었습니다.`);
+        await showDataManagement();
+      }catch(err){
+        console.error('업체명 변경 실패:', err);
+        alert('업체명 변경 중 오류가 발생했습니다: '+ err.message);
+      }finally{
+        hideLoading();
+      }
     }
 
     // Excel 파일 파싱 함수
@@ -5390,13 +7726,36 @@ ${r.optPlan}
             일진행건수: dailyCnt
           });
           
-          // 기존 데이터에서 중복 확인 (업체코드, 업체명, 키워드, 총 진행건수, 일 진행건수가 모두 동일한 경우)
+          // 기존 데이터에서 중복 확인
+          // 주의: 제출시간(submittedAt)도 비교하여 같은 날짜/시간에 제출된 것만 중복으로 판단
+          // 이렇게 하면 같은 업체가 같은 건수로 여러 번 제출해도 각각 별도 submission으로 생성됨
+          const incomingSubmittedAt = parseTs(obj['제출시간']);
+          
           const existingDuplicate = rows.find(existing => {
+            const existingTotalCnt = typeof existing.totalCnt === 'number' 
+              ? existing.totalCnt 
+              : parseInt(String(existing.totalCnt || '0').replace(/[^0-9-]/g, ''), 10);
+            const existingDailyCnt = typeof existing.dailyCnt === 'number' 
+              ? existing.dailyCnt 
+              : parseInt(String(existing.dailyCnt || '0').replace(/[^0-9-]/g, ''), 10);
+            
+            // 제출시간도 비교 (같은 날짜에 제출된 것만 중복으로 판단)
+            let submittedAtMatch = false;
+            if (incomingSubmittedAt && existing.submittedAt) {
+              const incomingDate = new Date(incomingSubmittedAt);
+              const existingDate = new Date(existing.submittedAt);
+              // 같은 날짜인지 확인 (시간은 무시)
+              submittedAtMatch = incomingDate.toDateString() === existingDate.toDateString();
+            } else if (!incomingSubmittedAt && !existing.submittedAt) {
+              submittedAtMatch = true; // 둘 다 제출시간이 없으면 매칭
+            }
+            
             const isDuplicate = existing.companyName === companyName && 
                                existing.companyCode === companyCode && 
                                existing.keywords === keywords &&
-                               existing.totalCnt === totalCnt &&
-                               existing.dailyCnt === dailyCnt &&
+                               existingTotalCnt === totalCnt &&
+                               existingDailyCnt === dailyCnt &&
+                               submittedAtMatch && // 제출시간도 일치해야 중복
                                companyName !== '' && companyCode !== '' && keywords !== '';
             
             if (isDuplicate) {
@@ -5407,11 +7766,14 @@ ${r.optPlan}
                 기존키워드: existing.keywords,
                 기존총진행건수: existing.totalCnt,
                 기존일진행건수: existing.dailyCnt,
+                기존제출시간: existing.submittedAt ? new Date(existing.submittedAt).toISOString() : null,
                 새업체명: companyName,
                 새업체코드: companyCode,
                 새키워드: keywords,
                 새총진행건수: totalCnt,
-                새일진행건수: dailyCnt
+                새일진행건수: dailyCnt,
+                새제출시간: incomingSubmittedAt ? new Date(incomingSubmittedAt).toISOString() : null,
+                제출시간일치: submittedAtMatch
               });
             }
             
@@ -5425,7 +7787,8 @@ ${r.optPlan}
               업체코드: companyCode,
               키워드: keywords,
               총진행건수: totalCnt,
-              일진행건수: dailyCnt
+              일진행건수: dailyCnt,
+              제출시간: incomingSubmittedAt ? new Date(incomingSubmittedAt).toISOString() : null
             });
             rec = existingDuplicate;
             duplicateCount++;
@@ -5452,6 +7815,47 @@ ${r.optPlan}
             console.log('✅ 새 번호 생성 완료:', newNo, typeof newNo);
           }
           
+          // 제출 시점 vendorType 계산 (신규 건인 경우에만)
+          let vendorTypeAtSubmission = rec ? rec.vendorTypeAtSubmission : null;
+          
+          // 신규 건이거나 vendorTypeAtSubmission이 없는 경우 계산
+          if (!rec || !vendorTypeAtSubmission) {
+            const submittedAt = parseTs(obj['제출시간']) || (rec? rec.submittedAt : Date.now());
+            const companyCode = (obj['업체코드'] || '').trim() || (rec? rec.companyCode : '');
+            
+            if (companyCode && submittedAt) {
+              try {
+                // 제출 시점 기준 vendorType 계산
+                vendorTypeAtSubmission = await getVendorTypeAtSubmissionTime(
+                  companyCode,
+                  submittedAt,
+                  rows, // 기존 모든 submission
+                  rec ? rec.id : null // 현재 submission ID (신규인 경우 null)
+                );
+                
+                // 주식회사 천호(AD91) 특별 로깅
+                if (companyCode === 'AD91' || companyName?.includes('천호')) {
+                  console.warn('[WARN][천호-csv-upload] vendorTypeAtSubmission 계산:', {
+                    companyCode: companyCode,
+                    companyName: companyName,
+                    submittedAt: new Date(submittedAt).toISOString(),
+                    vendorTypeAtSubmission: vendorTypeAtSubmission,
+                    totalCnt: toInt(obj['총진행건수'] != null ? obj['총진행건수'] : (rec? rec.totalCnt : 0)),
+                    isNew: !rec
+                  });
+                }
+              } catch (error) {
+                console.error('[ERROR][csv-vendorType-calculation]', {
+                  companyCode: companyCode,
+                  error: error.message
+                });
+                vendorTypeAtSubmission = '일반';
+              }
+            } else {
+              vendorTypeAtSubmission = '일반';
+            }
+          }
+          
           const newRec = {
             id: rec ? rec.id : `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Firebase 문서 ID 추가
             no: newNo,
@@ -5471,7 +7875,9 @@ ${r.optPlan}
             billWork: (obj['작업비계산서'] || '').trim() || (rec? rec.billWork : ''),
             billProd: (obj['상품금액계산서'] || '').trim() || (rec? rec.billProd : ''),
             accepted: obj['접수상태'] != null ? parseBool(obj['접수상태']) : (rec? rec.accepted : false),
-            acceptedAt: obj['접수시간'] ? parseTs(obj['접수시간']) : (rec? rec.acceptedAt : null)
+            acceptedAt: obj['접수시간'] ? parseTs(obj['접수시간']) : (rec? rec.acceptedAt : null),
+            // 핵심: 제출 시점의 vendorType을 확정하여 저장
+            vendorTypeAtSubmission: vendorTypeAtSubmission
           };
           
           console.log('📋 매핑된 데이터 상세:', {
@@ -5724,6 +8130,7 @@ ${r.optPlan}
         if(section === "settle"){ await showSettlementDashboard(); return; }
         if(section === "settle-weekly"){ await showWeeklySettlementList(); return; }
         if(section === "settle-monthly"){ await showMonthlySettlementList(); return; }
+        if(section === "settle-withdrawal"){ await showWithdrawalRequest(); return; }
         if(section === "rate"){ showRateInfo(); return; }
         
         const titles = {
@@ -6010,6 +8417,14 @@ ${r.optPlan}
             // localStorage 업데이트
             localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
             
+            // 신규 데이터가 감지되면 vendorType 캐시 무효화 (정산관리 탭 실시간 반영)
+            if (newRequests.length > 0) {
+              console.log('🔄 신규 데이터 감지 - vendorType 캐시 무효화');
+              if (typeof clearVendorTypeCache === 'function') {
+                clearVendorTypeCache();
+              }
+            }
+            
             // 관리자 화면에서만 푸시 알림 표시 (정말 신규인 경우만)
             if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
               console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
@@ -6023,14 +8438,46 @@ ${r.optPlan}
               console.log('📋 가장 최신 신규 요청건:', { id: latestNewRequest.id, companyName: latestNewRequest.companyName, submittedAt: latestNewRequest.submittedAt });
               
               if (latestNewRequest) {
-                // 중복 알림 방지: 이미 같은 ID로 알림이 있는지 확인
-                const existingNotification = notifications.find(n => 
-                  n.content.includes(latestNewRequest.id) || 
-                  (n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000) // 5초 이내 동일 시간
+                // localStorage에서 최신 알림 상태 확인
+                const currentNotifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+                
+                // 읽음 처리된 알림 확인: 요청건 ID로 먼저 확인 (가장 정확)
+                let readNotification = currentNotifications.find(n => 
+                  n.submissionId === latestNewRequest.id &&
+                  (n.read === true || n.read === 'true')
                 );
                 
+                // 요청건 ID로 찾지 못한 경우, 내용과 시간으로 확인
+                if (!readNotification) {
+                  readNotification = currentNotifications.find(n => 
+                    n.title === '신규 작업요청건이 있습니다' &&
+                    n.content.includes(latestNewRequest.companyName) &&
+                    Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
+                    (n.read === true || n.read === 'true') // 읽음 처리된 알림
+                  );
+                }
+                
+                if (readNotification) {
+                  console.log('🚫 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id, '요청건 ID:', latestNewRequest.id);
+                  return;
+                }
+                
+                // 중복 알림 방지: 요청건 ID로 먼저 확인
+                let existingNotification = currentNotifications.find(n => 
+                  n.submissionId === latestNewRequest.id
+                );
+                
+                // 요청건 ID로 찾지 못한 경우, 내용과 시간으로 확인
+                if (!existingNotification) {
+                  existingNotification = currentNotifications.find(n => 
+                    n.title === '신규 작업요청건이 있습니다' &&
+                    n.content.includes(latestNewRequest.companyName) &&
+                    Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                  );
+                }
+                
                 if (existingNotification) {
-                  console.log('🚫 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id);
+                  console.log('🚫 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id, '요청건 ID:', latestNewRequest.id);
                   return;
                 }
                 
@@ -6040,7 +8487,7 @@ ${r.optPlan}
                 console.log('📝 실시간 리스너 알림 내용:', notificationContent);
                 console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
                 
-                // 푸시 알림 표시
+                // 푸시 알림 표시 (새로 추가된 알림에만)
                 if (window.showPushNotification) {
                   console.log('📱 실시간 리스너 푸시 알림 표시 시도');
                   window.showPushNotification(notificationTitle, notificationContent);
@@ -6048,10 +8495,10 @@ ${r.optPlan}
                   console.error('❌ 실시간 리스너에서 window.showPushNotification 함수를 찾을 수 없음');
                 }
                 
-                // 상단 알림 아이콘에도 알림 추가 (실제 제출 시간 사용)
+                // 상단 알림 아이콘에도 알림 추가 (실제 제출 시간 사용, 요청건 ID 포함)
                 if (window.addNotification) {
                   console.log('🔔 실시간 리스너 상단 알림 아이콘에 알림 추가 시도');
-                  window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
+                  window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt, latestNewRequest.id);
                   console.log('📝 실시간 리스너 상단 알림 아이콘에 알림 추가 완료');
                 } else {
                   console.error('❌ 실시간 리스너에서 window.addNotification 함수를 찾을 수 없음');
@@ -6290,6 +8737,14 @@ ${r.optPlan}
             
             console.log('🆕 Firebase 모듈 내 신규 요청건 개수:', newRequests.length);
             
+            // 신규 데이터가 감지되면 vendorType 캐시 무효화 (정산관리 탭 실시간 반영)
+            if (newRequests.length > 0) {
+              console.log('🔄 Firebase 모듈 내 신규 데이터 감지 - vendorType 캐시 무효화');
+              if (typeof clearVendorTypeCache === 'function') {
+                clearVendorTypeCache();
+              }
+            }
+            
             // 관리자 화면에서만 푸시 알림 표시
             if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
               console.log('🔔 Firebase 모듈 내 푸시 알림 표시 시도');
@@ -6299,19 +8754,62 @@ ${r.optPlan}
               });
               
               if (latestNewRequest) {
+                // localStorage에서 최신 알림 상태 확인
+                const currentNotifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+                
+                // 읽음 처리된 알림 확인: 요청건 ID로 먼저 확인 (가장 정확)
+                let readNotification = currentNotifications.find(n => 
+                  n.submissionId === latestNewRequest.id &&
+                  (n.read === true || n.read === 'true')
+                );
+                
+                // 요청건 ID로 찾지 못한 경우, 내용과 시간으로 확인
+                if (!readNotification) {
+                  readNotification = currentNotifications.find(n => 
+                    n.title === '신규 작업요청건이 있습니다' &&
+                    n.content.includes(latestNewRequest.companyName) &&
+                    Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
+                    (n.read === true || n.read === 'true') // 읽음 처리된 알림
+                  );
+                }
+                
+                if (readNotification) {
+                  console.log('🚫 Firebase 모듈 내 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id, '요청건 ID:', latestNewRequest.id);
+                  return;
+                }
+                
+                // 중복 알림 방지: 요청건 ID로 먼저 확인
+                let existingNotification = currentNotifications.find(n => 
+                  n.submissionId === latestNewRequest.id
+                );
+                
+                // 요청건 ID로 찾지 못한 경우, 내용과 시간으로 확인
+                if (!existingNotification) {
+                  existingNotification = currentNotifications.find(n => 
+                    n.title === '신규 작업요청건이 있습니다' &&
+                    n.content.includes(latestNewRequest.companyName) &&
+                    Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                  );
+                }
+                
+                if (existingNotification) {
+                  console.log('🚫 Firebase 모듈 내 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id, '요청건 ID:', latestNewRequest.id);
+                  return;
+                }
+                
                 const notificationTitle = '신규 작업요청건이 있습니다';
                 const notificationContent = `${latestNewRequest.companyName}에서 새로운 작업요청서가 접수되었습니다.`;
                 
-                // 푸시 알림 표시
+                // 푸시 알림 표시 (새로 추가된 알림에만)
                 if (window.showPushNotification) {
                   console.log('📱 Firebase 모듈 내 푸시 알림 표시');
                   window.showPushNotification(notificationTitle, notificationContent);
                 }
                 
-                // 상단 알림 아이콘에도 알림 추가
+                // 상단 알림 아이콘에도 알림 추가 (요청건 ID 포함)
                 if (window.addNotification) {
                   console.log('🔔 Firebase 모듈 내 상단 알림 아이콘에 알림 추가');
-                  window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt);
+                  window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt, latestNewRequest.id);
                 }
                 
                 window.lastProcessedSubmissionId = latestNewRequest.id;
@@ -6412,28 +8910,37 @@ ${r.optPlan}
     // 알림 시스템 초기화
     let notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
     let notificationId = parseInt(localStorage.getItem('wp_notification_id') || '0');
+    
+    // localStorage에서 불러온 알림들의 read 상태를 확실히 보장
+    notifications = notifications.map(n => ({
+      ...n,
+      read: n.read === true || n.read === 'true' // read 상태 확실히 boolean으로 변환
+    }));
+    localStorage.setItem('wp_notifications', JSON.stringify(notifications));
+    
     console.log('🔔 알림 시스템 초기화:', {
       notificationsCount: notifications.length,
+      unreadCount: notifications.filter(n => !n.read).length,
       notificationId: notificationId,
       isAdmin: sessionStorage.getItem("wp_is_admin")
     });
     
-    // 기존 알림 모두 삭제 (중복 방지)
-    function clearAllExistingNotifications() {
-      console.log('🗑️ 기존 알림 모두 삭제');
-      notifications = [];
-      localStorage.setItem('wp_notifications', JSON.stringify([]));
+    // 읽지 않은 알림만 삭제 (읽음 처리된 알림은 유지하여 재알림 방지)
+    function clearUnreadNotifications() {
+      console.log('🗑️ 읽지 않은 알림만 삭제');
+      notifications = notifications.filter(n => n.read === true || n.read === 'true');
+      localStorage.setItem('wp_notifications', JSON.stringify(notifications));
       updateNotificationUI();
-      console.log('✅ 기존 알림 삭제 완료');
+      console.log('✅ 읽지 않은 알림 삭제 완료, 읽음 처리된 알림 유지:', notifications.length, '개');
     }
     
-    // 관리자 로그인 시 기존 알림 삭제
+    // 관리자 로그인 시 읽지 않은 알림만 삭제 (읽음 처리된 알림은 유지)
     if (sessionStorage.getItem("wp_is_admin") === "1") {
-      console.log('🔔 관리자 로그인 감지 - 기존 알림 삭제');
-      clearAllExistingNotifications();
+      console.log('🔔 관리자 로그인 감지 - 읽지 않은 알림만 삭제');
+      clearUnreadNotifications();
     }
     
-    function addNotification(title, content, type = 'info', actualTimestamp = null) {
+    function addNotification(title, content, type = 'info', actualTimestamp = null, submissionId = null) {
       console.log('📝 새 알림 추가:', title, content, type);
       
       // 관리자 화면이 아니면 알림 추가 안함
@@ -6442,16 +8949,71 @@ ${r.optPlan}
         return;
       }
       
+      // localStorage에서 최신 상태 다시 불러오기 (다른 탭에서 변경되었을 수 있음)
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
+      
       // 실제 제출 시간이 있으면 사용, 없으면 현재 시간 사용
       const notificationTimestamp = actualTimestamp || Date.now();
       
+      // 읽음 처리된 알림 확인: 요청건 ID가 있으면 ID로, 없으면 내용과 시간으로 확인
+      let readNotification = null;
+      if (submissionId) {
+        // 요청건 ID로 읽음 처리된 알림 확인 (가장 정확)
+        readNotification = notifications.find(n => 
+          n.submissionId === submissionId &&
+          (n.read === true || n.read === 'true')
+        );
+      }
+      
+      if (!readNotification) {
+        // 요청건 ID가 없거나 찾지 못한 경우, 내용과 시간으로 확인
+        readNotification = notifications.find(n => 
+          n.title === title && 
+          n.content === content && 
+          Math.abs(n.timestamp - notificationTimestamp) < 5000 && // 5초 이내 동일 시간
+          (n.read === true || n.read === 'true') // 읽음 처리된 알림
+        );
+      }
+      
+      if (readNotification) {
+        console.log('🚫 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id, '요청건 ID:', submissionId);
+        return;
+      }
+      
+      // 중복 알림 체크: 같은 내용과 시간(5초 이내)의 알림이 이미 있는지 확인 (읽지 않은 알림)
+      let isDuplicate = false;
+      if (submissionId) {
+        // 요청건 ID로 중복 확인
+        isDuplicate = notifications.some(n => n.submissionId === submissionId);
+      }
+      
+      if (!isDuplicate) {
+        // 요청건 ID가 없거나 찾지 못한 경우, 내용과 시간으로 확인
+        isDuplicate = notifications.some(n => 
+          n.title === title && 
+          n.content === content && 
+          Math.abs(n.timestamp - notificationTimestamp) < 5000
+        );
+      }
+      
+      if (isDuplicate) {
+        console.log('🚫 중복 알림 방지 - 이미 존재하는 알림 (요청건 ID:', submissionId, ')');
+        return;
+      }
+      
+      // 읽음 처리된 알림은 제외하고 새 알림만 추가
       const notification = {
         id: ++notificationId,
         title,
         content,
         type,
         timestamp: notificationTimestamp,
-        read: false
+        read: false,
+        submissionId: submissionId || null // 요청건 ID 저장 (재알림 방지용)
       };
       
       notifications.unshift(notification);
@@ -6459,6 +9021,7 @@ ${r.optPlan}
       localStorage.setItem('wp_notification_id', notificationId.toString());
       
       console.log('📝 알림 저장 완료, 총 알림 수:', notifications.length);
+      console.log('📝 읽지 않은 알림 수:', notifications.filter(n => !n.read).length);
       console.log('📅 알림 시간:', new Date(notificationTimestamp).toLocaleString());
       
       // UI 업데이트 강제 실행
@@ -6480,6 +9043,13 @@ ${r.optPlan}
         return;
       }
       
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
+      
       const notificationBtn = document.getElementById('notificationBtn');
       const notificationCount = document.getElementById('notificationCount');
       
@@ -6487,8 +9057,11 @@ ${r.optPlan}
       console.log('📊 알림 카운트:', notificationCount);
       console.log('📊 전체 알림 수:', notifications.length);
       
-      const unreadCount = notifications.filter(n => !n.read).length;
+      // read=true인 알림은 확실히 제외
+      const unreadNotifications = notifications.filter(n => n.read !== true && n.read !== 'true');
+      const unreadCount = unreadNotifications.length;
       console.log('📊 읽지 않은 알림 수:', unreadCount);
+      console.log('📊 읽은 알림 수:', notifications.length - unreadCount);
       
       if (notificationBtn && notificationCount) {
         if (unreadCount > 0) {
@@ -6517,11 +9090,19 @@ ${r.optPlan}
       const popup = document.getElementById('notificationPopup');
       const list = document.getElementById('notificationList');
       
-      // 읽지 않은 알림만 필터링
-      const unreadNotifications = notifications.filter(n => !n.read);
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
+      
+      // read=true인 알림은 확실히 제외하고 읽지 않은 알림만 필터링
+      const unreadNotifications = notifications.filter(n => n.read !== true && n.read !== 'true');
       
       console.log('📊 전체 알림 수:', notifications.length);
       console.log('📊 읽지 않은 알림 수:', unreadNotifications.length);
+      console.log('📊 읽은 알림 수:', notifications.length - unreadNotifications.length);
       
       if (unreadNotifications.length === 0) {
         list.innerHTML = '<div class="notification-empty">읽지 않은 알림이 없습니다.</div>';
@@ -6544,6 +9125,13 @@ ${r.optPlan}
     
     function handleNotificationClick(id) {
       console.log('🔔 알림 클릭 - ID:', id);
+      
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
       
       // 알림을 읽음으로 표시
       markAsRead(id);
@@ -6580,18 +9168,42 @@ ${r.optPlan}
     }
     
     function markAsRead(id) {
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      notifications = notifications.map(n => ({
+        ...n,
+        read: n.read === true || n.read === 'true'
+      }));
+      
       const notification = notifications.find(n => n.id === id);
       if (notification) {
         notification.read = true;
+        // 클라이언트 배열과 localStorage 모두 업데이트
         localStorage.setItem('wp_notifications', JSON.stringify(notifications));
         updateNotificationUI();
         showNotificationPopup(); // 리스트 새로고침
+        console.log('✅ 알림 읽음 처리 완료:', id);
       }
     }
     
     function clearAllNotifications() {
-      notifications.forEach(n => n.read = true);
+      console.log('🗑️ 모든 알림 읽음 처리 시작');
+      
+      // localStorage에서 최신 상태 다시 불러오기
+      notifications = JSON.parse(localStorage.getItem('wp_notifications') || '[]');
+      
+      // 모든 알림을 읽음으로 표시
+      notifications = notifications.map(n => ({
+        ...n,
+        read: true
+      }));
+      
+      // 클라이언트 배열과 localStorage 모두 업데이트
       localStorage.setItem('wp_notifications', JSON.stringify(notifications));
+      
+      console.log('✅ 모든 알림 읽음 처리 완료, 총 알림 수:', notifications.length);
+      console.log('✅ 읽지 않은 알림 수:', notifications.filter(n => !n.read).length);
+      
       updateNotificationUI();
       hideNotificationPopup();
     }
@@ -6698,6 +9310,7 @@ ${r.optPlan}
     window.handleNotificationClick = handleNotificationClick;
     window.markAsRead = markAsRead;
     window.clearAllNotifications = clearAllNotifications;
+    window.clearUnreadNotifications = clearUnreadNotifications;
     window.addSubmissionNotification = addSubmissionNotification;
     window.showPushNotification = showPushNotification;
     window.setupRealtimeListener = setupRealtimeListener;
