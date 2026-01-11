@@ -4557,7 +4557,26 @@ ${r.optPlan}
       }
       
       // 출금 가능액은 접수된 데이터만 포함해야 함
-      const subs = getSubsForVendor(uniqueSubs, vendorId, true);
+      let subs = getSubsForVendor(uniqueSubs, vendorId, true);
+      
+      // 1/12 00시 기준 필터링: 2025년 1월 12일 00시 이전의 데이터만 포함
+      const cutoffDate = new Date('2025-01-12T00:00:00+09:00'); // 한국 시간 기준
+      const beforeCutoff = subs.filter(sub => {
+        if (!sub.submittedAt) return false;
+        const submittedDate = new Date(sub.submittedAt);
+        return submittedDate < cutoffDate;
+      });
+      
+      console.log('[DEBUG][settlement-date-filter]', {
+        cutoffDate: cutoffDate.toISOString(),
+        totalAccepted: subs.length,
+        beforeCutoff: beforeCutoff.length,
+        afterCutoff: subs.length - beforeCutoff.length,
+        excludedByDate: subs.length - beforeCutoff.length
+      });
+      
+      // 1/12 00시 이전 데이터만 사용
+      subs = beforeCutoff;
       
       // 접수된 데이터와 미접수 데이터 분리
       const acceptedCount = subs.filter(s => s.accepted === true).length;
