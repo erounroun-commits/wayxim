@@ -7794,93 +7794,109 @@ ${r.optPlan}
         const section = target.getAttribute("data-section");
         console.log('탭 클릭:', section); // 디버깅용
         
-        try {
-          if(section === "home"){ 
-            await showAdminHome(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "req"){ 
-            await showReqDashboard(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "req-new"){ 
-            await showReqList(false); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "req-accepted"){ 
-            await showReqList(true); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "req-all"){ 
-            await showAllReqList(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "data-management"){ 
-            openDataModal(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "vendor"){ 
-            await showVendorDashboard(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "vendor-list"){ 
-            await showVendorList(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "settle"){ 
-            await showSettlementDashboard(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "settle-weekly"){ 
-            await showWeeklySettlementList(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "settle-monthly"){ 
-            await showMonthlySettlementList(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "settle-withdrawal"){ 
-            await showWithdrawalRequest(); 
-            isTabSwitching = false;
-            return; 
-          }
-          if(section === "rate"){ 
-            showRateInfo(); 
-            isTabSwitching = false;
-            return; 
-          }
-        } catch (error) {
-          console.error('탭 전환 오류:', error);
+        if (!section) {
+          console.warn('섹션 정보가 없습니다.');
           isTabSwitching = false;
+          return;
         }
         
-        // 매칭되는 섹션이 없는 경우
-        isTabSwitching = false;
-        const titles = {
-          "req":"작업요청서 관리",
-          "req-new":"신규요청건",
-          "req-accepted":"접수 완료건",
-          "req-all":"전체요청건",
-          "vendor":"VENDOR관리",
-          "vendor-list":"VENDOR LIST",
-          "settle":"정산관리",
-          "rate":"적용단가",
-          "settle-monthly":"월별 정산 LIST"
-        };
-        main.innerHTML = `<h2 style="margin:0 0 8px;color:var(--brand)">${titles[section]||"관리자"}</h2>
-          <p style="margin:0 0 16px;color:#4b5b6b">이 화면은 이후 단계에서 데이터와 연결됩니다.</p>
-          <div class="empty-state"><div class="badge">플레이스홀더</div><p style="margin-top:10px">구조만 먼저 세팅했습니다.</p></div>`;
+        // main 요소 확인
+        if (!main) {
+          console.error('adminMain 요소를 찾을 수 없습니다.');
+          isTabSwitching = false;
+          return;
+        }
+        
+        try {
+          // 각 섹션별 함수 호출
+          let handled = false;
+          
+          if(section === "home"){ 
+            await showAdminHome(); 
+            handled = true;
+          }
+          else if(section === "req"){ 
+            await showReqDashboard(); 
+            handled = true;
+          }
+          else if(section === "req-new"){ 
+            await showReqList(false); 
+            handled = true;
+          }
+          else if(section === "req-accepted"){ 
+            await showReqList(true); 
+            handled = true;
+          }
+          else if(section === "req-all"){ 
+            await showAllReqList(); 
+            handled = true;
+          }
+          else if(section === "data-management"){ 
+            openDataModal(); 
+            handled = true;
+          }
+          else if(section === "vendor"){ 
+            await showVendorDashboard(); 
+            handled = true;
+          }
+          else if(section === "vendor-list"){ 
+            await showVendorList(); 
+            handled = true;
+          }
+          else if(section === "settle"){ 
+            await showSettlementDashboard(); 
+            handled = true;
+          }
+          else if(section === "settle-weekly"){ 
+            await showWeeklySettlementList(); 
+            handled = true;
+          }
+          else if(section === "settle-monthly"){ 
+            await showMonthlySettlementList(); 
+            handled = true;
+          }
+          else if(section === "settle-withdrawal"){ 
+            await showWithdrawalRequest(); 
+            handled = true;
+          }
+          else if(section === "rate"){ 
+            showRateInfo(); 
+            handled = true;
+          }
+          
+          // 처리된 경우에만 isTabSwitching 해제
+          if (handled) {
+            isTabSwitching = false;
+            return;
+          }
+          
+          // 매칭되는 섹션이 없는 경우에만 플레이스홀더 표시
+          console.warn('알 수 없는 섹션:', section);
+          isTabSwitching = false;
+          const titles = {
+            "req":"작업요청서 관리",
+            "req-new":"신규요청건",
+            "req-accepted":"접수 완료건",
+            "req-all":"전체요청건",
+            "vendor":"VENDOR관리",
+            "vendor-list":"VENDOR LIST",
+            "settle":"정산관리",
+            "rate":"적용단가",
+            "settle-monthly":"월별 정산 LIST"
+          };
+          main.innerHTML = `<h2 style="margin:0 0 8px;color:var(--brand)">${titles[section]||"관리자"}</h2>
+            <p style="margin:0 0 16px;color:#4b5b6b">이 화면은 이후 단계에서 데이터와 연결됩니다.</p>
+            <div class="empty-state"><div class="badge">플레이스홀더</div><p style="margin-top:10px">구조만 먼저 세팅했습니다.</p></div>`;
+        } catch (error) {
+          console.error('탭 전환 오류:', error, '섹션:', section);
+          isTabSwitching = false;
+          // 에러 발생 시에도 플레이스홀더 대신 에러 메시지 표시
+          main.innerHTML = `<h2 style="margin:0 0 8px;color:var(--brand)">오류 발생</h2>
+            <p style="margin:0 0 16px;color:#8a2b2b;">탭 전환 중 오류가 발생했습니다: ${error.message}</p>
+            <p style="margin:0 0 16px;color:#6a7a89;font-size:14px;">콘솔을 확인하여 자세한 오류 정보를 확인하세요.</p>
+            <button class="btn" onclick="location.reload()" style="margin-right:8px;">페이지 새로고침</button>
+            <button class="btn ghost" onclick="history.back()">이전 페이지</button>`;
+        }
       });
     }
 
