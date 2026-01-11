@@ -2940,8 +2940,8 @@ ${r.optPlan}
       
       main.innerHTML = html;
       
-      // 렌더링 함수
-      function renderReqList() {
+      // 렌더링 함수 (비동기로 변경 - 제출 시점 기준 vendorType 계산)
+      async function renderReqList() {
         // 정렬 적용
         const sorted = [...rows].sort((a, b) => {
           // 접수 완료건은 acceptedAt 기준, 그 외는 submittedAt 기준
@@ -2951,6 +2951,15 @@ ${r.optPlan}
           return sortOrder === 'desc' ? (bv - av) : (av - bv);
         });
         
+        // 각 row의 제출 시점 기준 vendorType 계산 (병렬 처리)
+        const vendorTypePromises = sorted.map(async (r) => {
+          if (!r.companyCode || !r.submittedAt) return { no: r.no, vendorType: '일반' };
+          const vendorType = await getVendorTypeAtDate(r.companyCode, new Date(r.submittedAt));
+          return { no: r.no, vendorType: vendorType };
+        });
+        const vendorTypeResults = await Promise.all(vendorTypePromises);
+        const vendorTypeMap = new Map(vendorTypeResults.map(r => [r.no, r.vendorType]));
+        
         // Desktop Table
         const desktopTbody = document.getElementById('reqDesktopTableBody');
         if (desktopTbody) {
@@ -2959,7 +2968,8 @@ ${r.optPlan}
           } else {
             let desktopHtml = '';
             for(const r of sorted){
-              const vendorType = vendorTypes[r.companyCode] || '일반';
+              // 제출 시점 기준 vendorType 사용
+              const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               desktopHtml += `<tr data-no="${r.no}">`+
                 `<td>${r.no}</td>`+
@@ -2991,7 +3001,8 @@ ${r.optPlan}
             let mobileHtml = '';
             for(const r of sorted){
               const detailId = `reqDetail-${r.no}`;
-              const vendorType = vendorTypes[r.companyCode] || '일반';
+              // 제출 시점 기준 vendorType 사용
+              const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               mobileHtml += `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -3030,7 +3041,7 @@ ${r.optPlan}
                         <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
                         <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
                         <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
-                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorTypes[r.companyCode] === '우수' ? '1,000원' : '1,500원'}</span></div>
+                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorType === '우수' ? '1,000원' : '1,500원'}</span></div>
                         ${isAccepted ? `<div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>` : ''}
                       </div>
                       <div class="pt-4 border-t">
@@ -3220,14 +3231,23 @@ ${r.optPlan}
       
       main.innerHTML = html;
       
-      // 렌더링 함수
-      function renderAllReqList() {
+        // 렌더링 함수 (비동기로 변경 - 제출 시점 기준 vendorType 계산)
+        async function renderAllReqList() {
         // 전체요청건은 제출시간 기준 정렬
         const sorted = [...rows].sort((a, b) => {
           const av = a.submittedAt ?? 0;
           const bv = b.submittedAt ?? 0;
           return sortOrder === 'desc' ? (bv - av) : (av - bv);
         });
+        
+        // 각 row의 제출 시점 기준 vendorType 계산 (병렬 처리)
+        const vendorTypePromises = sorted.map(async (r) => {
+          if (!r.companyCode || !r.submittedAt) return { no: r.no, vendorType: '일반' };
+          const vendorType = await getVendorTypeAtDate(r.companyCode, new Date(r.submittedAt));
+          return { no: r.no, vendorType: vendorType };
+        });
+        const vendorTypeResults = await Promise.all(vendorTypePromises);
+        const vendorTypeMap = new Map(vendorTypeResults.map(r => [r.no, r.vendorType]));
         
         // Desktop Table
         const desktopTbody = document.getElementById('reqAllDesktopTableBody');
@@ -3237,7 +3257,8 @@ ${r.optPlan}
           } else {
             let desktopHtml = '';
             for(const r of sorted){
-              const vendorType = vendorTypes[r.companyCode] || '일반';
+              // 제출 시점 기준 vendorType 사용
+              const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               desktopHtml += `<tr data-no="${r.no}">`+
                 `<td>${r.no}</td>`+
@@ -3266,7 +3287,8 @@ ${r.optPlan}
             let mobileHtml = '';
             for(const r of sorted){
               const detailId = `reqAllDetail-${r.no}`;
-              const vendorType = vendorTypes[r.companyCode] || '일반';
+              // 제출 시점 기준 vendorType 사용
+              const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               mobileHtml += `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -3305,7 +3327,7 @@ ${r.optPlan}
                         <div class="col-span-2"><span class="text-neutral-500">카톡/번호:</span> <span class="font-semibold">${escapeHtml(r.contact)}</span></div>
                         <div class="col-span-2"><span class="text-neutral-500">구매키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
                         <div><span class="text-neutral-500">총/일:</span> <span class="font-semibold">${r.totalCnt} / ${r.dailyCnt}</span></div>
-                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorTypes[r.companyCode] === '우수' ? '1,000원' : '1,500원'}</span></div>
+                        <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorType === '우수' ? '1,000원' : '1,500원'}</span></div>
                         <div class="col-span-2"><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</span></div>
                       </div>
                       <div class="pt-4 border-t">
@@ -3322,15 +3344,15 @@ ${r.optPlan}
         }
       }
       
-      renderAllReqList();
+      await renderAllReqList();
       
       // 정렬 토글 이벤트
       const sortBtn = document.getElementById('reqAllSortToggle');
       if (sortBtn) {
-        sortBtn.addEventListener('click', () => {
+        sortBtn.addEventListener('click', async () => {
           sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
           sortBtn.textContent = `정렬: ${sortOrder === 'desc' ? '최신순' : '오름차순'}`;
-          renderAllReqList();
+          await renderAllReqList();
         });
       }
       } finally {
