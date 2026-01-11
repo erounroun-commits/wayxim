@@ -2874,8 +2874,8 @@ ${r.optPlan}
       showLoading();
       try {
       const rows = (await loadSubs()).filter(r=> (!!r.accepted) === (!!isAccepted));
-      // 모든 vendor type을 한 번에 계산 (건당 제휴 수수료 표시용)
-      const vendorTypes = await getAllVendorTypes(rows, true);
+      // 모든 vendor type을 한 번에 계산 (캐시 활용)
+      const vendorTypes = await getAllVendorTypes(rows, false);
       let sortOrder = 'desc'; // 기본값: 최신순(내림차순)
       const title = isAccepted ? "접수 완료건" : "신규요청건";
       const main = document.getElementById("adminMain");
@@ -3172,8 +3172,8 @@ ${r.optPlan}
       showLoading();
       try {
       const rows = await loadSubs();
-      // 모든 vendor type을 한 번에 계산 (건당 제휴 수수료 표시용)
-      const vendorTypes = await getAllVendorTypes(rows, true);
+      // 모든 vendor type을 한 번에 계산 (캐시 활용)
+      const vendorTypes = await getAllVendorTypes(rows, false);
       let sortOrder = 'desc'; // 기본값: 최신순(내림차순)
       const main = document.getElementById("adminMain");
       
@@ -3344,8 +3344,8 @@ ${r.optPlan}
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
-      // 모든 vendor type을 한 번에 계산 (최적화)
-      const vendorTypes = await getAllVendorTypes(rows);
+      // 모든 vendor type을 한 번에 계산 (캐시 활용)
+      const vendorTypes = await getAllVendorTypes(rows, false);
       
       // Calculate vendor statistics
       const vendorStats = {};
@@ -3519,8 +3519,8 @@ ${r.optPlan}
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
-      // 모든 vendor type을 한 번에 계산 (최적화)
-      const vendorTypes = await getAllVendorTypes(rows);
+      // 모든 vendor type을 한 번에 계산 (캐시 활용)
+      const vendorTypes = await getAllVendorTypes(rows, false);
       
       // Calculate vendor statistics
       const vendorStats = {};
@@ -3910,9 +3910,9 @@ ${r.optPlan}
 
     // Vendor detail modal functions
     async function openVendorModal(vendorCode) {
-      clearVendorTypeCache();
       const rows = await loadSubs();
-      const vendorTypes = await getAllVendorTypes(rows, true);
+      // 캐시 활용 (강제 새로고침 제거)
+      const vendorTypes = await getAllVendorTypes(rows, false);
       const vendorRows = rows.filter(r => r.companyCode === vendorCode);
       
       if (vendorRows.length === 0) return;
@@ -4203,17 +4203,32 @@ ${r.optPlan}
         const overridesRef = window.collection(window.db, 'vendorTypeOverrides');
         const snapshot = await window.getDocs(overridesRef);
         
-        // 해당 벤더의 변경 이력 중 targetDate 이전의 가장 최근 변경 시점 찾기
+        // 해당 벤더의 변경 이력 중 targetDate 이전 또는 같은 시점의 가장 최근 변경 시점 찾기
+        // 중요: effectiveFrom이 targetTimestamp보다 작거나 같으면 적용됨
+        // 예: 507번(01:44)을 우수로 변경하면, 507번(01:44)과 508번(01:45)에만 적용, 506번(01:43)에는 적용 안됨
         let mostRecentChange = null;
         for(const doc of snapshot.docs) {
           const data = doc.data();
           if(data.companyCode === vendorCode && data.effectiveFrom) {
-            const effectiveFrom = data.effectiveFrom.toMillis ? data.effectiveFrom.toMillis() : data.effectiveFrom;
-            if (effectiveFrom <= targetTimestamp) {
-              if (!mostRecentChange || effectiveFrom > mostRecentChange.effectiveFrom) {
+            // effectiveFrom을 타임스탬프로 변환
+            let effectiveFromTimestamp;
+            if (data.effectiveFrom.toMillis) {
+              effectiveFromTimestamp = data.effectiveFrom.toMillis();
+            } else if (data.effectiveFrom instanceof Date) {
+              effectiveFromTimestamp = data.effectiveFrom.getTime();
+            } else if (typeof data.effectiveFrom === 'number') {
+              effectiveFromTimestamp = data.effectiveFrom;
+            } else {
+              effectiveFromTimestamp = new Date(data.effectiveFrom).getTime();
+            }
+            
+            // effectiveFrom이 targetTimestamp보다 작거나 같으면 적용
+            // 즉, 변경 시점 이후의 데이터에만 적용
+            if (effectiveFromTimestamp <= targetTimestamp) {
+              if (!mostRecentChange || effectiveFromTimestamp > mostRecentChange.effectiveFrom) {
                 mostRecentChange = {
                   type: data.type,
-                  effectiveFrom: effectiveFrom
+                  effectiveFrom: effectiveFromTimestamp
                 };
               }
             }
@@ -4509,94 +4524,66 @@ ${r.optPlan}
         return timeA - timeB;
       });
       
-      let totalCommission = 0;
+      // 성능 최적화: vendorTypeAtSubmission이 없는 submission들을 배치로 처리
+      const subsNeedingCalculation = [];
+      const vendorTypeMap = new Map(); // 계산 결과 캐시
+      
+      // 1단계: vendorTypeAtSubmission이 있는 경우 먼저 처리
       for (const sub of sortedSubs) {
-        // companyCode 정규화 (공백 제거, 대소문자 통일)
         const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
-        const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
-        
-        // 핵심: 저장된 vendorTypeAtSubmission을 우선 사용
-        // 제출 시점에 확정된 vendorType이 저장되어 있으면 그것을 사용
-        // 저장된 값이 없으면 제출 시점 기준으로 계산 (하위 호환성)
-        let vType = '일반';
-        
-        // 1순위: 저장된 vendorTypeAtSubmission 사용 (가장 확실한 방법)
         if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
-          vType = sub.vendorTypeAtSubmission;
-          
-          // 주식회사 천호(AD91) 특별 로깅
-          if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-            console.log('[INFO][천호-settlement] 저장된 vendorTypeAtSubmission 사용:', {
-              no: sub.no,
-              vendorTypeAtSubmission: sub.vendorTypeAtSubmission,
-              totalCnt: sub.totalCnt
-            });
-          }
+          vendorTypeMap.set(`${normalizedCompanyCode}_${sub.submittedAt}`, sub.vendorTypeAtSubmission);
+        } else if (normalizedCompanyCode && sub.submittedAt) {
+          subsNeedingCalculation.push(sub);
         }
-        // 2순위: 제출 시점 기준 계산 (저장된 값이 없는 경우, 하위 호환성)
-        else if (normalizedCompanyCode && sub.submittedAt) {
+      }
+      
+      // 2단계: 계산이 필요한 submission들을 병렬로 처리 (성능 최적화)
+      if (subsNeedingCalculation.length > 0) {
+        const calculationPromises = subsNeedingCalculation.map(async (sub) => {
+          const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
+          const cacheKey = `${normalizedCompanyCode}_${sub.submittedAt}`;
+          
+          // 캐시 확인
+          if (vendorTypeMap.has(cacheKey)) {
+            return { sub, vType: vendorTypeMap.get(cacheKey) };
+          }
+          
           try {
-            // 제출 시점 기준으로 vendorType 계산
-            // 주의: sortedSubs를 전달하여 제출 시점 순으로 정렬된 submission만 고려
-            // 현재 submission의 ID를 전달하여 제외 (제출 시점 기준 확정)
-            const calculatedVType = await getVendorTypeAtSubmissionTime(
-              normalizedCompanyCode, 
-              sub.submittedAt, 
-              sortedSubs, // 정렬된 submissions 사용
-              sub.id || sub.no || String(sub.submittedAt) // ID가 없으면 submittedAt으로 대체
-            );
-            
-            // 제출 시점 기준 계산 결과 사용
-            vType = calculatedVType;
-            
-            // 주식회사 천호(AD91) 특별 로깅 (저장된 값이 없어서 계산한 경우)
-            if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-              console.warn('[WARN][천호-settlement] vendorTypeAtSubmission이 없어서 계산:', {
-                no: sub.no,
-                calculatedVType: calculatedVType,
-                totalCnt: sub.totalCnt
-              });
-            }
-            
-            // 디버깅 로그 (주식회사 천호 특별 로깅)
-            if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-              const submissionsBeforeThis = sortedSubs.filter(s => {
-                if (!s.submittedAt || !s.companyCode) return false;
-                // 현재 submission 제외
-                if ((s.id && s.id === sub.id) || (s.no && s.no === sub.no)) return false;
-                const sCompanyCode = String(s.companyCode).trim();
-                if (sCompanyCode !== normalizedCompanyCode) return false;
-                const sTime = new Date(s.submittedAt);
-                const subTime = new Date(sub.submittedAt);
-                return sTime < subTime;
-              });
-              
-              console.warn('[WARN][천호-vendorType-calculation]', {
-                no: sub.no,
-                id: sub.id,
-                companyCode: normalizedCompanyCode,
-                submittedAt: new Date(sub.submittedAt).toISOString(),
-                calculatedVType: calculatedVType,
-                currentVendorType: vendorTypes[normalizedCompanyCode] || '일반',
-                totalCnt: sub.totalCnt,
-                submissionsBeforeThisCount: submissionsBeforeThis.length,
-                submissionsBeforeThis: submissionsBeforeThis.map(s => ({
-                  no: s.no,
-                  submittedAt: new Date(s.submittedAt).toISOString(),
-                  totalCnt: s.totalCnt
-                }))
-              });
-            }
+            const submittedDate = new Date(sub.submittedAt);
+            const calculatedVType = await getVendorTypeAtDate(normalizedCompanyCode, submittedDate);
+            vendorTypeMap.set(cacheKey, calculatedVType);
+            return { sub, vType: calculatedVType };
           } catch (error) {
             console.error('[ERROR][vendorType-calculation]', {
               no: sub.no,
               companyCode: normalizedCompanyCode,
-              error: error.message,
-              stack: error.stack
+              error: error.message
             });
-            // 오류 발생 시 제출 시점 기준 계산 실패이므로 '일반'으로 설정
-            vType = '일반';
+            return { sub, vType: '일반' };
           }
+        });
+        
+        // 모든 계산을 병렬로 실행
+        await Promise.all(calculationPromises);
+      }
+      
+      // 3단계: 수수료 계산
+      let totalCommission = 0;
+      for (const sub of sortedSubs) {
+        const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
+        const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
+        
+        let vType = '일반';
+        
+        // 1순위: 저장된 vendorTypeAtSubmission 사용
+        if (sub.vendorTypeAtSubmission && (sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반')) {
+          vType = sub.vendorTypeAtSubmission;
+        }
+        // 2순위: 계산된 결과 사용 (캐시에서)
+        else if (normalizedCompanyCode && sub.submittedAt) {
+          const cacheKey = `${normalizedCompanyCode}_${sub.submittedAt}`;
+          vType = vendorTypeMap.get(cacheKey) || '일반';
         } else if (normalizedCompanyCode) {
           // submittedAt이 없는 경우 현재 vendorType 사용
           vType = vendorTypes[normalizedCompanyCode] || '일반';
@@ -4625,52 +4612,17 @@ ${r.optPlan}
         
         const commission = calcCommissionForSubmission(sub, vType);
         
-        // 디버깅: 각 submission의 계산 상세 로그
+        // 성능 최적화: 로깅 최소화 (오류 발생 시에만 로깅)
         const expectedComm = sub.totalCnt ? (vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500) : 0;
-        const commissionMatch = commission === expectedComm ? '✅' : '❌ MISMATCH';
-        
-        console.log('[DEBUG][settlement-detail]', {
-          no: sub.no,
-          companyCode: sub.companyCode,
-          companyCodeNormalized: normalizedCompanyCode,
-          submittedAt: sub.submittedAt ? new Date(sub.submittedAt).toISOString() : null,
-          companyCodeInVendorTypes: normalizedCompanyCode in vendorTypes,
-          vendorId: sub.vendorId,
-          vendorIdNormalized: normalizedVendorId,
-          companyName: sub.companyName,
-          accepted: sub.accepted,
-          isDeleted: sub.isDeleted,
-          isTest: sub.isTest,
-          totalCnt: sub.totalCnt,
-          totalCntType: typeof sub.totalCnt,
-          totalCntIsArray: Array.isArray(sub.totalCnt),
-          vendorType: vType,
-          vendorTypeSource: (normalizedCompanyCode && sub.submittedAt && vType !== '일반') ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'),
-          rate: vType === '우수' ? 1000 : 1500,
-          commission: commission,
-          expectedCommission: expectedComm,
-          commissionMatch: commissionMatch,
-          difference: commission - expectedComm,
-          accumulatedSum: totalCommission + commission,
-          calculation: `${sub.totalCnt} × ${vType === '우수' ? 1000 : 1500} = ${expectedComm}`
-        });
-        
-        // 주식회사 천호(AD91) 특별 로깅
-        if (normalizedCompanyCode === 'AD91' || sub.companyName?.includes('천호')) {
-          console.warn('[WARN][천호-settlement]', {
+        if (commission !== expectedComm) {
+          console.warn('[WARN][settlement-mismatch]', {
             no: sub.no,
-            companyName: sub.companyName,
             companyCode: normalizedCompanyCode,
             totalCnt: sub.totalCnt,
-            totalCntType: typeof sub.totalCnt,
             vendorType: vType,
-            vendorTypeSource: (normalizedCompanyCode && sub.submittedAt && vType !== '일반') ? 'submissionTime' : (vendorTypes[normalizedCompanyCode] ? 'current' : 'default'),
-            rate: vType === '우수' ? 1000 : 1500,
             commission: commission,
             expectedCommission: expectedComm,
-            difference: commission - expectedComm,
-            calculation: `${sub.totalCnt} × ${vType === '우수' ? 1000 : 1500} = ${expectedComm}`,
-            accumulatedSum: totalCommission + commission
+            difference: commission - expectedComm
           });
         }
         
@@ -4700,13 +4652,12 @@ ${r.optPlan}
     async function showSettlementDashboard(){
       showLoading();
       try {
-      // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
-      clearVendorTypeCache();
+      // 캐시 활용 (강제 새로고침 제거)
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
-      // 모든 vendor type을 한 번에 계산 (강제 새로고침)
-      const vendorTypes = await getAllVendorTypes(rows, true);
+      // 모든 vendor type을 한 번에 계산 (캐시 활용)
+      const vendorTypes = await getAllVendorTypes(rows, false);
       
       // Calculate current month statistics
       const currentDate = new Date();
@@ -4733,12 +4684,18 @@ ${r.optPlan}
       console.log('📅 현재 년월:', currentYear, '년', currentMonth + 1, '월');
       console.log('📊 당월 총 진행건수:', currentMonthRequests.reduce((sum, r) => sum + r.totalCnt, 0));
 
-      // Calculate statistics (각 데이터의 submittedAt 기준)
-      for (const r of currentMonthRequests) {
+      // Calculate statistics (각 데이터의 submittedAt 기준) - 병렬 처리로 최적화
+      const statsPromises = currentMonthRequests.map(async (r) => {
         const submittedDate = new Date(r.submittedAt);
         const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
         const commission = calcCommissionForSubmission(r, vendorType);
         const cnt = parseInt(r.totalCnt, 10) || 0;
+        return { vendorType, commission, cnt };
+      });
+      
+      const statsResults = await Promise.all(statsPromises);
+      
+      for (const { vendorType, commission, cnt } of statsResults) {
         monthlyTotalRequests += cnt;
 
         if (vendorType === '우수') {
@@ -5121,15 +5078,16 @@ ${r.optPlan}
       try {
         const main = document.getElementById("adminMain");
         
-        // 정산 관련 화면은 항상 최신 데이터 사용
-        clearVendorTypeCache();
+        // 병렬로 데이터 로드 (성능 최적화)
+        const [rows, withdrawals] = await Promise.all([
+          loadSubs(),
+          loadWithdrawals()
+        ]);
         
-        // 데이터 캐시 강제 초기화 플래그 설정
-        window.wp_data_cache_cleared = true;
+        // vendorTypes는 캐시 활용 (강제 새로고침 제거)
+        const vendorTypes = await getAllVendorTypes(rows, false);
         
-        const rows = await loadSubs();
-        const withdrawals = await loadWithdrawals();
-        const vendorTypes = await getAllVendorTypes(rows, true);
+        // settlement 계산 최적화
         const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
         const { totalCommission, totalWithdrawn, availableAmount } = settlement;
         
@@ -5453,8 +5411,7 @@ ${r.optPlan}
     async function showWeeklySettlementList(){
       showLoading();
       try {
-      // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
-      clearVendorTypeCache();
+      // 캐시 활용 (강제 새로고침 제거)
       const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       // Generate year/month options based on actual data
@@ -5788,8 +5745,7 @@ ${r.optPlan}
         console.log('🔍 주별 정산 - 날짜 필터링 시작');
         console.log('📅 선택된 주 범위:', s, '~', e);
         
-        // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
-        clearVendorTypeCache();
+        // 캐시 활용 (강제 새로고침 제거)
         // rows 데이터를 다시 가져오기
         const rows = await loadSubs();
         console.log('📊 전체 데이터 수:', rows.length);
@@ -6276,8 +6232,7 @@ ${r.optPlan}
       console.log('🔍 월별 정산 - 날짜 필터링 시작');
       console.log('📅 선택된 년월:', year, '년', month, '월');
       
-      // 정산관리는 항상 최신 데이터 사용 (캐시 무시)
-      clearVendorTypeCache();
+      // 캐시 활용 (강제 새로고침 제거)
       const rows = await loadSubs();
       const selectedMonthRequests = rows.filter(r => {
         const submissionDate = new Date(r.submittedAt);
@@ -6285,16 +6240,12 @@ ${r.optPlan}
         const submissionMonth = submissionDate.getMonth() + 1;
         
         const isInRange = submissionYear == year && submissionMonth == month;
-        console.log(`📅 데이터 ${r.no}: ${r.submittedAt} -> ${submissionYear}년 ${submissionMonth}월, 포함 여부: ${isInRange}`);
         
         return isInRange;
       });
       
-      console.log('📊 월별 필터링된 데이터 수:', selectedMonthRequests.length);
-      console.log('📊 월별 필터링된 데이터:', selectedMonthRequests.map(r => ({ no: r.no, submittedAt: r.submittedAt, companyName: r.companyName })));
-      
-      // 모든 vendor type을 한 번에 계산 (강제 새로고침)
-      const vendorTypes = await getAllVendorTypes(rows, true);
+      // 모든 vendor type을 한 번에 계산 (캐시 활용)
+      const vendorTypes = await getAllVendorTypes(rows, false);
       
       // Calculate summary
       const vendorSet = new Set(selectedMonthRequests.map(r => r.companyCode));
@@ -6629,7 +6580,8 @@ ${r.optPlan}
           alert('다운로드할 데이터가 없습니다.');
           return;
         }
-        const vendorTypes = await getAllVendorTypes(rows, true);
+        // 캐시 활용 (강제 새로고침 제거)
+        const vendorTypes = await getAllVendorTypes(rows, false);
         const records = rows.map(r => {
           const vendorType = vendorTypes[r.companyCode] || '일반';
           const commission = calcCommissionForSubmission(r, vendorType);
@@ -6815,11 +6767,22 @@ ${r.optPlan}
             </thead>
             <tbody>`;
       
+      // 각 데이터의 submittedAt 기준으로 vendorType 계산 (비동기 처리)
+      const vendorTypePromises = rows.map(async (r) => {
+        if (!r.companyCode || !r.submittedAt) return { no: r.no, vendorType: '일반' };
+        const vendorType = await getVendorTypeAtDate(r.companyCode, new Date(r.submittedAt));
+        return { no: r.no, vendorType: vendorType };
+      });
+      const vendorTypeResults = await Promise.all(vendorTypePromises);
+      const vendorTypeMap = new Map(vendorTypeResults.map(r => [r.no, r.vendorType]));
+      
       const recentData = rows;
       if(recentData.length === 0){
         html += '<tr><td colspan="7" style="text-align:center;color:#6a7a89">데이터가 없습니다.</td></tr>';
       } else {
         recentData.forEach(r => {
+          // 각 데이터의 submittedAt 기준으로 계산된 vendorType 사용
+          const currentVendorType = vendorTypeMap.get(r.no) || '일반';
           html += `<tr>`+
             `<td>${r.no}</td>`+
             `<td>
@@ -6836,8 +6799,8 @@ ${r.optPlan}
             `<td>${escapeHtml(r.companyName)}</td>`+
             `<td>
               <select onchange="queueVendorType(${r.no}, this.value)" style="padding:4px;border:1px solid var(--border);border-radius:4px;">
-                <option value="일반" ${r.vendorTypeOverride === '일반' ? 'selected' : (r.vendorTypeOverride === '우수' ? '' : 'selected')}>일반</option>
-                <option value="우수" ${r.vendorTypeOverride === '우수' ? 'selected' : ''}>우수</option>
+                <option value="일반" ${currentVendorType === '일반' ? 'selected' : ''}>일반</option>
+                <option value="우수" ${currentVendorType === '우수' ? 'selected' : ''}>우수</option>
               </select>
             </td>`+
             `<td>
@@ -7090,14 +7053,23 @@ ${r.optPlan}
           // Firebase에 vendor type override 저장 (시점 정보 포함)
           try {
             const overridesRef = window.collection(window.db, 'vendorTypeOverrides');
-            // 해당 데이터의 submittedAt을 effectiveFrom으로 사용
-            const effectiveFrom = rec.submittedAt || Date.now();
+            // 해당 데이터의 submittedAt을 effectiveFrom으로 사용 (타임스탬프로 변환)
+            const submittedAt = rec.submittedAt || Date.now();
+            const effectiveFromTimestamp = submittedAt instanceof Date ? submittedAt.getTime() : (typeof submittedAt === 'number' ? submittedAt : new Date(submittedAt).getTime());
+            
+            // Firestore Timestamp로 변환 (가능한 경우)
+            let effectiveFrom;
+            if (window.Timestamp) {
+              effectiveFrom = window.Timestamp.fromMillis(effectiveFromTimestamp);
+            } else {
+              effectiveFrom = effectiveFromTimestamp;
+            }
             
             await window.addDoc(overridesRef, { 
               companyCode: rec.companyCode, 
               type: pending[id].vendorTypeOverride,
               effectiveFrom: effectiveFrom,  // 적용 시작 시점 (해당 데이터의 submittedAt)
-              changedAt: Date.now(),  // 변경 시점
+              changedAt: window.Timestamp ? window.Timestamp.now() : Date.now(),  // 변경 시점
               changedBy: 'admin'  // 변경한 관리자 (추후 인증 정보로 대체 가능)
             });
             updated++;
@@ -7790,11 +7762,26 @@ ${r.optPlan}
     // 사이드바에 이벤트 위임 설정
     const adminSidebar = document.querySelector('#sidebar');
     if (adminSidebar) {
+      // 탭 전환 중복 클릭 방지
+      let isTabSwitching = false;
+      let lastTabSwitchTime = 0;
+      const TAB_SWITCH_DEBOUNCE = 300; // 300ms debounce
+      
       adminSidebar.addEventListener("click", async e=>{
         const target = e.target.closest('[data-section]');
         if (!target) return;
         
         e.preventDefault();
+        
+        // 중복 클릭 방지
+        const now = Date.now();
+        if (isTabSwitching || (now - lastTabSwitchTime < TAB_SWITCH_DEBOUNCE)) {
+          console.log('탭 전환 중복 클릭 방지');
+          return;
+        }
+        
+        isTabSwitching = true;
+        lastTabSwitchTime = now;
         
         // 모든 탭에서 active 클래스 제거
         document.querySelectorAll("[data-section]").forEach(tab => {
@@ -7807,19 +7794,23 @@ ${r.optPlan}
         const section = target.getAttribute("data-section");
         console.log('탭 클릭:', section); // 디버깅용
         
-        if(section === "home"){ await showAdminHome(); return; }
-        if(section === "req"){ await showReqDashboard(); return; }
-        if(section === "req-new"){ await showReqList(false); return; }
-        if(section === "req-accepted"){ await showReqList(true); return; }
-        if(section === "req-all"){ await showAllReqList(); return; }
-        if(section === "data-management"){ openDataModal(); return; }
-        if(section === "vendor"){ await showVendorDashboard(); return; }
-        if(section === "vendor-list"){ await showVendorList(); return; }
-        if(section === "settle"){ await showSettlementDashboard(); return; }
-        if(section === "settle-weekly"){ await showWeeklySettlementList(); return; }
-        if(section === "settle-monthly"){ await showMonthlySettlementList(); return; }
-        if(section === "settle-withdrawal"){ await showWithdrawalRequest(); return; }
-        if(section === "rate"){ showRateInfo(); return; }
+        try {
+          if(section === "home"){ await showAdminHome(); return; }
+          if(section === "req"){ await showReqDashboard(); return; }
+          if(section === "req-new"){ await showReqList(false); return; }
+          if(section === "req-accepted"){ await showReqList(true); return; }
+          if(section === "req-all"){ await showAllReqList(); return; }
+          if(section === "data-management"){ openDataModal(); return; }
+          if(section === "vendor"){ await showVendorDashboard(); return; }
+          if(section === "vendor-list"){ await showVendorList(); return; }
+          if(section === "settle"){ await showSettlementDashboard(); return; }
+          if(section === "settle-weekly"){ await showWeeklySettlementList(); return; }
+          if(section === "settle-monthly"){ await showMonthlySettlementList(); return; }
+          if(section === "settle-withdrawal"){ await showWithdrawalRequest(); return; }
+          if(section === "rate"){ showRateInfo(); return; }
+        } finally {
+          isTabSwitching = false;
+        }
         
         const titles = {
           "req":"작업요청서 관리",
