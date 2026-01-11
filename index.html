@@ -4507,21 +4507,17 @@ ${r.optPlan}
         }
       }
       
-      // 디버깅: 계산 과정 상세 로그 (항상 출력)
+      // 성능 최적화: 로깅 최소화 (오류 발생 시에만 로깅)
       const calculatedCommission = totalCnt * rate;
-      console.log('[DEBUG][commission-calc]', {
-        no: submission?.no,
-        companyName: submission?.companyName,
-        companyCode: submission?.companyCode,
-        totalCntRaw: submission?.totalCnt,
-        totalCntParsed: totalCnt,
-        totalCntType: typeof submission?.totalCnt,
-        totalCntIsArray: Array.isArray(submission?.totalCnt),
-        vendorType: vendorType,
-        rate: rate,
-        commission: calculatedCommission,
-        calculation: `${totalCnt} × ${rate} = ${calculatedCommission}`
-      });
+      
+      // totalCnt 파싱 오류가 있는 경우에만 로깅
+      if (Array.isArray(submission?.totalCnt) || typeof submission?.totalCnt === 'object') {
+        console.warn('[WARN][commission-calc] totalCnt 파싱 문제:', {
+          no: submission?.no,
+          totalCntRaw: submission?.totalCnt,
+          totalCntParsed: totalCnt
+        });
+      }
       
       // 주식회사 천호(AD91) 특별 로깅
       if (submission?.companyCode === 'AD91' || submission?.companyName?.includes('천호')) {
@@ -4544,17 +4540,31 @@ ${r.optPlan}
     async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
       // 출금가능액 계산: 접수 여부와 관계없이 모든 submission 포함
       // 신규 요청서도 포함되어야 하며, 접수되면 추가로 증액됨
+      // 중요: 중복 제거를 위해 no 기준으로 유일한 submission만 포함
       console.log('[DEBUG][settlement-start]', {
         totalSubmissions: submissions.length,
         vendorId: vendorId || 'ALL',
         vendorTypesCount: Object.keys(vendorTypes).length
       });
       
-      const subs = getSubsForVendor(submissions, vendorId, false);
+      // 중복 제거: 같은 no를 가진 submission이 여러 개 있을 수 있으므로, 가장 최신 것만 사용
+      const uniqueSubs = [];
+      const seenNos = new Set();
+      for (const sub of submissions) {
+        if (sub && sub.no && !seenNos.has(sub.no)) {
+          seenNos.add(sub.no);
+          uniqueSubs.push(sub);
+        }
+      }
+      
+      const subs = getSubsForVendor(uniqueSubs, vendorId, false);
       
       console.log('[DEBUG][settlement-filtered]', {
+        originalCount: submissions.length,
+        uniqueCount: uniqueSubs.length,
         filteredCount: subs.length,
-        excludedCount: submissions.length - subs.length
+        excludedCount: uniqueSubs.length - subs.length,
+        duplicatesRemoved: submissions.length - uniqueSubs.length
       });
       
       // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
@@ -4724,10 +4734,15 @@ ${r.optPlan}
       };
       console.log('[DEBUG][settlement]', {
         vendorId: vendorId || 'ALL',
+        originalSubmissionsCount: submissions.length,
+        uniqueSubmissionsCount: uniqueSubs.length,
+        filteredSubsCount: subs.length,
         subsCount: result.subsCount,
         totalCommission: result.totalCommission,
         totalWithdrawn: result.totalWithdrawn,
-        availableAmount: result.availableAmount
+        availableAmount: result.availableAmount,
+        averageCommissionPerSub: result.subsCount > 0 ? (result.totalCommission / result.subsCount).toFixed(2) : 0,
+        duplicatesRemoved: submissions.length - uniqueSubs.length
       });
       return result;
     }
