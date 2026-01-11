@@ -7035,6 +7035,12 @@ ${r.optPlan}
             localStorage.removeItem("wp_code_to_name");
             localStorage.removeItem("wp_next_no");
             
+            // vendorTypeCache도 초기화
+            clearVendorTypeCache();
+            
+            // 데이터 캐시 초기화 플래그 설정
+            window.wp_data_cache_cleared = true;
+            
             hideLoading();
             alert('모든 데이터가 삭제되었습니다.');
             showDataManagement();
@@ -7064,11 +7070,22 @@ ${r.optPlan}
             const docRef = window.doc(window.db, 'submissions', targetRow.id);
             await window.deleteDoc(docRef);
             console.log('✅ Firebase 직접 삭제 완료');
+            
+            // 삭제 후 localStorage 캐시도 갱신 (필터링된 배열로 업데이트)
+            const filteredRows = rows.filter(r => r.no !== no);
+            localStorage.setItem("wp_submissions", JSON.stringify(filteredRows));
+            console.log('✅ localStorage 캐시 갱신 완료');
           } else {
             console.log('📝 Firebase 직접 삭제 불가, 전체 데이터 재저장 방식 사용');
             const filteredRows = rows.filter(r => r.no !== no);
             await saveSubs(filteredRows);
           }
+          
+          // vendorTypeCache도 초기화하여 최신 데이터 반영
+          clearVendorTypeCache();
+          
+          // 데이터 캐시 초기화 플래그 설정 (다음 loadSubs 호출 시 강제 새로고침)
+          window.wp_data_cache_cleared = true;
           
           alert('데이터가 삭제되었습니다.');
           showDataManagement();
