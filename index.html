@@ -6854,9 +6854,17 @@ ${r.optPlan}
       
       // Recent data table
       html += `<div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
-        <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">전체 데이터</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;color:var(--brand);font-size:16px;">전체 데이터</h3>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="text" id="dataManagementSearch" placeholder="업체명 검색..." 
+                   style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;min-width:200px;"
+                   oninput="filterDataManagementTable(this.value)">
+            <button onclick="clearDataManagementSearch()" class="btn ghost" style="padding:8px 12px;font-size:14px;">초기화</button>
+          </div>
+        </div>
         <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
-          <table class="admin-table">
+          <table class="admin-table" id="dataManagementTable">
             <thead>
               <tr>
                 <th>NO</th>
@@ -6869,7 +6877,7 @@ ${r.optPlan}
                 <th>관리</th>
               </tr>
             </thead>
-            <tbody>`;
+            <tbody id="dataManagementTableBody">`;
       
       // 각 데이터의 submittedAt 기준으로 vendorType 계산 (비동기 처리)
       const vendorTypePromises = rows.map(async (r) => {
@@ -6880,14 +6888,17 @@ ${r.optPlan}
       const vendorTypeResults = await Promise.all(vendorTypePromises);
       const vendorTypeMap = new Map(vendorTypeResults.map(r => [r.no, r.vendorType]));
       
+      // 모든 데이터를 data attribute로 저장 (필터링용)
       const recentData = rows;
       if(recentData.length === 0){
-        html += '<tr><td colspan="7" style="text-align:center;color:#6a7a89">데이터가 없습니다.</td></tr>';
+        html += '<tr><td colspan="8" style="text-align:center;color:#6a7a89">데이터가 없습니다.</td></tr>';
       } else {
         recentData.forEach(r => {
           // 각 데이터의 submittedAt 기준으로 계산된 vendorType 사용
           const currentVendorType = vendorTypeMap.get(r.no) || '일반';
-          html += `<tr>`+
+          const companyName = escapeHtml(r.companyName || '');
+          const companyCode = escapeHtml(r.companyCode || '');
+          html += `<tr data-company-name="${companyName.toLowerCase()}" data-company-code="${companyCode.toLowerCase()}">`+
             `<td>${r.no}</td>`+
             `<td>
               <div style="display:flex;flex-direction:column;gap:2px;">
@@ -6899,8 +6910,8 @@ ${r.optPlan}
                        style="width:120px;padding:4px;border:1px solid var(--border);border-radius:4px;">
               </div>
             </td>`+
-            `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td>${escapeHtml(r.companyName)}</td>`+
+            `<td>${companyCode}</td>`+
+            `<td>${companyName}</td>`+
             `<td>
               <select onchange="queueVendorType(${r.no}, this.value)" style="padding:4px;border:1px solid var(--border);border-radius:4px;">
                 <option value="일반" ${currentVendorType === '일반' ? 'selected' : ''}>일반</option>
@@ -6932,6 +6943,12 @@ ${r.optPlan}
       applyCompanyRenameBtn?.addEventListener('click', ()=>{ handleCompanyRename(); });
       const debugVendorCsvBtn = document.getElementById('debugVendorCsvBtn');
       debugVendorCsvBtn?.addEventListener('click', async () => { await downloadVendorSubmissionCsv(); });
+      
+      // 검색 필터 초기화
+      const searchInput = document.getElementById('dataManagementSearch');
+      if (searchInput) {
+        searchInput.value = '';
+      }
       } finally {
         hideLoading();
       }
@@ -7192,6 +7209,67 @@ ${r.optPlan}
     }
 
     // 업체명 변경 핸들러
+    // 데이터 관리 테이블 필터링 함수
+    function filterDataManagementTable(searchTerm) {
+      const tbody = document.getElementById('dataManagementTableBody');
+      if (!tbody) return;
+      
+      const rows = tbody.querySelectorAll('tr');
+      const searchLower = (searchTerm || '').toLowerCase().trim();
+      
+      if (!searchLower) {
+        // 검색어가 없으면 모든 행 표시
+        rows.forEach(row => {
+          if (row.id !== 'noResultsRow') {
+            row.style.display = '';
+          }
+        });
+        // 검색 결과 없음 메시지 제거
+        const noResultsRow = document.getElementById('noResultsRow');
+        if (noResultsRow) {
+          noResultsRow.remove();
+        }
+        return;
+      }
+      
+      // 검색어가 있으면 필터링
+      let visibleCount = 0;
+      rows.forEach(row => {
+        // 검색 결과 없음 메시지 행은 건너뛰기
+        if (row.id === 'noResultsRow') {
+          row.remove();
+          return;
+        }
+        
+        const companyName = row.getAttribute('data-company-name') || '';
+        const companyCode = row.getAttribute('data-company-code') || '';
+        
+        if (companyName.includes(searchLower) || companyCode.includes(searchLower)) {
+          row.style.display = '';
+          visibleCount++;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+      
+      // 검색 결과가 없으면 메시지 표시
+      if (visibleCount === 0 && rows.length > 0) {
+        const noResultsRow = document.createElement('tr');
+        noResultsRow.id = 'noResultsRow';
+        noResultsRow.innerHTML = `<td colspan="8" style="text-align:center;color:#6a7a89;padding:20px;">검색 결과가 없습니다.</td>`;
+        tbody.appendChild(noResultsRow);
+      }
+    }
+    
+    // 검색 초기화 함수
+    function clearDataManagementSearch() {
+      const searchInput = document.getElementById('dataManagementSearch');
+      if (searchInput) {
+        searchInput.value = '';
+        filterDataManagementTable('');
+      }
+    }
+    
     async function handleCompanyRename(){
       const oldNameInput = document.getElementById('renameOldName');
       const newNameInput = document.getElementById('renameNewName');
