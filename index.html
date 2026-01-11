@@ -1839,9 +1839,9 @@
     function drawRequestsChart(data) {
       const container = document.getElementById('requestsChart');
       if (!container || data.length === 0) return;
-
+      
       console.log('📊 요청 차트 그리기 시작');
-
+      
       const maxRequests = Math.max(...data.map(d => d.requests));
       const chartWidth = container.offsetWidth - 32;
       const chartHeight = container.offsetHeight - 32;
@@ -1865,7 +1865,7 @@
             </linearGradient>
           </defs>
       `;
-
+      
       // 막대 그리기
       const barTops = [];
       data.forEach((d, i) => {
@@ -1877,11 +1877,11 @@
 
         // 막대만 그리고, 숫자 라벨은 선 그래프 쪽에서 한 번만 표시
         chartHtml += `
-          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}"
+          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" 
                 fill="url(#requestsBarGradient)" rx="4" ry="4"/>
         `;
       });
-
+      
       // 막대 상단을 따라 선 그래프 겹치게 그리기
       let linePath = '';
       barTops.forEach((p, i) => {
@@ -1891,12 +1891,12 @@
           linePath += ` L ${p.x} ${p.y}`;
         }
       });
-
+      
       chartHtml += `
-        <path d="${linePath}" stroke="var(--accent)" stroke-width="3"
+        <path d="${linePath}" stroke="var(--accent)" stroke-width="3" 
               fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
       `;
-
+      
       // 선 그래프 점 + 값
       data.forEach((d, i) => {
         const { x, y } = barTops[i];
@@ -1917,18 +1917,18 @@
                 font-size="11" fill="#6a7a89" font-weight="600">${monthNumber}월</text>
         `;
       });
-
+      
       chartHtml += '</svg>';
       container.innerHTML = chartHtml;
       console.log('📊 요청 차트 그리기 완료');
     }
-
+    
     function drawVendorsChart(data) {
       const container = document.getElementById('vendorsChart');
       if (!container || data.length === 0) return;
-
+      
       console.log('📊 벤더 차트 그리기 시작');
-
+      
       const maxVendors = Math.max(...data.map(d => d.vendors));
       const chartWidth = container.offsetWidth - 32;
       const chartHeight = container.offsetHeight - 32;
@@ -1950,7 +1950,7 @@
             </linearGradient>
           </defs>
       `;
-
+      
       const barTops = [];
       data.forEach((d, i) => {
         const centerX = segment * (i + 1);
@@ -1961,11 +1961,11 @@
 
         // 막대만 그리고, 숫자 라벨은 선 그래프 쪽에서 한 번만 표시
         chartHtml += `
-          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}"
+          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" 
                 fill="url(#vendorsBarGradient)" rx="4" ry="4"/>
         `;
       });
-
+      
       let linePath = '';
       barTops.forEach((p, i) => {
         if (i === 0) {
@@ -1974,12 +1974,12 @@
           linePath += ` L ${p.x} ${p.y}`;
         }
       });
-
+      
       chartHtml += `
-        <path d="${linePath}" stroke="var(--brand)" stroke-width="3"
+        <path d="${linePath}" stroke="var(--brand)" stroke-width="3" 
               fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
       `;
-
+      
       data.forEach((d, i) => {
         const { x, y } = barTops[i];
         // 선 그래프 점 + 숫자만 표시 (막대 숫자 라벨은 제거)
@@ -1998,7 +1998,7 @@
                 font-size="11" fill="#6a7a89" font-weight="600">${monthNumber}월</text>
         `;
       });
-
+      
       chartHtml += '</svg>';
       container.innerHTML = chartHtml;
       console.log('📊 벤더 차트 그리기 완료');
@@ -2118,8 +2118,8 @@
                   // 요청건 ID로 찾지 못한 경우, 시간으로 확인
                   if (!existingNotification) {
                     existingNotification = notifications.find(n => 
-                      n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
-                    );
+                    n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
+                  );
                   }
                   
                   if (existingNotification) {
@@ -2965,29 +2965,29 @@ ${r.optPlan}
         if (desktopTbody) {
           if(sorted.length===0){
             desktopTbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
-          } else {
+      } else {
             let desktopHtml = '';
             for(const r of sorted){
               // 제출 시점 기준 vendorType 사용
               const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               desktopHtml += `<tr data-no="${r.no}">`+
-                `<td>${r.no}</td>`+
-                `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
-                `<td>${escapeHtml(r.companyCode)}</td>`+
-                `<td>${escapeHtml(r.companyName)}</td>`+
-                `<td>${escapeHtml(r.bizNo)}</td>`+
-                `<td>${escapeHtml(r.contact)}</td>`+
-                `<td>${escapeHtml(r.keywords)}</td>`+
-                `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
+            `<td>${r.no}</td>`+
+            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
+            `<td>${escapeHtml(r.companyCode)}</td>`+
+            `<td>${escapeHtml(r.companyName)}</td>`+
+            `<td>${escapeHtml(r.bizNo)}</td>`+
+            `<td>${escapeHtml(r.contact)}</td>`+
+            `<td>${escapeHtml(r.keywords)}</td>`+
+            `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
                 `<td>${commissionPerUnit}</td>`+
-                (isAccepted
-                  ? `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
-                  : `<td style="text-align:center"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""}></td>`
-                )+
-                `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
-              `</tr>`;
-            }
+            (isAccepted
+              ? `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
+              : `<td style="text-align:center"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""}></td>`
+            )+
+            `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
+          `</tr>`;
+        }
             desktopTbody.innerHTML = desktopHtml;
           }
         }
@@ -3254,26 +3254,26 @@ ${r.optPlan}
         if (desktopTbody) {
           if(sorted.length===0){
             desktopTbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
-          } else {
+      } else {
             let desktopHtml = '';
             for(const r of sorted){
               // 제출 시점 기준 vendorType 사용
               const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               desktopHtml += `<tr data-no="${r.no}">`+
-                `<td>${r.no}</td>`+
-                `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
-                `<td>${escapeHtml(r.companyCode)}</td>`+
-                `<td>${escapeHtml(r.companyName)}</td>`+
-                `<td>${escapeHtml(r.bizNo)}</td>`+
-                `<td>${escapeHtml(r.contact)}</td>`+
-                `<td>${escapeHtml(r.keywords)}</td>`+
-                `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
+            `<td>${r.no}</td>`+
+            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
+            `<td>${escapeHtml(r.companyCode)}</td>`+
+            `<td>${escapeHtml(r.companyName)}</td>`+
+            `<td>${escapeHtml(r.bizNo)}</td>`+
+            `<td>${escapeHtml(r.contact)}</td>`+
+            `<td>${escapeHtml(r.keywords)}</td>`+
+            `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
                 `<td>${commissionPerUnit}</td>`+
-                `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
-                `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
-              `</tr>`;
-            }
+            `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
+            `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
+          `</tr>`;
+        }
             desktopTbody.innerHTML = desktopHtml;
           }
         }
@@ -4413,43 +4413,43 @@ ${r.optPlan}
         if (vendorRows.length === 0) {
           return { vendorCode, type: '일반' };
         }
+      
+      // 전체 기간에 대해 우수 VENDOR 달성 여부 확인
+      const allMonths = new Set();
+      vendorRows.forEach(r => {
+        const submissionDate = new Date(r.submittedAt);
+        const monthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
+        allMonths.add(monthKey);
+      });
+      
+      const sortedAllMonths = Array.from(allMonths).sort();
+        let wasEverPremium = false;
+      
+      // 연속된 2개월 이상 200건 달성 여부 확인
+      for (let i = 0; i < sortedAllMonths.length - 1; i++) {
+        const month1 = sortedAllMonths[i];
+        const month2 = sortedAllMonths[i + 1];
         
-        // 전체 기간에 대해 우수 VENDOR 달성 여부 확인
-        const allMonths = new Set();
+        let month1Count = 0;
+        let month2Count = 0;
+        
         vendorRows.forEach(r => {
           const submissionDate = new Date(r.submittedAt);
-          const monthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
-          allMonths.add(monthKey);
+          const submissionMonthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
+          if (submissionMonthKey === month1) {
+            month1Count += r.totalCnt;
+          }
+          if (submissionMonthKey === month2) {
+            month2Count += r.totalCnt;
+          }
         });
         
-        const sortedAllMonths = Array.from(allMonths).sort();
-        let wasEverPremium = false;
-        
-        // 연속된 2개월 이상 200건 달성 여부 확인
-        for (let i = 0; i < sortedAllMonths.length - 1; i++) {
-          const month1 = sortedAllMonths[i];
-          const month2 = sortedAllMonths[i + 1];
-          
-          let month1Count = 0;
-          let month2Count = 0;
-          
-          vendorRows.forEach(r => {
-            const submissionDate = new Date(r.submittedAt);
-            const submissionMonthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
-            if (submissionMonthKey === month1) {
-              month1Count += r.totalCnt;
-            }
-            if (submissionMonthKey === month2) {
-              month2Count += r.totalCnt;
-            }
-          });
-          
-          if (month1Count >= 200 && month2Count >= 200) {
-            wasEverPremium = true;
-            break;
-          }
+        if (month1Count >= 200 && month2Count >= 200) {
+          wasEverPremium = true;
+          break;
         }
-        
+      }
+      
         return { vendorCode, type: wasEverPremium ? '우수' : '일반' };
       });
       
@@ -4557,26 +4557,7 @@ ${r.optPlan}
       }
       
       // 출금 가능액은 접수된 데이터만 포함해야 함
-      let subs = getSubsForVendor(uniqueSubs, vendorId, true);
-      
-      // 1/12 00시 기준 필터링: 2025년 1월 12일 00시 이전의 데이터만 포함
-      const cutoffDate = new Date('2025-01-12T00:00:00+09:00'); // 한국 시간 기준
-      const beforeCutoff = subs.filter(sub => {
-        if (!sub.submittedAt) return false;
-        const submittedDate = new Date(sub.submittedAt);
-        return submittedDate < cutoffDate;
-      });
-      
-      console.log('[DEBUG][settlement-date-filter]', {
-        cutoffDate: cutoffDate.toISOString(),
-        totalAccepted: subs.length,
-        beforeCutoff: beforeCutoff.length,
-        afterCutoff: subs.length - beforeCutoff.length,
-        excludedByDate: subs.length - beforeCutoff.length
-      });
-      
-      // 1/12 00시 이전 데이터만 사용
-      subs = beforeCutoff;
+      const subs = getSubsForVendor(uniqueSubs, vendorId, true);
       
       // 접수된 데이터와 미접수 데이터 분리
       const acceptedCount = subs.filter(s => s.accepted === true).length;
@@ -4792,7 +4773,7 @@ ${r.optPlan}
       let monthlyRegularRequests = 0;
       let monthlyPremiumFee = 0;
       let monthlyRegularFee = 0;
-
+      
       // Filter current month requests (날짜 필터링 개선)
       const currentMonthRequests = rows.filter(r => {
         if (!r.submittedAt) return false;
@@ -4820,7 +4801,7 @@ ${r.optPlan}
       
       for (const { vendorType, commission, cnt } of statsResults) {
         monthlyTotalRequests += cnt;
-
+        
         if (vendorType === '우수') {
           monthlyPremiumRequests += cnt;
           monthlyPremiumFee += commission;
@@ -8091,20 +8072,20 @@ ${r.optPlan}
           // 매칭되는 섹션이 없는 경우에만 플레이스홀더 표시
           console.warn('알 수 없는 섹션:', section);
           isTabSwitching = false;
-          const titles = {
-            "req":"작업요청서 관리",
-            "req-new":"신규요청건",
-            "req-accepted":"접수 완료건",
-            "req-all":"전체요청건",
-            "vendor":"VENDOR관리",
-            "vendor-list":"VENDOR LIST",
-            "settle":"정산관리",
-            "rate":"적용단가",
-            "settle-monthly":"월별 정산 LIST"
-          };
-          main.innerHTML = `<h2 style="margin:0 0 8px;color:var(--brand)">${titles[section]||"관리자"}</h2>
-            <p style="margin:0 0 16px;color:#4b5b6b">이 화면은 이후 단계에서 데이터와 연결됩니다.</p>
-            <div class="empty-state"><div class="badge">플레이스홀더</div><p style="margin-top:10px">구조만 먼저 세팅했습니다.</p></div>`;
+        const titles = {
+          "req":"작업요청서 관리",
+          "req-new":"신규요청건",
+          "req-accepted":"접수 완료건",
+          "req-all":"전체요청건",
+          "vendor":"VENDOR관리",
+          "vendor-list":"VENDOR LIST",
+          "settle":"정산관리",
+          "rate":"적용단가",
+          "settle-monthly":"월별 정산 LIST"
+        };
+        main.innerHTML = `<h2 style="margin:0 0 8px;color:var(--brand)">${titles[section]||"관리자"}</h2>
+          <p style="margin:0 0 16px;color:#4b5b6b">이 화면은 이후 단계에서 데이터와 연결됩니다.</p>
+          <div class="empty-state"><div class="badge">플레이스홀더</div><p style="margin-top:10px">구조만 먼저 세팅했습니다.</p></div>`;
         } catch (error) {
           console.error('탭 전환 오류:', error, '섹션:', section);
           isTabSwitching = false;
