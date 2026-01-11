@@ -3418,75 +3418,85 @@ ${r.optPlan}
       document.getElementById('vendorModal').style.display = 'none';
     }
     
-    async function getVendorType(vendorCode) {
-      // 먼저 데이터 관리탭에서 설정한 override 값 확인
-      const rows = await loadSubs();
-      const vendorRow = rows.find(r => r.companyCode === vendorCode);
-      if (vendorRow && vendorRow.vendorTypeOverride) {
-        return vendorRow.vendorTypeOverride;
+    // 특정 날짜 기준으로 벤더 타입 판단 (과거 데이터 수수료 계산용)
+    async function getVendorTypeAtDate(vendorCode, targetDate) {
+      // targetDate가 없으면 현재 시점 기준으로 판단
+      if (!targetDate) {
+        return await getVendorType(vendorCode);
       }
       
-      // Override first if admin set vendor type explicitly
-      try{
+      const targetTimestamp = targetDate instanceof Date ? targetDate.getTime() : new Date(targetDate).getTime();
+      
+      // 변경 이력 조회 (Firebase)
+      try {
         const overridesRef = window.collection(window.db, 'vendorTypeOverrides');
         const snapshot = await window.getDocs(overridesRef);
         
+        // 해당 벤더의 변경 이력 중 targetDate 이전의 가장 최근 변경 시점 찾기
+        let mostRecentChange = null;
         for(const doc of snapshot.docs) {
           const data = doc.data();
-          if(data.companyCode === vendorCode) {
-            return data.type;
+          if(data.companyCode === vendorCode && data.effectiveFrom) {
+            const effectiveFrom = data.effectiveFrom.toMillis ? data.effectiveFrom.toMillis() : data.effectiveFrom;
+            if (effectiveFrom <= targetTimestamp) {
+              if (!mostRecentChange || effectiveFrom > mostRecentChange.effectiveFrom) {
+                mostRecentChange = {
+                  type: data.type,
+                  effectiveFrom: effectiveFrom
+                };
+              }
+            }
           }
         }
-      }catch(e){}
-      // Otherwise: Check if vendor is premium (200+ requests for 2 consecutive months)
-      const vendorRows = rows.filter(r => r.companyCode === vendorCode);
-      
-      if (vendorRows.length === 0) return '일반';
-      
-      const currentDate = new Date();
-      const currentMonth = currentDate.getMonth();
-      const currentYear = currentDate.getFullYear();
-      
-      // Check if vendor was ever premium (한번 우수 VENDOR가 되면 계속 유지)
-      let wasEverPremium = false;
-      let maxConsecutiveMonths = 0;
-      
-      // 전체 기간에 대해 우수 VENDOR 달성 여부 확인
-      const allMonths = new Set();
-      vendorRows.forEach(r => {
-        const submissionDate = new Date(r.submittedAt);
-        const monthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
-        allMonths.add(monthKey);
-      });
-      
-      const sortedAllMonths = Array.from(allMonths).sort();
-      
-      // 연속된 2개월 이상 200건 달성 여부 확인
-      for (let i = 0; i < sortedAllMonths.length - 1; i++) {
-        const month1 = sortedAllMonths[i];
-        const month2 = sortedAllMonths[i + 1];
         
-        let month1Count = 0;
-        let month2Count = 0;
-        
-        vendorRows.forEach(r => {
-          const submissionDate = new Date(r.submittedAt);
-          const submissionMonthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
-          if (submissionMonthKey === month1) {
-            month1Count += r.totalCnt;
-          }
-          if (submissionMonthKey === month2) {
-            month2Count += r.totalCnt;
-          }
-        });
-        
-        if (month1Count >= 200 && month2Count >= 200) {
-          wasEverPremium = true;
-          break;
+        // 가장 최근 변경 이력이 있으면 그 타입 반환
+        if (mostRecentChange) {
+          return mostRecentChange.type;
         }
+      } catch(e) {
+        console.error('변경 이력 조회 오류:', e);
       }
       
-      return wasEverPremium ? '우수' : '일반';
+      // 변경 이력이 없으면 일반벤더
+      return '일반';
+    }
+    
+    // 현재 시점 기준 벤더 타입 판단 (신규 데이터 접수 시 사용)
+    async function getVendorType(vendorCode) {
+      // 신규 업체는 무조건 일반벤더
+      const rows = await loadSubs();
+      const vendorRows = rows.filter(r => r.companyCode === vendorCode);
+      if (vendorRows.length === 0) return '일반';
+      
+      // 변경 이력 조회 (Firebase) - 가장 최근 변경 시점 찾기
+      try {
+        const overridesRef = window.collection(window.db, 'vendorTypeOverrides');
+        const snapshot = await window.getDocs(overridesRef);
+        
+        let mostRecentChange = null;
+        for(const doc of snapshot.docs) {
+          const data = doc.data();
+          if(data.companyCode === vendorCode && data.effectiveFrom) {
+            const effectiveFrom = data.effectiveFrom.toMillis ? data.effectiveFrom.toMillis() : data.effectiveFrom;
+            if (!mostRecentChange || effectiveFrom > mostRecentChange.effectiveFrom) {
+              mostRecentChange = {
+                type: data.type,
+                effectiveFrom: effectiveFrom
+              };
+            }
+          }
+        }
+        
+        // 가장 최근 변경 이력이 있으면 그 타입 반환
+        if (mostRecentChange) {
+          return mostRecentChange.type;
+        }
+      } catch(e) {
+        console.error('변경 이력 조회 오류:', e);
+      }
+      
+      // 변경 이력이 없으면 일반벤더
+      return '일반';
     }
 
     async function showSettlementDashboard(){
@@ -3512,9 +3522,10 @@ ${r.optPlan}
         return submissionDate.getMonth() === currentMonth && submissionDate.getFullYear() === currentYear;
       });
       
-      // Calculate statistics
+      // Calculate statistics (각 데이터의 submittedAt 기준)
       for (const r of currentMonthRequests) {
-        const vendorType = await getVendorType(r.companyCode);
+        const submittedDate = new Date(r.submittedAt);
+        const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
         monthlyTotalRequests += r.totalCnt;
         
         if (vendorType === '우수') {
@@ -3562,7 +3573,8 @@ ${r.optPlan}
         html += '<tr><td colspan="6" style="text-align:center;color:#6a7a89">당월 진행 요청이 없습니다.</td></tr>';
       } else {
         for (const r of currentMonthRequests) {
-          const vendorType = await getVendorType(r.companyCode);
+          const submittedDate = new Date(r.submittedAt);
+          const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
           const fee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
           html += `<tr>`+
             `<td>${r.no}</td>`+
@@ -3597,7 +3609,8 @@ ${r.optPlan}
       // Premium vendors list
       const premiumRequests = [];
       for (const r of currentMonthRequests) {
-        const vendorType = await getVendorType(r.companyCode);
+        const submittedDate = new Date(r.submittedAt);
+        const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
         if (vendorType === '우수') {
           premiumRequests.push(r);
         }
@@ -3630,7 +3643,8 @@ ${r.optPlan}
       // Regular vendors list
       const regularRequests = [];
       for (const r of currentMonthRequests) {
-        const vendorType = await getVendorType(r.companyCode);
+        const submittedDate = new Date(r.submittedAt);
+        const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
         if (vendorType === '일반') {
           regularRequests.push(r);
         }
@@ -4118,10 +4132,11 @@ ${r.optPlan}
         
         // 모든 비동기 작업을 순차적으로 처리
         try {
-          // 1단계: VENDOR 타입 조회 및 계산
+          // 1단계: VENDOR 타입 조회 및 계산 (각 데이터의 submittedAt 기준)
           console.log('🔄 1단계: VENDOR 타입 조회 및 계산 시작');
           const vendorResults = await Promise.all(fil.map(async r => {
-            const vt = await getVendorType(r.companyCode);
+            const submittedDate = new Date(r.submittedAt);
+            const vt = await getVendorTypeAtDate(r.companyCode, submittedDate);
             const usage = r.totalCnt*(vt==='우수'?2500:3000);
             const comm = r.totalCnt*(vt==='우수'?1000:1500);
             return { r, vt, usage, comm };
@@ -4154,9 +4169,10 @@ ${r.optPlan}
             body.innerHTML = htmlRows;
             foot.innerHTML='';
           } else {
-            // 테이블 행 데이터 생성
+            // 테이블 행 데이터 생성 (각 데이터의 submittedAt 기준)
             const tableResults = await Promise.all(fil.map(async r => {
-              const vt = await getVendorType(r.companyCode);
+              const submittedDate = new Date(r.submittedAt);
+              const vt = await getVendorTypeAtDate(r.companyCode, submittedDate);
               const u = r.totalCnt*(vt==='우수'?2500:3000);
               const c = r.totalCnt*(vt==='우수'?1000:1500);
               sumU+=u; 
@@ -4325,7 +4341,8 @@ ${r.optPlan}
             const fil = rows.filter(r=>{ const d=new Date(r.submittedAt); return d>=sDate && d<=eDate; });
             if(fil.length===0){ alert('다운로드할 데이터가 없습니다.'); return; }
             const data = await Promise.all(fil.map(async r=>{ 
-              const vt = await getVendorType(r.companyCode); 
+              const submittedDate = new Date(r.submittedAt);
+              const vt = await getVendorTypeAtDate(r.companyCode, submittedDate); 
               const u = r.totalCnt*(vt==='우수'?2500:3000); 
               const c = r.totalCnt*(vt==='우수'?1000:1500);
               return { 'NO':r.no,'제출시간':formatDateTime(r.submittedAt),'업체코드':r.companyCode,'VENDOR 유형':vt,'업체명':r.companyName,'사업자번호':r.bizNo,'카톡/번호':r.contact,'구매 키워드':r.keywords,'총 진행건수':r.totalCnt,'접수 시간':r.acceptedAt?formatDateTime(r.acceptedAt):'','건당 이용 단가': vt==='우수'?'2,500원':'3,000원','건당 제휴 수수료': vt==='우수'?'1,000원':'1,500원','총 이용 단가':u,'총 제휴 수수료':c }; 
@@ -4451,7 +4468,8 @@ ${r.optPlan}
       let totalCommissionFee = 0;
       
       for (const r of selectedMonthRequests) {
-        const vendorType = await getVendorType(r.companyCode);
+        const submittedDate = new Date(r.submittedAt);
+        const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
         const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000); // 우수 2,500 / 일반 3,000
         const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
         
@@ -4478,7 +4496,8 @@ ${r.optPlan}
         tableHtml = '<tr><td colspan="14" style="text-align:center;color:#6a7a89">해당 월의 데이터가 없습니다.</td></tr>';
       } else {
         for (const r of selectedMonthRequests) {
-          const vendorType = await getVendorType(r.companyCode);
+          const submittedDate = new Date(r.submittedAt);
+          const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
           const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
           const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
           
@@ -4534,7 +4553,8 @@ ${r.optPlan}
       }
       
       const data = await Promise.all(selectedMonthRequests.map(async r => {
-        const vendorType = await getVendorType(r.companyCode);
+        const submittedDate = new Date(r.submittedAt);
+        const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
         const usageFee = r.totalCnt * (vendorType === '우수' ? 2500 : 3000);
         const commissionFee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
         
@@ -4616,7 +4636,8 @@ ${r.optPlan}
       
       if (type === 'all') {
         const dataPromises = currentMonthRequests.map(async r => {
-          const vendorType = await getVendorType(r.companyCode);
+          const submittedDate = new Date(r.submittedAt);
+          const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
           const fee = vendorType === '우수' ? r.totalCnt * 1000 : r.totalCnt * 1500;
           return {
             '번호': r.no,
@@ -4633,7 +4654,8 @@ ${r.optPlan}
       } else if (type === 'premium') {
         const premiumRequests = [];
         for (const r of currentMonthRequests) {
-          const vendorType = await getVendorType(r.companyCode);
+          const submittedDate = new Date(r.submittedAt);
+          const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
           if (vendorType === '우수') {
             premiumRequests.push(r);
           }
@@ -4653,7 +4675,8 @@ ${r.optPlan}
       } else if (type === 'regular') {
         const regularRequests = [];
         for (const r of currentMonthRequests) {
-          const vendorType = await getVendorType(r.companyCode);
+          const submittedDate = new Date(r.submittedAt);
+          const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
           if (vendorType === '일반') {
             regularRequests.push(r);
           }
@@ -5092,12 +5115,18 @@ ${r.optPlan}
         if(pending[id].submittedAt != null){ rec.submittedAt = pending[id].submittedAt; updated++; }
         
         if(pending[id].vendorTypeOverride){
-          // Firebase에 vendor type override 저장
+          // Firebase에 vendor type override 저장 (시점 정보 포함)
           try {
             const overridesRef = window.collection(window.db, 'vendorTypeOverrides');
+            // 해당 데이터의 submittedAt을 effectiveFrom으로 사용
+            const effectiveFrom = rec.submittedAt || Date.now();
+            
             await window.addDoc(overridesRef, { 
               companyCode: rec.companyCode, 
-              type: pending[id].vendorTypeOverride 
+              type: pending[id].vendorTypeOverride,
+              effectiveFrom: effectiveFrom,  // 적용 시작 시점 (해당 데이터의 submittedAt)
+              changedAt: Date.now(),  // 변경 시점
+              changedBy: 'admin'  // 변경한 관리자 (추후 인증 정보로 대체 가능)
             });
             updated++;
           } catch (error) {
