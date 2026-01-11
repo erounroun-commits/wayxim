@@ -4538,8 +4538,7 @@ ${r.optPlan}
     }
 
     async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
-      // 출금가능액 계산: 접수 여부와 관계없이 모든 submission 포함
-      // 신규 요청서도 포함되어야 하며, 접수되면 추가로 증액됨
+      // 출금가능액 계산: 접수된 submission만 포함 (accepted === true)
       // 중요: 중복 제거를 위해 no 기준으로 유일한 submission만 포함
       console.log('[DEBUG][settlement-start]', {
         totalSubmissions: submissions.length,
@@ -4557,12 +4556,19 @@ ${r.optPlan}
         }
       }
       
-      const subs = getSubsForVendor(uniqueSubs, vendorId, false);
+      // 출금 가능액은 접수된 데이터만 포함해야 함
+      const subs = getSubsForVendor(uniqueSubs, vendorId, true);
+      
+      // 접수된 데이터와 미접수 데이터 분리
+      const acceptedCount = subs.filter(s => s.accepted === true).length;
+      const notAcceptedCount = uniqueSubs.filter(s => s.accepted !== true).length;
       
       console.log('[DEBUG][settlement-filtered]', {
         originalCount: submissions.length,
         uniqueCount: uniqueSubs.length,
         filteredCount: subs.length,
+        acceptedCount: acceptedCount,
+        notAcceptedCount: notAcceptedCount,
         excludedCount: uniqueSubs.length - subs.length,
         duplicatesRemoved: submissions.length - uniqueSubs.length
       });
