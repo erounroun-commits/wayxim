@@ -7795,23 +7795,78 @@ ${r.optPlan}
         console.log('탭 클릭:', section); // 디버깅용
         
         try {
-          if(section === "home"){ await showAdminHome(); return; }
-          if(section === "req"){ await showReqDashboard(); return; }
-          if(section === "req-new"){ await showReqList(false); return; }
-          if(section === "req-accepted"){ await showReqList(true); return; }
-          if(section === "req-all"){ await showAllReqList(); return; }
-          if(section === "data-management"){ openDataModal(); return; }
-          if(section === "vendor"){ await showVendorDashboard(); return; }
-          if(section === "vendor-list"){ await showVendorList(); return; }
-          if(section === "settle"){ await showSettlementDashboard(); return; }
-          if(section === "settle-weekly"){ await showWeeklySettlementList(); return; }
-          if(section === "settle-monthly"){ await showMonthlySettlementList(); return; }
-          if(section === "settle-withdrawal"){ await showWithdrawalRequest(); return; }
-          if(section === "rate"){ showRateInfo(); return; }
-        } finally {
+          if(section === "home"){ 
+            await showAdminHome(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "req"){ 
+            await showReqDashboard(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "req-new"){ 
+            await showReqList(false); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "req-accepted"){ 
+            await showReqList(true); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "req-all"){ 
+            await showAllReqList(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "data-management"){ 
+            openDataModal(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "vendor"){ 
+            await showVendorDashboard(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "vendor-list"){ 
+            await showVendorList(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "settle"){ 
+            await showSettlementDashboard(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "settle-weekly"){ 
+            await showWeeklySettlementList(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "settle-monthly"){ 
+            await showMonthlySettlementList(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "settle-withdrawal"){ 
+            await showWithdrawalRequest(); 
+            isTabSwitching = false;
+            return; 
+          }
+          if(section === "rate"){ 
+            showRateInfo(); 
+            isTabSwitching = false;
+            return; 
+          }
+        } catch (error) {
+          console.error('탭 전환 오류:', error);
           isTabSwitching = false;
         }
         
+        // 매칭되는 섹션이 없는 경우
+        isTabSwitching = false;
         const titles = {
           "req":"작업요청서 관리",
           "req-new":"신규요청건",
