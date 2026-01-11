@@ -4573,6 +4573,11 @@ ${r.optPlan}
       const acceptedCount = subs.filter(s => s.accepted === true).length;
       const notAcceptedCount = uniqueSubs.filter(s => s.accepted !== true).length;
       
+      // 필터링 상세 분석
+      const deletedCount = uniqueSubs.filter(s => s.isDeleted === true).length;
+      const testCount = uniqueSubs.filter(s => s.isTest === true).length;
+      const notAcceptedFiltered = uniqueSubs.filter(s => s.accepted !== true).length;
+      
       console.log('[DEBUG][settlement-filtered]', {
         originalCount: submissions.length,
         uniqueCount: uniqueSubs.length,
@@ -4580,7 +4585,14 @@ ${r.optPlan}
         acceptedCount: acceptedCount,
         notAcceptedCount: notAcceptedCount,
         excludedCount: uniqueSubs.length - subs.length,
-        duplicatesRemoved: submissions.length - uniqueSubs.length
+        duplicatesRemoved: submissions.length - uniqueSubs.length,
+        deletedCount: deletedCount,
+        testCount: testCount,
+        notAcceptedFiltered: notAcceptedFiltered,
+        // 필터링된 데이터의 총 진행건수
+        filteredTotalCount: subs.reduce((sum, s) => sum + (parseInt(s.totalCnt) || 0), 0),
+        // 제외된 데이터의 총 진행건수
+        excludedTotalCount: uniqueSubs.filter(s => !subs.includes(s)).reduce((sum, s) => sum + (parseInt(s.totalCnt) || 0), 0)
       });
       
       // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
@@ -4646,6 +4658,12 @@ ${r.optPlan}
       
       // 3단계: 수수료 계산
       let totalCommission = 0;
+      let totalCount = 0;
+      let premiumCount = 0;
+      let regularCount = 0;
+      let premiumCommission = 0;
+      let regularCommission = 0;
+      
       for (const sub of sortedSubs) {
         const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
         const normalizedVendorId = sub.vendorId ? String(sub.vendorId).trim() : '';
@@ -4750,7 +4768,32 @@ ${r.optPlan}
         }
         
         totalCommission += commission;
+        totalCount += (parseInt(sub.totalCnt) || 0);
+        
+        if (vType === '우수') {
+          premiumCount += (parseInt(sub.totalCnt) || 0);
+          premiumCommission += commission;
+        } else {
+          regularCount += (parseInt(sub.totalCnt) || 0);
+          regularCommission += commission;
+        }
       }
+      
+      // 상세 계산 결과 로그
+      console.log('[DEBUG][settlement-detailed]', {
+        totalSubmissions: sortedSubs.length,
+        totalCount: totalCount,
+        premiumCount: premiumCount,
+        premiumCommission: premiumCommission,
+        regularCount: regularCount,
+        regularCommission: regularCommission,
+        totalCommission: totalCommission,
+        expectedPremium: premiumCount * 1000,
+        expectedRegular: regularCount * 1500,
+        premiumMatch: premiumCommission === (premiumCount * 1000),
+        regularMatch: regularCommission === (regularCount * 1500)
+      });
+      
       // 출금액 필터링: vendorId가 null이면 모든 출금액 포함, 아니면 해당 vendor의 출금액만 포함
       const relevantWithdrawals = (withdrawals || []).filter(w => {
         // status가 'completed'인 것만 포함
