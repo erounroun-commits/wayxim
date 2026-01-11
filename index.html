@@ -4538,7 +4538,7 @@ ${r.optPlan}
     }
 
     async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
-      // 출금가능액 계산: 접수된 submission만 포함 (accepted === true)
+      // 출금가능액 계산: 접수 완료 여부와 관계없이 모든 submission 포함
       // 중요: 중복 제거를 위해 no 기준으로 유일한 submission만 포함
       console.log('[DEBUG][settlement-start]', {
         totalSubmissions: submissions.length,
@@ -4566,17 +4566,18 @@ ${r.optPlan}
       }
       const uniqueSubs = Array.from(subsByNo.values());
       
-      // 출금 가능액은 접수된 데이터만 포함해야 함
-      const subs = getSubsForVendor(uniqueSubs, vendorId, true);
+      // 출금 가능액은 접수 완료 여부와 관계없이 모든 데이터 포함
+      const subs = getSubsForVendor(uniqueSubs, vendorId, false);
       
-      // 접수된 데이터와 미접수 데이터 분리
+      // 접수된 데이터와 미접수 데이터 분리 (통계용)
       const acceptedCount = subs.filter(s => s.accepted === true).length;
-      const notAcceptedCount = uniqueSubs.filter(s => s.accepted !== true).length;
+      const notAcceptedCount = subs.filter(s => s.accepted !== true).length;
       
       // 필터링 상세 분석
       const deletedCount = uniqueSubs.filter(s => s.isDeleted === true).length;
       const testCount = uniqueSubs.filter(s => s.isTest === true).length;
       const notAcceptedFiltered = uniqueSubs.filter(s => s.accepted !== true).length;
+      const excludedSubs = uniqueSubs.filter(s => !subs.includes(s));
       
       console.log('[DEBUG][settlement-filtered]', {
         originalCount: submissions.length,
@@ -4592,7 +4593,17 @@ ${r.optPlan}
         // 필터링된 데이터의 총 진행건수
         filteredTotalCount: subs.reduce((sum, s) => sum + (parseInt(s.totalCnt) || 0), 0),
         // 제외된 데이터의 총 진행건수
-        excludedTotalCount: uniqueSubs.filter(s => !subs.includes(s)).reduce((sum, s) => sum + (parseInt(s.totalCnt) || 0), 0)
+        excludedTotalCount: excludedSubs.reduce((sum, s) => sum + (parseInt(s.totalCnt) || 0), 0),
+        // 제외된 데이터 상세 정보
+        excludedDetails: excludedSubs.map(s => ({
+          no: s.no,
+          companyCode: s.companyCode,
+          companyName: s.companyName,
+          totalCnt: s.totalCnt,
+          accepted: s.accepted,
+          isDeleted: s.isDeleted,
+          isTest: s.isTest
+        }))
       });
       
       // 제출 시점 기준 vendorType 계산을 위해 모든 submission 필요
@@ -4791,7 +4802,15 @@ ${r.optPlan}
         expectedPremium: premiumCount * 1000,
         expectedRegular: regularCount * 1500,
         premiumMatch: premiumCommission === (premiumCount * 1000),
-        regularMatch: regularCommission === (regularCount * 1500)
+        regularMatch: regularCommission === (regularCount * 1500),
+        // 사용자 계산 결과와 비교
+        userExpectedTotalCount: 8485,
+        userExpectedPremiumCount: 1659,
+        userExpectedRegularCount: 6826,
+        userExpectedTotalCommission: 11980000,
+        totalCountDifference: totalCount - 8485,
+        regularCountDifference: regularCount - 6826,
+        commissionDifference: totalCommission - 11980000
       });
       
       // 출금액 필터링: vendorId가 null이면 모든 출금액 포함, 아니면 해당 vendor의 출금액만 포함
