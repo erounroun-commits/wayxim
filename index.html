@@ -2031,9 +2031,9 @@
         console.error('❌ 알림 버튼을 찾을 수 없음');
       }
       
-      // 읽지 않은 알림만 제거 (읽음 처리된 알림은 유지)
-      if (window.clearUnreadNotifications) {
-        window.clearUnreadNotifications();
+      // 알림 목록·화면 푸시 전부 초기화 (과거 알림 재표시 방지)
+      if (window.resetNotificationsCompletely) {
+        window.resetNotificationsCompletely();
       }
       
       // 알림 UI 강제 업데이트
@@ -2073,75 +2073,7 @@
             console.log('📡 관리자 로그인 후 실시간 데이터:', snapshot.docs.length, '건');
             if (snapshot.docs.length > 0) {
               const allSubmissions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-              const previousSubmissions = JSON.parse(localStorage.getItem("wp_submissions") || "[]");
-              
-              // 정확한 신규 요청건 찾기 (이전 데이터와 비교)
-              const newRequests = allSubmissions.filter(newSub => 
-                !previousSubmissions.some(prevSub => prevSub.id === newSub.id)
-              );
-              
-              console.log('🆕 관리자 로그인 후 신규 요청건 개수:', newRequests.length);
-              
-              if (newRequests.length > 0) {
-                // 가장 최신 신규 요청건 찾기 (submittedAt 기준)
-                const latestNewRequest = newRequests.reduce((latest, current) => {
-                  return current.submittedAt > latest.submittedAt ? current : latest;
-                });
-                
-                if (latestNewRequest && window.showPushNotification) {
-                  // 읽음 처리된 알림 확인: 요청건 ID로 먼저 확인 (가장 정확)
-                  let readNotification = notifications.find(n => 
-                    n.submissionId === latestNewRequest.id &&
-                    (n.read === true || n.read === 'true')
-                  );
-                  
-                  // 요청건 ID로 찾지 못한 경우, 시간으로 확인
-                  if (!readNotification) {
-                    readNotification = notifications.find(n => 
-                      n.title === '신규 작업요청건이 있습니다' &&
-                      n.timestamp && 
-                      Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 && // 5초 이내 동일 시간
-                      (n.read === true || n.read === 'true') // 읽음 처리된 알림
-                    );
-                  }
-                  
-                  if (readNotification) {
-                    console.log('🚫 관리자 로그인 후 읽음 처리된 알림 재생성 방지 - 이미 읽음 처리된 알림:', readNotification.id, '요청건 ID:', latestNewRequest.id);
-                    return;
-                  }
-                  
-                  // 중복 알림 방지: 요청건 ID로 먼저 확인
-                  let existingNotification = notifications.find(n => 
-                    n.submissionId === latestNewRequest.id
-                  );
-                  
-                  // 요청건 ID로 찾지 못한 경우, 시간으로 확인
-                  if (!existingNotification) {
-                    existingNotification = notifications.find(n => 
-                    n.timestamp && Math.abs(n.timestamp - latestNewRequest.submittedAt) < 5000 // 5초 이내 동일 시간
-                  );
-                  }
-                  
-                  if (existingNotification) {
-                    console.log('🚫 관리자 로그인 후 중복 알림 방지 - 이미 존재하는 알림:', existingNotification.id, '요청건 ID:', latestNewRequest.id);
-                    return;
-                  }
-                  
-                  const notificationTitle = '신규 작업요청건이 있습니다';
-                  const notificationContent = '신규 작업요청서가 접수되었습니다';
-                  
-                  console.log('🔔 관리자 로그인 후 푸시 알림:', notificationContent);
-                  console.log('📅 요청 시간:', new Date(latestNewRequest.submittedAt).toLocaleString());
-                  window.showPushNotification(notificationTitle, notificationContent);
-                  
-                  if (window.addNotification) {
-                    window.addNotification(notificationTitle, notificationContent, 'success', latestNewRequest.submittedAt, latestNewRequest.id);
-                  }
-                }
-              } else {
-                console.log('📝 관리자 로그인 후 신규 요청건 없음');
-              }
-              
+              // 캐시만 동기화 (알림은 신규 접수·출금신청 경로에서만 표시)
               localStorage.setItem("wp_submissions", JSON.stringify(allSubmissions));
             }
           });
@@ -3082,6 +3014,11 @@ ${r.optPlan}
             return;
           }
           
+          sessionStorage.setItem('wp_bulk_accept_mute', '1');
+          if (window.dismissAllPushNotifications) {
+            window.dismissAllPushNotifications();
+          }
+          
           try {
             // 신규요청건만 필터링
             const newRequests = rows.filter(r => !r.accepted);
@@ -3171,6 +3108,8 @@ ${r.optPlan}
           } catch (error) {
             console.error('❌ 모든 요청건 접수처리 중 오류:', error);
             alert('접수처리 중 오류가 발생했습니다: ' + error.message);
+          } finally {
+            sessionStorage.removeItem('wp_bulk_accept_mute');
           }
         });
       }
@@ -5479,7 +5418,7 @@ ${r.optPlan}
         // 알림 표시
         if (sessionStorage.getItem("wp_is_admin") === "1") {
           const notificationTitle = '출금신청이 등록되었습니다';
-          const notificationContent = `${amount.toLocaleString()}원 출금신청이 등록되었습니다.`;
+          const notificationContent = `${bank} / ${account} — ${amount.toLocaleString()}원 출금신청이 등록되었습니다.`;
           
           if (window.showPushNotification) {
             window.showPushNotification(notificationTitle, notificationContent);
@@ -8485,8 +8424,8 @@ ${r.optPlan}
               }
             }
             
-            // 관리자 화면에서만 푸시 알림 표시 (정말 신규인 경우만)
-            if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
+            // 관리자 화면에서만 푸시 알림 표시 (정말 신규인 경우만, 일괄 접수 중 제외)
+            if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1" && sessionStorage.getItem('wp_bulk_accept_mute') !== '1') {
               console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
               console.log('📊 신규 요청건 상세:', newRequests.map(r => ({ id: r.id, companyName: r.companyName, submittedAt: r.submittedAt })));
               
@@ -8645,10 +8584,7 @@ ${r.optPlan}
           userMessage = '연결 문제가 지속되고 있습니다. 페이지를 새로고침해주세요.';
         }
         
-        // 사용자에게 오류 알림 (관리자만)
-        if (sessionStorage.getItem("wp_is_admin") === "1") {
-          showPushNotification('오류 발생', userMessage);
-        }
+        // Firebase 오류는 푸시 알림으로 표시하지 않음 (신규 요청·출금신청 알림만 사용)
         
         return null;
       }
@@ -8805,8 +8741,8 @@ ${r.optPlan}
               }
             }
             
-            // 관리자 화면에서만 푸시 알림 표시
-            if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1") {
+            // 관리자 화면에서만 푸시 알림 표시 (일괄 접수 중 제외)
+            if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1" && sessionStorage.getItem('wp_bulk_accept_mute') !== '1') {
               console.log('🔔 Firebase 모듈 내 푸시 알림 표시 시도');
               
               const latestNewRequest = newRequests.reduce((latest, current) => {
@@ -8994,11 +8930,30 @@ ${r.optPlan}
       console.log('✅ 읽지 않은 알림 삭제 완료, 읽음 처리된 알림 유지:', notifications.length, '개');
     }
     
-    // 관리자 로그인 시 읽지 않은 알림만 삭제 (읽음 처리된 알림은 유지)
-    if (sessionStorage.getItem("wp_is_admin") === "1") {
-      console.log('🔔 관리자 로그인 감지 - 읽지 않은 알림만 삭제');
-      clearUnreadNotifications();
+    function dismissAllPushNotifications() {
+      document.querySelectorAll('.push-notification').forEach(el => el.remove());
     }
+    
+    function resetNotificationsCompletely() {
+      notifications = [];
+      notificationId = 0;
+      localStorage.setItem('wp_notifications', '[]');
+      localStorage.setItem('wp_notification_id', '0');
+      dismissAllPushNotifications();
+      updateNotificationUI();
+      console.log('🗑️ 알림 목록·푸시 배너 전체 초기화');
+    }
+    
+    window.dismissAllPushNotifications = dismissAllPushNotifications;
+    window.resetNotificationsCompletely = resetNotificationsCompletely;
+    
+    // 관리자일 때 저장된 알림·화면 푸시 전부 초기화 (과거 알림 누적 방지)
+    if (sessionStorage.getItem("wp_is_admin") === "1") {
+      console.log('🔔 관리자 세션 - 알림 전체 초기화');
+      resetNotificationsCompletely();
+    }
+    
+    const ALLOWED_NOTIFICATION_TITLES = new Set(['신규 작업요청건이 있습니다', '출금신청이 등록되었습니다']);
     
     function addNotification(title, content, type = 'info', actualTimestamp = null, submissionId = null) {
       console.log('📝 새 알림 추가:', title, content, type);
@@ -9006,6 +8961,16 @@ ${r.optPlan}
       // 관리자 화면이 아니면 알림 추가 안함
       if (sessionStorage.getItem("wp_is_admin") !== "1") {
         console.log('🚫 관리자 화면이 아님 - 알림 추가 안함');
+        return;
+      }
+      
+      if (!ALLOWED_NOTIFICATION_TITLES.has(title)) {
+        console.log('🚫 허용된 알림 유형이 아님 - 추가 안함:', title);
+        return;
+      }
+      
+      if (title === '신규 작업요청건이 있습니다' && sessionStorage.getItem('wp_bulk_accept_mute') === '1') {
+        console.log('🔕 일괄 접수 처리 중 - 신규 요청 알림 목록에 추가 안함');
         return;
       }
       
@@ -9268,9 +9233,19 @@ ${r.optPlan}
       hideNotificationPopup();
     }
     
-    // 푸시 알림 표시 함수 (중복 방지 강화)
+    // 푸시 알림 표시 함수 (신규 작업요청·출금신청만)
     function showPushNotification(title, content) {
       console.log('🔔 푸시 알림 표시 시작:', title, content);
+      
+      if (!ALLOWED_NOTIFICATION_TITLES.has(title)) {
+        console.log('🚫 푸시 알림 허용 목록 외 - 표시 안함:', title);
+        return;
+      }
+      
+      if (title === '신규 작업요청건이 있습니다' && sessionStorage.getItem('wp_bulk_accept_mute') === '1') {
+        console.log('🔕 일괄 접수 처리 중 - 신규 요청 푸시 생략');
+        return;
+      }
       
       try {
         // 기존 푸시 알림이 있다면 제거 (더 강력하게)
