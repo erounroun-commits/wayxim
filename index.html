@@ -1003,6 +1003,9 @@
   <footer class="footer"> © 2025 WAY PROJECT X 임반장. All Rights Reserved. </footer>
 
   <script>
+    /** false: 관리자 알림(상단 벨, 화면 푸시, 알림 목록, 알림음) 비활성화 */
+    window.WP_NOTIFICATIONS_ENABLED = false;
+
     const ADMIN_PASS = "vendor0830";
     const DATA_MANAGEMENT_PASS = "qwasqwas12";
     const adminWrap = document.getElementById("adminWrap");
@@ -2018,27 +2021,32 @@
         adminTrigger.setAttribute('aria-label', '관리자로 접속중');
       }
       
-      // 알림 버튼 표시
-      const notificationBtn = document.getElementById('notificationBtn');
-      if (notificationBtn) {
-        notificationBtn.style.display = 'block';
+      // 알림 버튼·알림 시스템 (WP_NOTIFICATIONS_ENABLED 가 true 일 때만)
+      if (window.WP_NOTIFICATIONS_ENABLED) {
+        const notificationBtn = document.getElementById('notificationBtn');
+        if (notificationBtn) {
+          notificationBtn.style.display = 'block';
+          if (window.updateNotificationUI) {
+            window.updateNotificationUI();
+          } else {
+            console.log('⚠️ updateNotificationUI 함수가 아직 정의되지 않음');
+          }
+        } else {
+          console.error('❌ 알림 버튼을 찾을 수 없음');
+        }
+        
+        if (window.resetNotificationsCompletely) {
+          window.resetNotificationsCompletely();
+        }
+        
         if (window.updateNotificationUI) {
           window.updateNotificationUI();
-        } else {
-          console.log('⚠️ updateNotificationUI 함수가 아직 정의되지 않음');
         }
       } else {
-        console.error('❌ 알림 버튼을 찾을 수 없음');
-      }
-      
-      // 알림 목록·화면 푸시 전부 초기화 (과거 알림 재표시 방지)
-      if (window.resetNotificationsCompletely) {
-        window.resetNotificationsCompletely();
-      }
-      
-      // 알림 UI 강제 업데이트
-      if (window.updateNotificationUI) {
-        window.updateNotificationUI();
+        const notificationBtn = document.getElementById('notificationBtn');
+        const notificationCount = document.getElementById('notificationCount');
+        if (notificationBtn) notificationBtn.style.display = 'none';
+        if (notificationCount) notificationCount.style.display = 'none';
       }
       
       // 실시간 리스너 재설정 (관리자 로그인 시)
@@ -3236,7 +3244,7 @@ ${r.optPlan}
                       <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1">
                           <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${escapeHtml(r.companyName)}</span>
-                          <span class="text-xs px-2 py-0.5 rounded ${r.accepted ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${r.accepted ? '접수완료' : '신규'}</span>
+                          <span class="text-xs px-2 py-0.5 rounded ${r.settlementStatus === '정산완료' ? 'bg-emerald-100 text-emerald-800' : (r.accepted ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">${r.settlementStatus === '정산완료' ? '정산완료' : (r.accepted ? '접수완료' : '신규')}</span>
                           <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">NO.${r.no}</span>
                         </div>
                         <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${escapeHtml(r.companyCode)}</div>
@@ -4803,6 +4811,46 @@ ${r.optPlan}
       return result;
     }
 
+    async function updateSettlementDailyTable(){
+      const sel = document.getElementById('settleDailyYearMonth');
+      const tbody = document.getElementById('settleDailyTbody');
+      if (!sel || !tbody) return;
+      const yearMonth = sel.value;
+      if (!yearMonth) return;
+      const [yStr, mStr] = yearMonth.split('-');
+      const y = parseInt(yStr, 10);
+      const m = parseInt(mStr, 10);
+      const rows = await loadSubs();
+      const filtered = rows.filter(r => {
+        if (!r.submittedAt) return false;
+        const d = new Date(r.submittedAt);
+        return d.getFullYear() === y && (d.getMonth() + 1) === m;
+      }).sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#6a7a89">해당 월 데이터가 없습니다.</td></tr>';
+        return;
+      }
+      const rowFragments = await Promise.all(filtered.map(async (r) => {
+        const submittedDate = new Date(r.submittedAt);
+        const dayStr = `${submittedDate.getFullYear()}-${pad(submittedDate.getMonth() + 1)}-${pad(submittedDate.getDate())}`;
+        const vendorType = await getVendorTypeAtDate(r.companyCode, submittedDate);
+        const fee = calcCommissionForSubmission(r, vendorType);
+        const depCell = r.depositMatchedAt ? escapeHtml(formatDateTime(r.depositMatchedAt)) : '';
+        return `<tr>`+
+          `<td>${dayStr}</td>`+
+          `<td>${r.no}</td>`+
+          `<td>${escapeHtml(r.companyCode)}</td>`+
+          `<td>${escapeHtml(r.companyName)}</td>`+
+          `<td>${r.totalCnt}</td>`+
+          `<td>${escapeHtml(r.settlementStatus || '')}</td>`+
+          `<td>${depCell}</td>`+
+          `<td>${escapeHtml(r.depositName || '')}</td>`+
+          `<td>${fee.toLocaleString()}원</td>`+
+        `</tr>`;
+      }));
+      tbody.innerHTML = rowFragments.join('');
+    }
+
     async function showSettlementDashboard(){
       showLoading();
       try {
@@ -4812,6 +4860,29 @@ ${r.optPlan}
       
       // 모든 vendor type을 한 번에 계산 (캐시 활용)
       const vendorTypes = await getAllVendorTypes(rows, false);
+
+      const yearMonthSet = new Set();
+      rows.forEach(row => {
+        if (!row.submittedAt) return;
+        const submissionDate = new Date(row.submittedAt);
+        yearMonthSet.add(`${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`);
+      });
+      const yearMonthArray = Array.from(yearMonthSet).sort().reverse();
+      const cur = new Date();
+      const curYM = `${cur.getFullYear()}-${pad(cur.getMonth() + 1)}`;
+      const defaultDailyYM = yearMonthArray.length === 0
+        ? curYM
+        : (yearMonthArray.includes(curYM) ? curYM : yearMonthArray[0]);
+      let dailyYearMonthOptions = '';
+      if (yearMonthArray.length === 0) {
+        dailyYearMonthOptions = `<option value="${curYM}" selected>${String(cur.getFullYear()).slice(-2)}년 ${cur.getMonth() + 1}월</option>`;
+      } else {
+        yearMonthArray.forEach(ym => {
+          const [yy, mm] = ym.split('-');
+          const sel = ym === defaultDailyYM ? 'selected' : '';
+          dailyYearMonthOptions += `<option value="${ym}" ${sel}>${String(yy).slice(-2)}년 ${parseInt(mm, 10)}월</option>`;
+        });
+      }
       
       // Calculate current month statistics
       const currentDate = new Date();
@@ -5141,6 +5212,9 @@ ${r.optPlan}
               <th>구매 키워드</th>
               <th>총 진행건수</th>
               <th>접수 시간</th>
+              <th>정산여부</th>
+              <th>입금일자</th>
+              <th>입금명</th>
               <th>건당 이용 단가</th>
               <th>건당 제휴 수수료</th>
               <th>총 이용 단가</th>
@@ -5724,6 +5798,7 @@ ${r.optPlan}
           <thead><tr>
             <th>NO</th><th>제출시간</th><th>업체코드</th><th>VENDOR 유형</th><th>업체명</th><th>사업자번호</th>
             <th>카톡/번호</th><th>구매 키워드</th><th>총 진행건수</th><th>접수 시간</th>
+            <th>정산여부</th><th>입금일자</th><th>입금명</th>
             <th>건당 이용 단가</th><th>건당 제휴 수수료</th><th>총 이용 단가</th><th>총 제휴 수수료</th>
           </tr></thead>
           <tbody id="wBody"></tbody>
@@ -5997,7 +6072,7 @@ ${r.optPlan}
           let sumU=0,sumC=0;
           
           if(fil.length===0){ 
-            htmlRows = '<tr><td colspan="14" style="text-align:center;color:#6a7a89">해당 기간 데이터가 없습니다.</td></tr>'; 
+            htmlRows = '<tr><td colspan="17" style="text-align:center;color:#6a7a89">해당 기간 데이터가 없습니다.</td></tr>'; 
             body.innerHTML = htmlRows;
             foot.innerHTML='';
             if (mobileList) {
@@ -6022,6 +6097,7 @@ ${r.optPlan}
                 `<td>${vt}</td><td>${escapeHtml(r.companyName)}</td><td>${escapeHtml(r.bizNo)}</td>`+
                 `<td>${escapeHtml(r.contact)}</td><td>${escapeHtml(r.keywords)}</td>`+
                 `<td>${r.totalCnt}</td><td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):''}</td>`+
+                `<td>${escapeHtml(r.settlementStatus || '')}</td><td>${r.depositMatchedAt?formatCompactDateTime(r.depositMatchedAt):''}</td><td>${escapeHtml(r.depositName || '')}</td>`+
                 `<td>${vt==='우수'?'2,500원':'3,000원'}</td><td>${vt==='우수'?'1,000원':'1,500원'}</td>`+
                 `<td>${u.toLocaleString()}원</td><td>${c.toLocaleString()}원</td>`+
               `</tr>`;
@@ -6070,6 +6146,9 @@ ${r.optPlan}
                         <div class="col-span-2"><span class="text-neutral-500">구매 키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
                         <div><span class="text-neutral-500">총 진행건수:</span> <span class="font-semibold">${r.totalCnt}</span></div>
                         <div><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt ? formatCompactDateTime(r.acceptedAt).replace(/<[^>]*>/g, '') : '-'}</span></div>
+                        <div><span class="text-neutral-500">정산여부:</span> <span class="font-semibold">${escapeHtml(r.settlementStatus || '-')}</span></div>
+                        <div><span class="text-neutral-500">입금일자:</span> <span class="font-semibold">${r.depositMatchedAt ? formatCompactDateTime(r.depositMatchedAt).replace(/<[^>]*>/g, '') : '-'}</span></div>
+                        <div class="col-span-2"><span class="text-neutral-500">입금명:</span> <span class="font-semibold">${escapeHtml(r.depositName || '-')}</span></div>
                         <div><span class="text-neutral-500">건당 이용 단가:</span> <span class="font-semibold">${vt==='우수'?'2,500원':'3,000원'}</span></div>
                         <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vt==='우수'?'1,000원':'1,500원'}</span></div>
                         <div><span class="text-neutral-500">총 이용 단가:</span> <span class="font-semibold">${u.toLocaleString()}원</span></div>
@@ -6087,7 +6166,7 @@ ${r.optPlan}
               mobileList.innerHTML = mobileHtml;
             }
             if(fil.length>0){ 
-              foot.innerHTML = `<tr style="background:#f6f9fc;font-weight:800;"><td colspan="12" style="text-align:center;">SUM</td><td>${sumU.toLocaleString()}원</td><td>${sumC.toLocaleString()}원</td></tr>`; 
+              foot.innerHTML = `<tr style="background:#f6f9fc;font-weight:800;"><td colspan="15" style="text-align:center;">SUM</td><td>${sumU.toLocaleString()}원</td><td>${sumC.toLocaleString()}원</td></tr>`; 
             } else { 
               foot.innerHTML=''; 
             }
@@ -6287,7 +6366,7 @@ ${r.optPlan}
               const vt = await getVendorTypeAtDate(r.companyCode, submittedDate); 
               const u = r.totalCnt*(vt==='우수'?2500:3000); 
               const c = calcCommissionForSubmission(r, vt);
-              return { 'NO':r.no,'제출시간':formatDateTime(r.submittedAt),'업체코드':r.companyCode,'VENDOR 유형':vt,'업체명':r.companyName,'사업자번호':r.bizNo,'카톡/번호':r.contact,'구매 키워드':r.keywords,'총 진행건수':r.totalCnt,'접수 시간':r.acceptedAt?formatDateTime(r.acceptedAt):'','건당 이용 단가': vt==='우수'?'2,500원':'3,000원','건당 제휴 수수료': vt==='우수'?'1,000원':'1,500원','총 이용 단가':u,'총 제휴 수수료':c }; 
+              return { 'NO':r.no,'제출시간':formatDateTime(r.submittedAt),'업체코드':r.companyCode,'VENDOR 유형':vt,'업체명':r.companyName,'사업자번호':r.bizNo,'카톡/번호':r.contact,'구매 키워드':r.keywords,'총 진행건수':r.totalCnt,'접수 시간':r.acceptedAt?formatDateTime(r.acceptedAt):'','정산여부':r.settlementStatus||'','입금일자':r.depositMatchedAt?formatDateTime(r.depositMatchedAt):'','입금명':r.depositName||'','건당 이용 단가': vt==='우수'?'2,500원':'3,000원','건당 제휴 수수료': vt==='우수'?'1,000원':'1,500원','총 이용 단가':u,'총 제휴 수수료':c }; 
             }));
             const headers = Object.keys(data[0]);
             const csv = [headers.join(','), ...data.map(row=> headers.map(h=>`"${row[h]}"`).join(','))].join('\n');
@@ -6437,7 +6516,7 @@ ${r.optPlan}
       let sumCommissionFee = 0;
       
       if(selectedMonthRequests.length === 0){
-        tableHtml = '<tr><td colspan="14" style="text-align:center;color:#6a7a89">해당 월의 데이터가 없습니다.</td></tr>';
+        tableHtml = '<tr><td colspan="17" style="text-align:center;color:#6a7a89">해당 월의 데이터가 없습니다.</td></tr>';
         if (mobileList) {
           mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">해당 월의 데이터가 없습니다.</div>';
         }
@@ -6463,6 +6542,9 @@ ${r.optPlan}
             `<td>${escapeHtml(r.keywords)}</td>`+
             `<td>${r.totalCnt}</td>`+
             `<td>${r.acceptedAt ? formatCompactDateTime(r.acceptedAt) : ''}</td>`+
+            `<td>${escapeHtml(r.settlementStatus || '')}</td>`+
+            `<td>${r.depositMatchedAt ? formatCompactDateTime(r.depositMatchedAt) : ''}</td>`+
+            `<td>${escapeHtml(r.depositName || '')}</td>`+
             `<td>${vendorType === '우수' ? '2,500원' : '3,000원'}</td>`+
             `<td>${vendorType === '우수' ? '1,000원' : '1,500원'}</td>`+
             `<td>${usageFee.toLocaleString()}원</td>`+
@@ -6511,6 +6593,9 @@ ${r.optPlan}
                     <div class="col-span-2"><span class="text-neutral-500">구매 키워드:</span> <span class="font-semibold">${escapeHtml(r.keywords)}</span></div>
                     <div><span class="text-neutral-500">총 진행건수:</span> <span class="font-semibold">${r.totalCnt}</span></div>
                     <div><span class="text-neutral-500">접수 시간:</span> <span class="font-semibold">${r.acceptedAt ? formatCompactDateTime(r.acceptedAt).replace(/<[^>]*>/g, '') : '-'}</span></div>
+                    <div><span class="text-neutral-500">정산여부:</span> <span class="font-semibold">${escapeHtml(r.settlementStatus || '-')}</span></div>
+                    <div><span class="text-neutral-500">입금일자:</span> <span class="font-semibold">${r.depositMatchedAt ? formatCompactDateTime(r.depositMatchedAt).replace(/<[^>]*>/g, '') : '-'}</span></div>
+                    <div class="col-span-2"><span class="text-neutral-500">입금명:</span> <span class="font-semibold">${escapeHtml(r.depositName || '-')}</span></div>
                     <div><span class="text-neutral-500">건당 이용 단가:</span> <span class="font-semibold">${vendorType === '우수' ? '2,500원' : '3,000원'}</span></div>
                     <div><span class="text-neutral-500">건당 제휴 수수료:</span> <span class="font-semibold">${vendorType === '우수' ? '1,000원' : '1,500원'}</span></div>
                     <div><span class="text-neutral-500">총 이용 단가:</span> <span class="font-semibold">${usageFee.toLocaleString()}원</span></div>
@@ -6532,7 +6617,7 @@ ${r.optPlan}
       // SUM row
       if(selectedMonthRequests.length > 0){
         tfoot.innerHTML = `<tr style="background:#f6f9fc;font-weight:800;">
-          <td colspan="12" style="text-align:center;">SUM</td>
+          <td colspan="15" style="text-align:center;">SUM</td>
           <td>${sumUsageFee.toLocaleString()}원</td>
           <td>${sumCommissionFee.toLocaleString()}원</td>
         </tr>`;
@@ -6574,6 +6659,9 @@ ${r.optPlan}
           '구매 키워드': r.keywords,
           '총 진행건수': r.totalCnt,
           '접수 시간': r.acceptedAt ? formatDateTime(r.acceptedAt) : '',
+          '정산여부': r.settlementStatus || '',
+          '입금일자': r.depositMatchedAt ? formatDateTime(r.depositMatchedAt) : '',
+          '입금명': r.depositName || '',
           '건당 이용 단가': vendorType === '우수' ? '2,500원' : '3,000원',
           '건당 제휴 수수료': vendorType === '우수' ? '1,000원' : '1,500원',
           '총 이용 단가': usageFee,
@@ -6596,6 +6684,9 @@ ${r.optPlan}
         '구매 키워드': '',
         '총 진행건수': '',
         '접수 시간': '',
+        '정산여부': '',
+        '입금일자': '',
+        '입금명': '',
         '건당 이용 단가': '',
         '건당 제휴 수수료': '',
         '총 이용 단가': sumUsageFee,
@@ -6869,7 +6960,7 @@ ${r.optPlan}
           <h3 style="margin:0 0 12px;color:var(--brand);font-size:16px;">데이터 생성/정정하기</h3>
           <p style="margin:0 0 12px;color:#6a7a89;font-size:14px;">수정된 CSV를 업로드하면 신규/변경 데이터만 반영됩니다. 중복은 무시됩니다.</p>
           <input id="dataUpload" type="file" accept=".csv,.xlsx,.xls" style="margin:6px 0 12px;" />
-          <div class="hint">지원 파일: CSV, Excel(.xlsx, .xls)<br/>헤더 예시: 번호,제출시간,업체코드,업체명,사업자번호,카톡/번호,제품URL,구매키워드,총진행건수,일진행건수,옵션계획,제품배송,입금대행,택배대행,작업비계산서,상품금액계산서,접수상태,접수시간</div>
+          <div class="hint">지원 파일: CSV, Excel(.xlsx, .xls)<br/>헤더 예시: 번호,제출시간,업체코드,업체명,사업자번호,카톡/번호,제품URL,구매키워드,총진행건수,일진행건수,옵션계획,제품배송,입금대행,택배대행,작업비계산서,상품금액계산서,접수상태,접수시간,정산여부,입금일자,입금명</div>
           <div class="right" style="margin-top:12px;"><button class="btn" id="applyDataUpload" type="button" disabled style="opacity:0.5;">업데이트 적용</button></div>
         </div>
         
@@ -7031,7 +7122,10 @@ ${r.optPlan}
         '작업비계산서': r.billWork,
         '상품금액계산서': r.billProd,
         '접수상태': r.accepted ? 'Y' : 'N',
-        '접수시간': r.acceptedAt ? formatDateTime(r.acceptedAt) : ''
+        '접수시간': r.acceptedAt ? formatDateTime(r.acceptedAt) : '',
+        '정산여부': r.settlementStatus || '',
+        '입금일자': r.depositMatchedAt ? formatDateTime(r.depositMatchedAt) : '',
+        '입금명': r.depositName || ''
       }));
       
       // Convert to CSV
@@ -7388,6 +7482,27 @@ ${r.optPlan}
       }
     }
 
+    function normalizeSettlementStatus(rawValue, fallbackValue = '') {
+      const value = String(rawValue ?? '').trim();
+      if (!value) return String(fallbackValue ?? '').trim();
+      const normalized = value.replace(/\s+/g, '').toUpperCase();
+      if (normalized === 'Y' || normalized === 'YES' || normalized === 'TRUE' || normalized === '완료' || normalized === '정산완료') {
+        return '정산완료';
+      }
+      if (normalized === 'N' || normalized === 'NO' || normalized === 'FALSE' || normalized === '미완료' || normalized === '정산대기') {
+        return '정산대기';
+      }
+      return value;
+    }
+
+    function parseFlexibleDate(rawValue) {
+      if (rawValue == null) return null;
+      const value = String(rawValue).trim();
+      if (!value) return null;
+      const ts = Date.parse(value.replace(/\./g, '-').replace(/\//g, '-'));
+      return isNaN(ts) ? null : ts;
+    }
+
     // Excel 파일 파싱 함수
     function parseExcelFile(file) {
       return new Promise((resolve, reject) => {
@@ -7454,6 +7569,12 @@ ${r.optPlan}
                 normalized = '접수상태';
               } else if (normalized.includes('접수') && normalized.includes('시간')) {
                 normalized = '접수시간';
+              } else if (normalized.includes('정산') && normalized.includes('여부')) {
+                normalized = '정산여부';
+              } else if (normalized.includes('입금') && normalized.includes('일자')) {
+                normalized = '입금일자';
+              } else if (normalized.includes('입금') && normalized.includes('명')) {
+                normalized = '입금명';
               }
               
               return normalized;
@@ -7619,6 +7740,9 @@ ${r.optPlan}
           const parseBool = v=> String(v||'').toUpperCase()==='Y';
           const parseTs = v=> v? Date.parse(v): null;
           const toInt = v=> { const n=parseInt(String(v||'0'),10); return isNaN(n)?0:n; };
+          const settlementStatusFromUpload = normalizeSettlementStatus(obj['정산여부'], rec ? rec.settlementStatus : '');
+          const depositMatchedAtFromUpload = parseFlexibleDate(obj['입금일자']) || (rec ? rec.depositMatchedAt : null);
+          const depositNameFromUpload = (obj['입금명'] || '').trim() || (rec ? rec.depositName : '');
           
           // 중복 데이터 감지 (업체코드, 업체명, 키워드, 총 진행건수, 일 진행건수 기준)
           const companyName = (obj['업체명'] || '').trim();
@@ -7785,9 +7909,19 @@ ${r.optPlan}
             billProd: (obj['상품금액계산서'] || '').trim() || (rec? rec.billProd : ''),
             accepted: obj['접수상태'] != null ? parseBool(obj['접수상태']) : (rec? rec.accepted : false),
             acceptedAt: obj['접수시간'] ? parseTs(obj['접수시간']) : (rec? rec.acceptedAt : null),
+            settlementStatus: settlementStatusFromUpload,
+            depositMatchedAt: depositMatchedAtFromUpload,
+            depositName: depositNameFromUpload,
             // 핵심: 제출 시점의 vendorType을 확정하여 저장
             vendorTypeAtSubmission: vendorTypeAtSubmission
           };
+          
+          if (newRec.settlementStatus === '정산완료') {
+            newRec.accepted = true;
+            if (!newRec.acceptedAt) {
+              newRec.acceptedAt = newRec.depositMatchedAt || Date.now();
+            }
+          }
           
           console.log('📋 매핑된 데이터 상세:', {
             id: newRec.id,
@@ -7832,6 +7966,8 @@ ${r.optPlan}
             // 기존 데이터 업데이트 시 접수 완료 상태 보존
             const preservedAccepted = rec.accepted;
             const preservedAcceptedAt = rec.acceptedAt;
+            const hasAcceptedFieldInUpload = obj['접수상태'] != null || obj['접수시간'] != null;
+            const hasSettlementFieldInUpload = obj['정산여부'] != null || obj['입금일자'] != null || obj['입금명'] != null;
             
             console.log('🔄 기존 데이터 업데이트 - 접수 상태 보존:', {
               기존번호: rec.no,
@@ -7842,9 +7978,11 @@ ${r.optPlan}
             // 데이터 업데이트
             Object.assign(rec, newRec);
             
-            // 접수 완료 상태 복원
-            rec.accepted = preservedAccepted;
-            rec.acceptedAt = preservedAcceptedAt;
+            // 업로드 파일에 접수/정산 컬럼이 없는 경우에만 접수 완료 상태 복원
+            if (!hasAcceptedFieldInUpload && !hasSettlementFieldInUpload) {
+              rec.accepted = preservedAccepted;
+              rec.acceptedAt = preservedAcceptedAt;
+            }
             
             console.log('✅ 접수 상태 복원 완료:', {
               번호: rec.no,
@@ -8424,8 +8562,8 @@ ${r.optPlan}
               }
             }
             
-            // 관리자 화면에서만 푸시 알림 표시 (정말 신규인 경우만, 일괄 접수 중 제외)
-            if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1" && sessionStorage.getItem('wp_bulk_accept_mute') !== '1') {
+            // 관리자 화면에서만 푸시 알림 표시 (WP_NOTIFICATIONS_ENABLED 및 일괄 접수 중 제외)
+            if (window.WP_NOTIFICATIONS_ENABLED && newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1" && sessionStorage.getItem('wp_bulk_accept_mute') !== '1') {
               console.log('🔔 실시간 리스너에서 푸시 알림 표시 시도');
               console.log('📊 신규 요청건 상세:', newRequests.map(r => ({ id: r.id, companyName: r.companyName, submittedAt: r.submittedAt })));
               
@@ -8741,8 +8879,8 @@ ${r.optPlan}
               }
             }
             
-            // 관리자 화면에서만 푸시 알림 표시 (일괄 접수 중 제외)
-            if (newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1" && sessionStorage.getItem('wp_bulk_accept_mute') !== '1') {
+            // 관리자 화면에서만 푸시 알림 표시 (WP_NOTIFICATIONS_ENABLED 및 일괄 접수 중 제외)
+            if (window.WP_NOTIFICATIONS_ENABLED && newRequests.length > 0 && sessionStorage.getItem("wp_is_admin") === "1" && sessionStorage.getItem('wp_bulk_accept_mute') !== '1') {
               console.log('🔔 Firebase 모듈 내 푸시 알림 표시 시도');
               
               const latestNewRequest = newRequests.reduce((latest, current) => {
@@ -8947,8 +9085,8 @@ ${r.optPlan}
     window.dismissAllPushNotifications = dismissAllPushNotifications;
     window.resetNotificationsCompletely = resetNotificationsCompletely;
     
-    // 관리자일 때 저장된 알림·화면 푸시 전부 초기화 (과거 알림 누적 방지)
-    if (sessionStorage.getItem("wp_is_admin") === "1") {
+    // 관리자이고 알림 기능이 켜져 있을 때만 저장 알림·푸시 초기화
+    if (window.WP_NOTIFICATIONS_ENABLED && sessionStorage.getItem("wp_is_admin") === "1") {
       console.log('🔔 관리자 세션 - 알림 전체 초기화');
       resetNotificationsCompletely();
     }
@@ -8956,6 +9094,7 @@ ${r.optPlan}
     const ALLOWED_NOTIFICATION_TITLES = new Set(['신규 작업요청건이 있습니다', '출금신청이 등록되었습니다']);
     
     function addNotification(title, content, type = 'info', actualTimestamp = null, submissionId = null) {
+      if (!window.WP_NOTIFICATIONS_ENABLED) return;
       console.log('📝 새 알림 추가:', title, content, type);
       
       // 관리자 화면이 아니면 알림 추가 안함
@@ -9060,6 +9199,14 @@ ${r.optPlan}
     }
     
     function updateNotificationUI() {
+      const notificationBtn = document.getElementById('notificationBtn');
+      const notificationCount = document.getElementById('notificationCount');
+      if (!window.WP_NOTIFICATIONS_ENABLED) {
+        if (notificationBtn) notificationBtn.style.display = 'none';
+        if (notificationCount) notificationCount.style.display = 'none';
+        return;
+      }
+
       console.log('🔄 알림 UI 업데이트 시작');
       
       // 관리자 화면이 아니면 알림 UI 업데이트 안함
@@ -9074,9 +9221,6 @@ ${r.optPlan}
         ...n,
         read: n.read === true || n.read === 'true'
       }));
-      
-      const notificationBtn = document.getElementById('notificationBtn');
-      const notificationCount = document.getElementById('notificationCount');
       
       console.log('📊 알림 버튼:', notificationBtn);
       console.log('📊 알림 카운트:', notificationCount);
@@ -9235,6 +9379,7 @@ ${r.optPlan}
     
     // 푸시 알림 표시 함수 (신규 작업요청·출금신청만)
     function showPushNotification(title, content) {
+      if (!window.WP_NOTIFICATIONS_ENABLED) return;
       console.log('🔔 푸시 알림 표시 시작:', title, content);
       
       if (!ALLOWED_NOTIFICATION_TITLES.has(title)) {
@@ -9349,6 +9494,11 @@ ${r.optPlan}
     window.addSubmissionNotification = addSubmissionNotification;
     window.showPushNotification = showPushNotification;
     window.setupRealtimeListener = setupRealtimeListener;
+
+    if (!window.WP_NOTIFICATIONS_ENABLED) {
+      updateNotificationUI();
+      dismissAllPushNotifications();
+    }
     
     // localStorage 초기화 함수 (디버깅용)
     window.clearSubmissionCache = function() {
