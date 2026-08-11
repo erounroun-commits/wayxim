@@ -1521,6 +1521,8 @@
         vendorTypeAtSubmission = '일반';
       }
 
+      const commissionLock = buildCommissionLockFields(productData.totalCnt, vendorTypeAtSubmission);
+
       const rec = {
         id: uniqueId,
         no: displayNo,
@@ -1541,9 +1543,10 @@
         billProd: productData.billProd,
         accepted: false,
         acceptedAt: null,
-        // 핵심: 제출 시점의 vendorType을 확정하여 저장
-        // 이후 벤더 등급이 변경되어도 이 값은 변경되지 않음
-        vendorTypeAtSubmission: vendorTypeAtSubmission
+        // 핵심: 제출 시점의 vendorType/수수료를 확정하여 저장 (이후 변경 금지)
+        vendorTypeAtSubmission: commissionLock.vendorTypeAtSubmission,
+        commissionAtSubmission: commissionLock.commissionAtSubmission,
+        commissionLockedAt: commissionLock.commissionLockedAt
       };
       
       console.log('[DEBUG][submit-product-rec]', {
@@ -4484,6 +4487,110 @@ ${r.optPlan}
       return totalCnt * rate;
     }
 
+    // submission 확정 수수료(원장): 있으면 절대 재계산하지 않음
+    function getLockedCommissionAmount(submission, vendorType = null) {
+      const raw = submission?.commissionAtSubmission;
+      if (raw != null && raw !== '') {
+        const locked = typeof raw === 'number' ? raw : parseFloat(raw);
+        if (Number.isFinite(locked) && locked >= 0) return locked;
+      }
+      const vType = vendorType
+        || (submission?.vendorTypeAtSubmission === '우수' || submission?.vendorTypeAtSubmission === '일반'
+          ? submission.vendorTypeAtSubmission
+          : '일반');
+      return calcCommissionForSubmission(submission, vType);
+    }
+
+    function buildCommissionLockFields(totalCnt, vendorTypeAtSubmission) {
+      const vType = vendorTypeAtSubmission === '우수' ? '우수' : '일반';
+      return {
+        vendorTypeAtSubmission: vType,
+        commissionAtSubmission: calcCommissionForSubmission({ totalCnt }, vType),
+        commissionLockedAt: Date.now()
+      };
+    }
+
+    const SETTLEMENT_BALANCE_STORAGE_KEY = 'wp_settlement_balance_meta';
+    const SETTLEMENT_BALANCE_DOC = 'balance';
+
+    async function loadSettlementBalanceMeta() {
+      try {
+        if (window.db && window.doc && window.getDoc) {
+          const ref = window.doc(window.db, 'settlementMeta', SETTLEMENT_BALANCE_DOC);
+          const snap = await window.getDoc(ref);
+          if (snap.exists()) {
+            const data = snap.data() || {};
+            localStorage.setItem(SETTLEMENT_BALANCE_STORAGE_KEY, JSON.stringify(data));
+            return data;
+          }
+        }
+      } catch (e) {
+        console.warn('[WARN][settlement-balance-load]', e?.message || e);
+      }
+      try {
+        return JSON.parse(localStorage.getItem(SETTLEMENT_BALANCE_STORAGE_KEY) || 'null') || null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function saveSettlementBalanceMeta(meta) {
+      const payload = {
+        ...meta,
+        updatedAt: Date.now()
+      };
+      localStorage.setItem(SETTLEMENT_BALANCE_STORAGE_KEY, JSON.stringify(payload));
+      try {
+        if (window.db && window.doc && window.setDoc) {
+          const ref = window.doc(window.db, 'settlementMeta', SETTLEMENT_BALANCE_DOC);
+          await window.setDoc(ref, payload, { merge: true });
+        }
+      } catch (e) {
+        console.warn('[WARN][settlement-balance-save]', e?.message || e);
+      }
+      return payload;
+    }
+
+    // 원장 잔액 = openingAdjustment(과거 보정, 고정) + 확정수수료합 - 완료출금합
+    // openingAdjustment는 최초 1회만 산출하고 이후 변경하지 않음 → 신규 수수료/출금만 잔액을 움직임
+    async function ensureSettlementBalanceMeta(totalCommissionLocked, totalWithdrawnCompleted, desiredAvailableIfDeficit = 0) {
+      let meta = await loadSettlementBalanceMeta();
+      const raw = totalCommissionLocked - totalWithdrawnCompleted;
+
+      if (!meta || meta.openingAdjustment == null || !Number.isFinite(Number(meta.openingAdjustment))) {
+        let openingAdjustment = 0;
+        if (raw < 0) {
+          const desired = Math.max(0, Number(desiredAvailableIfDeficit) || 0);
+          openingAdjustment = desired - raw; // raw가 음수이므로 보정으로 원하는 잔액까지 맞춤
+        }
+        meta = await saveSettlementBalanceMeta({
+          openingAdjustment,
+          bootstrappedAt: Date.now(),
+          note: raw < 0
+            ? '과거 출금 대비 재집계 수수료 부족분을 고정 보정(openingAdjustment)으로 반영'
+            : '정상 부트스트랩'
+        });
+        console.log('[INFO][settlement-balance-bootstrap]', {
+          totalCommissionLocked,
+          totalWithdrawnCompleted,
+          raw,
+          desiredAvailableIfDeficit,
+          openingAdjustment: meta.openingAdjustment
+        });
+      }
+
+      const openingAdjustment = Number(meta.openingAdjustment) || 0;
+      const balance = Math.max(0, openingAdjustment + totalCommissionLocked - totalWithdrawnCompleted);
+      const synced = await saveSettlementBalanceMeta({
+        ...meta,
+        openingAdjustment,
+        totalCommissionLocked,
+        totalWithdrawnCompleted,
+        balance
+      });
+      return synced;
+    }
+
     // 출금가능액 원장 시각 파싱
     function toSettlementTime(value) {
       if (value == null || value === '') return 0;
@@ -4752,7 +4859,8 @@ ${r.optPlan}
           });
         }
         
-        const commission = calcCommissionForSubmission(sub, vType);
+        const commission = getLockedCommissionAmount(sub, vType);
+        const usedLocked = sub.commissionAtSubmission != null && sub.commissionAtSubmission !== '';
         
         // 디버깅: 특정 업체 코드에 대한 상세 로그
         if (normalizedCompanyCode === 'NK87' || sub.companyName?.includes('테스트')) {
@@ -4763,13 +4871,14 @@ ${r.optPlan}
             vendorType: vType,
             totalCnt: sub.totalCnt,
             commission: commission,
+            usedLockedCommission: usedLocked,
             expectedCommission: vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500
           });
         }
         
         // 성능 최적화: 로깅 최소화 (오류 발생 시에만 로깅)
         const expectedComm = sub.totalCnt ? (vType === '우수' ? sub.totalCnt * 1000 : sub.totalCnt * 1500) : 0;
-        if (commission !== expectedComm) {
+        if (!usedLocked && commission !== expectedComm) {
           console.warn('[WARN][settlement-mismatch]', {
             no: sub.no,
             companyCode: normalizedCompanyCode,
@@ -4785,7 +4894,8 @@ ${r.optPlan}
         totalCount += (parseInt(sub.totalCnt) || 0);
         commissionEntries.push({
           submittedAt: sub.submittedAt,
-          commission
+          commission,
+          usedLocked
         });
         
         if (vType === '우수') {
@@ -4853,17 +4963,15 @@ ${r.optPlan}
         }))
       });
 
-      // 출금가능액 = 총 수수료 - 총 출금액
-      // 불변조건: 절대 0 미만이 될 수 없음
+      // 출금가능액 원장:
+      // balance = openingAdjustment(고정 보정) + 확정 수수료합 - 완료 출금합
+      // 이후에는 신규 확정 수수료(+)/완료 출금(-)만 잔액을 움직인다.
       const rawAvailable = totalCommission - totalWithdrawn;
-      let availableAmount = rawAvailable;
       let ledgerResetAt = 0;
       let postResetCommission = totalCommission;
       let postResetWithdrawn = totalWithdrawn;
-      let ledgerNormalized = false;
+      let desiredAvailableIfDeficit = 0;
 
-      // 현재 재집계 수수료가 완료 출금보다 작아 마이너스가 되면,
-      // 7/24 잔액 소진 출금 시점을 원장 리셋으로 보고 그 이후 발생분만 반영한다.
       if (rawAvailable < 0) {
         ledgerResetAt = resolveSettlementLedgerResetAt(relevantWithdrawals);
         if (ledgerResetAt > 0) {
@@ -4878,19 +4986,103 @@ ${r.optPlan}
             const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
             return sum + amount;
           }, 0);
-          availableAmount = postResetCommission - postResetWithdrawn;
-          ledgerNormalized = true;
+          desiredAvailableIfDeficit = Math.max(0, postResetCommission - postResetWithdrawn);
         }
       }
 
-      // 절대 마이너스 표시/사용 금지
-      availableAmount = Math.max(0, availableAmount);
+      const balanceMeta = await ensureSettlementBalanceMeta(
+        totalCommission,
+        totalWithdrawn,
+        desiredAvailableIfDeficit
+      );
+      const openingAdjustment = Number(balanceMeta.openingAdjustment) || 0;
+      const availableAmount = Math.max(0, openingAdjustment + totalCommission - totalWithdrawn);
+      const ledgerNormalized = openingAdjustment > 0;
+
+      // ===== 7/24 전후 원장 건별 검증 리포트 =====
+      // 목적: "7/24 13시 1,776,000 출금 직전 가능액이 어떻게 쌓였는지"를 현재 데이터로 재계산
+      if (ledgerResetAt > 0) {
+        const preEntries = commissionEntries.filter(e => toSettlementTime(e.submittedAt) <= ledgerResetAt);
+        const postEntries = commissionEntries.filter(e => toSettlementTime(e.submittedAt) > ledgerResetAt);
+        const preCommission = preEntries.reduce((s, e) => s + e.commission, 0);
+        const postCommission = postEntries.reduce((s, e) => s + e.commission, 0);
+
+        const preWithdrawals = relevantWithdrawals.filter(w => {
+          const t = toSettlementTime(w.requestedAt || w.processedAt);
+          return t > 0 && t < ledgerResetAt; // 리셋 출금 자체 제외
+        });
+        const resetWithdrawal = relevantWithdrawals.find(w => {
+          const t = toSettlementTime(w.requestedAt || w.processedAt);
+          return t === ledgerResetAt || (Math.abs(t - ledgerResetAt) < 1000);
+        });
+        const postWithdrawals = relevantWithdrawals.filter(w => {
+          const t = toSettlementTime(w.requestedAt || w.processedAt);
+          return t > ledgerResetAt;
+        });
+
+        const preWithdrawn = preWithdrawals.reduce((s, w) => {
+          const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+          return s + amount;
+        }, 0);
+        const resetAmount = resetWithdrawal
+          ? (typeof resetWithdrawal.amount === 'number' ? resetWithdrawal.amount : (parseFloat(resetWithdrawal.amount) || 0))
+          : 0;
+        const postWithdrawnAudit = postWithdrawals.reduce((s, w) => {
+          const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+          return s + amount;
+        }, 0);
+
+        // 리셋 출금 직전 가능액 (현재 데이터 기준 재계산)
+        const availableJustBeforeReset = preCommission - preWithdrawn;
+        const expectedAvailableBeforeReset = 1776000; // 사용자 확인값
+        const commissionNeededForExpected = preWithdrawn + expectedAvailableBeforeReset;
+        const missingPreCommission = Math.max(0, commissionNeededForExpected - preCommission);
+
+        console.log('[AUDIT][settlement-724-ledger]', {
+          resetAtIso: new Date(ledgerResetAt).toISOString(),
+          resetAtKst: new Date(ledgerResetAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+          resetWithdrawalAmount: resetAmount,
+
+          // 7/24 이전 (현재 DB로 재계산)
+          preSubmissionCount: preEntries.length,
+          preCommission,
+          preWithdrawalCount: preWithdrawals.length,
+          preWithdrawn,
+          availableJustBeforeReset_fromCurrentData: availableJustBeforeReset,
+          expectedAvailableBeforeReset,
+          matchesExpected1776000: availableJustBeforeReset === expectedAvailableBeforeReset,
+          commissionNeededToMatchExpected: commissionNeededForExpected,
+          missingPreCommissionVsExpected: missingPreCommission,
+
+          // 7/24 이후
+          postSubmissionCount: postEntries.length,
+          postCommission,
+          postWithdrawalCount: postWithdrawals.length,
+          postWithdrawn: postWithdrawnAudit,
+          availableAfterReset: Math.max(0, postCommission - postWithdrawnAudit),
+
+          // 참고: 리셋 출금 목록(직전)
+          preWithdrawals: preWithdrawals.map(w => ({
+            amount: w.amount,
+            requestedAt: w.requestedAt,
+            requestedAtKst: w.requestedAt ? new Date(w.requestedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : null,
+            processedAt: w.processedAt
+          })),
+          postCommissionBySubmission: postEntries.map(e => ({
+            submittedAt: e.submittedAt,
+            submittedAtKst: e.submittedAt ? new Date(e.submittedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : null,
+            commission: e.commission
+          }))
+        });
+      }
 
       const result = {
         totalCommission,
         totalWithdrawn,
         availableAmount,
         rawAvailable,
+        openingAdjustment,
+        balanceMeta,
         ledgerResetAt,
         ledgerNormalized,
         postResetCommission,
@@ -4906,6 +5098,7 @@ ${r.optPlan}
         totalCommission: result.totalCommission,
         totalWithdrawn: result.totalWithdrawn,
         rawAvailable: result.rawAvailable,
+        openingAdjustment: result.openingAdjustment,
         availableAmount: result.availableAmount,
         ledgerNormalized: result.ledgerNormalized,
         ledgerResetAt: result.ledgerResetAt,
@@ -4913,7 +5106,8 @@ ${r.optPlan}
         postResetCommission: result.postResetCommission,
         postResetWithdrawn: result.postResetWithdrawn,
         averageCommissionPerSub: result.subsCount > 0 ? (result.totalCommission / result.subsCount).toFixed(2) : 0,
-        duplicatesRemoved: submissions.length - uniqueSubs.length
+        duplicatesRemoved: submissions.length - uniqueSubs.length,
+        lockedCommissionCount: commissionEntries.filter(e => e.usedLocked).length
       });
       return result;
     }
@@ -5424,12 +5618,13 @@ ${r.optPlan}
         
         // settlement 계산 최적화
         const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
-        const { totalCommission, totalWithdrawn, availableAmount, ledgerNormalized, ledgerResetAt, rawAvailable } = settlement;
+        const { totalCommission, totalWithdrawn, availableAmount, ledgerNormalized, ledgerResetAt, rawAvailable, openingAdjustment } = settlement;
 
         if (ledgerNormalized) {
           console.log('[INFO][settlement-normalized] 출금가능액 원장 정상화 적용', {
             rawAvailable,
             availableAmount,
+            openingAdjustment,
             ledgerResetAt,
             ledgerResetAtIso: ledgerResetAt ? new Date(ledgerResetAt).toISOString() : null,
             totalCommission,
@@ -5572,13 +5767,29 @@ ${r.optPlan}
     async function submitWithdrawal(bank, account, amount) {
       showLoading();
       try {
+        // 신청 시점 잔액 스냅샷 (확정 장부 기준)
+        const [rows, existingWithdrawals] = await Promise.all([loadSubs(), loadWithdrawals()]);
+        const vendorTypes = await getAllVendorTypes(rows, false);
+        const settlement = await calcSettlementForVendor(rows, existingWithdrawals, null, vendorTypes);
+        const availableNow = Math.max(0, settlement.availableAmount || 0);
+
+        if (amount > availableNow) {
+          alert(`출금 가능액(${availableNow.toLocaleString()}원)을 초과할 수 없습니다.`);
+          return;
+        }
+
         const withdrawal = {
           bank: bank,
           account: account,
           amount: amount,
           status: 'pending',
           requestedAt: Date.now(),
-          processedAt: null
+          processedAt: null,
+          // 출금 확정 장부 스냅샷
+          availableAtRequest: availableNow,
+          openingAdjustmentAtRequest: settlement.openingAdjustment || 0,
+          totalCommissionAtRequest: settlement.totalCommission || 0,
+          totalWithdrawnAtRequest: settlement.totalWithdrawn || 0
         };
         
         // Firebase에 저장
@@ -5716,18 +5927,45 @@ ${r.optPlan}
           alert('출금신청을 찾을 수 없습니다.');
           return;
         }
+
+        const prevStatus = withdrawal.status;
+        const amount = typeof withdrawal.amount === 'number' ? withdrawal.amount : (parseFloat(withdrawal.amount) || 0);
+
+        // 완료 처리 시: 현재 잔액(확정 수수료 원장) 초과 출금 금지
+        if (isCompleted && prevStatus !== 'completed') {
+          const rows = await loadSubs();
+          const vendorTypes = await getAllVendorTypes(rows, false);
+          const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
+          const availableNow = Math.max(0, settlement.availableAmount || 0);
+          if (amount > availableNow) {
+            alert(`출금 가능액(${availableNow.toLocaleString()}원)을 초과해 완료 처리할 수 없습니다.`);
+            await showWithdrawalRequest();
+            return;
+          }
+          withdrawal.availableAtComplete = availableNow;
+          withdrawal.balanceAfterComplete = availableNow - amount;
+          withdrawal.openingAdjustmentAtComplete = settlement.openingAdjustment || 0;
+        }
         
         withdrawal.status = isCompleted ? 'completed' : 'pending';
         withdrawal.processedAt = isCompleted ? Date.now() : null;
+        if (!isCompleted) {
+          withdrawal.availableAtComplete = null;
+          withdrawal.balanceAfterComplete = null;
+        }
         
         // Firebase 업데이트
         if (window.db) {
           try {
             const docRef = window.doc(window.db, 'withdrawals', withdrawalId);
-            await window.updateDoc(docRef, {
+            const updatePayload = {
               status: withdrawal.status,
-              processedAt: withdrawal.processedAt
-            });
+              processedAt: withdrawal.processedAt,
+              availableAtComplete: withdrawal.availableAtComplete ?? null,
+              balanceAfterComplete: withdrawal.balanceAfterComplete ?? null,
+              openingAdjustmentAtComplete: withdrawal.openingAdjustmentAtComplete ?? null
+            };
+            await window.updateDoc(docRef, updatePayload);
             console.log('✅ 출금신청 상태 업데이트 완료:', withdrawalId);
           } catch (error) {
             console.error('Firebase 업데이트 오류:', error);
@@ -5742,7 +5980,7 @@ ${r.optPlan}
           localStorage.setItem("wp_withdrawals", JSON.stringify(existingData));
         }
         
-        // 화면 새로고침
+        // 화면 새로고침 (잔액 원장 재동기화)
         await showWithdrawalRequest();
         
       } catch (error) {
@@ -7966,8 +8204,11 @@ ${r.optPlan}
             console.log('✅ 새 번호 생성 완료:', newNo, typeof newNo);
           }
           
-          // 제출 시점 vendorType 계산 (신규 건인 경우에만)
+          // 제출 시점 vendorType/수수료 확정
+          // 기존 건에 확정 수수료가 있으면 절대 덮어쓰지 않음
           let vendorTypeAtSubmission = rec ? rec.vendorTypeAtSubmission : null;
+          let commissionAtSubmission = rec && rec.commissionAtSubmission != null ? rec.commissionAtSubmission : null;
+          let commissionLockedAt = rec ? rec.commissionLockedAt : null;
           
           // 신규 건이거나 vendorTypeAtSubmission이 없는 경우 계산
           if (!rec || !vendorTypeAtSubmission) {
@@ -8006,6 +8247,14 @@ ${r.optPlan}
               vendorTypeAtSubmission = '일반';
             }
           }
+
+          const mappedTotalCnt = toInt(obj['총진행건수'] != null ? obj['총진행건수'] : (rec? rec.totalCnt : 0));
+          if (commissionAtSubmission == null) {
+            const lock = buildCommissionLockFields(mappedTotalCnt, vendorTypeAtSubmission || '일반');
+            vendorTypeAtSubmission = lock.vendorTypeAtSubmission;
+            commissionAtSubmission = lock.commissionAtSubmission;
+            commissionLockedAt = lock.commissionLockedAt;
+          }
           
           const newRec = {
             id: rec ? rec.id : `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Firebase 문서 ID 추가
@@ -8017,7 +8266,7 @@ ${r.optPlan}
             contact: (obj['카톡/번호'] || '').trim() || (rec? rec.contact : ''),
             productUrl: (obj['제품URL'] || '').trim() || (rec? rec.productUrl : ''),
             keywords: (obj['구매키워드'] || '').trim() || (rec? rec.keywords : ''),
-            totalCnt: toInt(obj['총진행건수'] != null ? obj['총진행건수'] : (rec? rec.totalCnt : 0)),
+            totalCnt: mappedTotalCnt,
             dailyCnt: toInt(obj['일진행건수'] != null ? obj['일진행건수'] : (rec? rec.dailyCnt : 0)),
             optPlan: (obj['옵션계획'] || '').trim() || (rec? rec.optPlan : ''),
             ship: (obj['제품배송'] || '').trim() || (rec? rec.ship : ''),
@@ -8030,8 +8279,10 @@ ${r.optPlan}
             settlementStatus: settlementStatusFromUpload,
             depositMatchedAt: depositMatchedAtFromUpload,
             depositName: depositNameFromUpload,
-            // 핵심: 제출 시점의 vendorType을 확정하여 저장
-            vendorTypeAtSubmission: vendorTypeAtSubmission
+            // 핵심: 제출 시점 vendorType/수수료 확정 저장 (기존 확정값은 유지)
+            vendorTypeAtSubmission: vendorTypeAtSubmission,
+            commissionAtSubmission: commissionAtSubmission,
+            commissionLockedAt: commissionLockedAt || (rec ? rec.commissionLockedAt : null)
           };
           
           if (newRec.settlementStatus === '정산완료') {
@@ -9645,6 +9896,19 @@ ${r.optPlan}
     window.clearSettlementLedgerReset = function() {
       localStorage.removeItem('wp_settlement_ledger_reset_at');
       console.log('🗑️ 출금가능액 원장 리셋 기준 삭제 완료. 출금신청 탭을 다시 열어주세요.');
+    };
+
+    // 출금가능액 openingAdjustment(고정 보정) 초기화 — 재부트스트랩용
+    window.clearSettlementBalanceMeta = async function() {
+      localStorage.removeItem('wp_settlement_balance_meta');
+      try {
+        if (window.db && window.doc && window.deleteDoc) {
+          await window.deleteDoc(window.doc(window.db, 'settlementMeta', 'balance'));
+        }
+      } catch (e) {
+        console.warn('settlementMeta 삭제 실패(무시 가능):', e?.message || e);
+      }
+      console.log('🗑️ 출금가능액 잔액 메타 삭제 완료. 출금신청 탭을 다시 열어 재부트스트랩하세요.');
     };
     
     // 로딩 팝업 디버깅 함수
