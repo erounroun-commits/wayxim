@@ -4935,8 +4935,8 @@ ${r.optPlan}
       return payload;
     }
 
-    // 원장 잔액 = openingAdjustment(과거 보정, 고정) + 확정수수료합 - 완료출금합
-    // openingAdjustment는 최초 1회만 산출하고 이후 변경하지 않음 → 신규 수수료/출금만 잔액을 움직임
+    // 원장 잔액 = openingAdjustment(과거 보정, 고정) + manualCreditTotal(수동 증액) + 확정수수료합 - 완료출금합
+    // openingAdjustment는 최초 1회만 산출하고 이후 변경하지 않음 → 신규 수수료/출금/수동증액만 잔액을 움직임
     async function ensureSettlementBalanceMeta(totalCommissionLocked, totalWithdrawnCompleted, desiredAvailableIfDeficit = 0) {
       let meta = await loadSettlementBalanceMeta();
       const raw = totalCommissionLocked - totalWithdrawnCompleted;
@@ -4949,6 +4949,7 @@ ${r.optPlan}
         }
         meta = await saveSettlementBalanceMeta({
           openingAdjustment,
+          manualCreditTotal: 0,
           bootstrappedAt: Date.now(),
           note: raw < 0
             ? '과거 출금 대비 재집계 수수료 부족분을 고정 보정(openingAdjustment)으로 반영'
@@ -4964,10 +4965,12 @@ ${r.optPlan}
       }
 
       const openingAdjustment = Number(meta.openingAdjustment) || 0;
-      const balance = Math.max(0, openingAdjustment + totalCommissionLocked - totalWithdrawnCompleted);
+      const manualCreditTotal = Number(meta.manualCreditTotal) || 0;
+      const balance = Math.max(0, openingAdjustment + manualCreditTotal + totalCommissionLocked - totalWithdrawnCompleted);
       const synced = await saveSettlementBalanceMeta({
         ...meta,
         openingAdjustment,
+        manualCreditTotal,
         totalCommissionLocked,
         totalWithdrawnCompleted,
         balance
@@ -5348,8 +5351,7 @@ ${r.optPlan}
       });
 
       // 출금가능액 원장:
-      // balance = openingAdjustment(고정 보정) + 확정 수수료합 - 완료 출금합
-      // 이후에는 신규 확정 수수료(+)/완료 출금(-)만 잔액을 움직인다.
+      // balance = openingAdjustment(고정 보정) + manualCreditTotal(수동 증액) + 확정 수수료합 - 완료 출금합
       const rawAvailable = totalCommission - totalWithdrawn;
       let ledgerResetAt = 0;
       let postResetCommission = totalCommission;
@@ -5380,7 +5382,8 @@ ${r.optPlan}
         desiredAvailableIfDeficit
       );
       const openingAdjustment = Number(balanceMeta.openingAdjustment) || 0;
-      const availableAmount = Math.max(0, openingAdjustment + totalCommission - totalWithdrawn);
+      const manualCreditTotal = Number(balanceMeta.manualCreditTotal) || 0;
+      const availableAmount = Math.max(0, openingAdjustment + manualCreditTotal + totalCommission - totalWithdrawn);
       const ledgerNormalized = openingAdjustment > 0;
 
       // ===== 7/24 전후 원장 건별 검증 리포트 =====
@@ -5466,6 +5469,7 @@ ${r.optPlan}
         availableAmount,
         rawAvailable,
         openingAdjustment,
+        manualCreditTotal,
         balanceMeta,
         ledgerResetAt,
         ledgerNormalized,
@@ -5483,6 +5487,7 @@ ${r.optPlan}
         totalWithdrawn: result.totalWithdrawn,
         rawAvailable: result.rawAvailable,
         openingAdjustment: result.openingAdjustment,
+        manualCreditTotal: result.manualCreditTotal,
         availableAmount: result.availableAmount,
         ledgerNormalized: result.ledgerNormalized,
         ledgerResetAt: result.ledgerResetAt,
@@ -5992,9 +5997,10 @@ ${r.optPlan}
         const main = document.getElementById("adminMain");
         
         // 병렬로 데이터 로드 (성능 최적화)
-        const [rows, withdrawals] = await Promise.all([
+        const [rows, withdrawals, topUps] = await Promise.all([
           loadSubs(),
-          loadWithdrawals()
+          loadWithdrawals(),
+          loadAvailableTopUps()
         ]);
         
         // vendorTypes는 캐시 활용 (강제 새로고침 제거)
@@ -6002,13 +6008,14 @@ ${r.optPlan}
         
         // settlement 계산 최적화
         const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
-        const { totalCommission, totalWithdrawn, availableAmount, ledgerNormalized, ledgerResetAt, rawAvailable, openingAdjustment } = settlement;
+        const { totalCommission, totalWithdrawn, availableAmount, ledgerNormalized, ledgerResetAt, rawAvailable, openingAdjustment, manualCreditTotal } = settlement;
 
         if (ledgerNormalized) {
           console.log('[INFO][settlement-normalized] 출금가능액 원장 정상화 적용', {
             rawAvailable,
             availableAmount,
             openingAdjustment,
+            manualCreditTotal,
             ledgerResetAt,
             ledgerResetAtIso: ledgerResetAt ? new Date(ledgerResetAt).toISOString() : null,
             totalCommission,
@@ -6033,9 +6040,31 @@ ${r.optPlan}
           </div>
         </div>`;
         
-        // 출금신청 입력 폼 (모바일에서 세로 배치)
-        html += `<div style="background:var(--panel);padding:16px md:padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
-          <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">출금 신청</h3>
+        // 출금신청 입력 폼 + 증액 신청 버튼
+        html += `<div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;">
+            <h3 style="margin:0;color:var(--brand);font-size:16px;">출금 신청</h3>
+            <button type="button" id="toggleTopUpPanelBtn" class="btn ghost" style="white-space:nowrap;">출금 가능액 증액 신청</button>
+          </div>
+
+          <div id="availableTopUpPanel" style="display:none;margin-bottom:16px;padding:14px;border:1px dashed var(--border);border-radius:8px;background:#fafbfc;">
+            <div style="font-weight:600;margin-bottom:10px;color:var(--text);">출금 가능액 증액</div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3" style="align-items:end;">
+              <div>
+                <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">증액 금액</label>
+                <input type="number" id="topUpAmount" class="input" placeholder="예: 380000" min="1" step="1" style="width:100%;">
+              </div>
+              <div>
+                <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">비밀번호</label>
+                <input type="password" id="topUpPassword" class="input" placeholder="관리자 비밀번호" style="width:100%;">
+              </div>
+              <div>
+                <button type="button" id="submitTopUpBtn" class="btn w-full" style="background:var(--brand);color:#fff;">증액</button>
+              </div>
+            </div>
+            <p class="muted" style="margin:8px 0 0;font-size:12px;color:#6a7a89;">현재 가능액 ${availableAmount.toLocaleString()}원 기준으로 증액됩니다. (누적 수동 증액: ${(manualCreditTotal || 0).toLocaleString()}원)</p>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-3">
             <div>
               <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">은행명</label>
@@ -6052,9 +6081,29 @@ ${r.optPlan}
           </div>
           <button id="submitWithdrawalBtn" class="btn w-full md:w-auto" style="margin-top:16px;background:var(--brand);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer;">출금 신청</button>
         </div>`;
+
+        // 증액 리스트
+        html += `<div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
+          <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">증액 리스트</h3>
+          <div class="scroll-x" style="max-height:320px;overflow-y:auto;">
+            <table class="admin-table" id="topUpTable">
+              <thead>
+                <tr>
+                  <th>일시</th>
+                  <th>증액 금액</th>
+                  <th>기존 가능액</th>
+                  <th>증액 후 가능액</th>
+                </tr>
+              </thead>
+              <tbody id="topUpTableBody">
+                ${renderTopUpRowsHtml(topUps)}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
         
         // 출금신청 리스트
-        html += `<div style="background:var(--panel);padding:16px md:padding:20px;border-radius:8px;border:1px solid var(--border);">
+        html += `<div style="background:var(--panel);padding:16px;border-radius:8px;border:1px solid var(--border);">
           <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">출금 신청 리스트</h3>`;
         
         // Desktop Table
@@ -6089,6 +6138,29 @@ ${r.optPlan}
         
         // 출금신청 리스트 렌더링
         await renderWithdrawalList();
+
+        const toggleTopUpBtn = document.getElementById('toggleTopUpPanelBtn');
+        const topUpPanel = document.getElementById('availableTopUpPanel');
+        if (toggleTopUpBtn && topUpPanel) {
+          toggleTopUpBtn.addEventListener('click', () => {
+            const open = topUpPanel.style.display !== 'none';
+            topUpPanel.style.display = open ? 'none' : 'block';
+            toggleTopUpBtn.textContent = open ? '출금 가능액 증액 신청' : '증액 신청 닫기';
+            if (!open) {
+              const amountEl = document.getElementById('topUpAmount');
+              if (amountEl) amountEl.focus();
+            }
+          });
+        }
+
+        const submitTopUpBtn = document.getElementById('submitTopUpBtn');
+        if (submitTopUpBtn) {
+          submitTopUpBtn.addEventListener('click', async () => {
+            const amount = parseInt(document.getElementById('topUpAmount')?.value, 10);
+            const password = (document.getElementById('topUpPassword')?.value || '').trim();
+            await submitAvailableTopUp(amount, password);
+          });
+        }
         
         // 출금 신청 버튼 이벤트
         const submitBtn = document.getElementById('submitWithdrawalBtn');
@@ -6107,9 +6179,15 @@ ${r.optPlan}
               alert('출금 신청액은 0보다 커야 합니다.');
               return;
             }
+
+            // 최신 가능액 재확인 (증액 직후 등)
+            const [freshRows, freshWithdrawals] = await Promise.all([loadSubs(), loadWithdrawals()]);
+            const freshTypes = await getAllVendorTypes(freshRows, false);
+            const freshSettlement = await calcSettlementForVendor(freshRows, freshWithdrawals, null, freshTypes);
+            const freshAvailable = Math.max(0, freshSettlement.availableAmount || 0);
             
-            if (amount > availableAmount) {
-              alert(`출금 가능액(${availableAmount.toLocaleString()}원)을 초과할 수 없습니다.`);
+            if (amount > freshAvailable) {
+              alert(`출금 가능액(${freshAvailable.toLocaleString()}원)을 초과할 수 없습니다.`);
               return;
             }
             
@@ -6121,6 +6199,115 @@ ${r.optPlan}
         hideLoading();
       }
     }
+
+    const AVAILABLE_TOPUPS_STORAGE_KEY = 'wp_available_topups';
+
+    function renderTopUpRowsHtml(topUps = []) {
+      if (!topUps || topUps.length === 0) {
+        return '<tr><td colspan="4" style="text-align:center;color:#6a7a89">증액 내역이 없습니다.</td></tr>';
+      }
+      return topUps.map(t => {
+        const when = t.createdAt ? formatDateTime(new Date(t.createdAt)) : '-';
+        const amount = Number(t.amount) || 0;
+        const prev = Number(t.previousAvailable) || 0;
+        const next = Number(t.newAvailable) || 0;
+        return `<tr>
+          <td>${when}</td>
+          <td>+${amount.toLocaleString()}원</td>
+          <td>${prev.toLocaleString()}원</td>
+          <td>${next.toLocaleString()}원</td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function loadAvailableTopUps() {
+      try {
+        if (window.db && window.collection && window.getDocs) {
+          const snap = await window.getDocs(window.collection(window.db, 'availableTopUps'));
+          const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }))
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          localStorage.setItem(AVAILABLE_TOPUPS_STORAGE_KEY, JSON.stringify(list));
+          return list;
+        }
+      } catch (e) {
+        console.warn('[WARN][topup-load]', e?.message || e);
+      }
+      try {
+        return JSON.parse(localStorage.getItem(AVAILABLE_TOPUPS_STORAGE_KEY) || '[]');
+      } catch (_) {
+        return [];
+      }
+    }
+
+    async function submitAvailableTopUp(amount, password) {
+      const amt = Math.floor(Number(amount) || 0);
+      if (!Number.isFinite(amt) || amt <= 0) {
+        alert('증액 금액을 올바르게 입력해주세요.');
+        return;
+      }
+      if (password !== ADMIN_PASS) {
+        alert('비밀번호가 올바르지 않습니다.');
+        return;
+      }
+
+      showLoading();
+      try {
+        const [rows, withdrawals] = await Promise.all([loadSubs(), loadWithdrawals()]);
+        const vendorTypes = await getAllVendorTypes(rows, false);
+        const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
+        const previousAvailable = Math.max(0, settlement.availableAmount || 0);
+        const meta = settlement.balanceMeta || (await loadSettlementBalanceMeta()) || {};
+        const prevCredit = Number(meta.manualCreditTotal) || 0;
+        const nextCredit = prevCredit + amt;
+        const newAvailable = previousAvailable + amt;
+
+        await saveSettlementBalanceMeta({
+          ...meta,
+          openingAdjustment: Number(meta.openingAdjustment) || 0,
+          manualCreditTotal: nextCredit,
+          lastTopUpAt: Date.now(),
+          lastTopUpAmount: amt,
+          balance: newAvailable
+        });
+
+        const record = {
+          amount: amt,
+          previousAvailable,
+          newAvailable,
+          previousManualCreditTotal: prevCredit,
+          newManualCreditTotal: nextCredit,
+          openingAdjustment: Number(meta.openingAdjustment) || 0,
+          createdAt: Date.now()
+        };
+
+        if (window.db && window.collection && window.addDoc) {
+          try {
+            const docRef = await window.addDoc(window.collection(window.db, 'availableTopUps'), record);
+            record.id = docRef.id;
+          } catch (e) {
+            console.warn('[WARN][topup-save-firebase]', e?.message || e);
+            record.id = 'local_topup_' + Date.now();
+          }
+        } else {
+          record.id = 'local_topup_' + Date.now();
+        }
+
+        const localList = JSON.parse(localStorage.getItem(AVAILABLE_TOPUPS_STORAGE_KEY) || '[]');
+        localList.unshift(record);
+        localStorage.setItem(AVAILABLE_TOPUPS_STORAGE_KEY, JSON.stringify(localList));
+
+        alert(`증액 완료\n\n기존: ${previousAvailable.toLocaleString()}원\n증액: +${amt.toLocaleString()}원\n최종: ${newAvailable.toLocaleString()}원`);
+        await showWithdrawalRequest();
+      } catch (error) {
+        console.error('출금 가능액 증액 오류:', error);
+        alert('증액 처리 중 오류가 발생했습니다.');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    window.submitAvailableTopUp = submitAvailableTopUp;
+    window.loadAvailableTopUps = loadAvailableTopUps;
     
     // 출금신청 데이터 로드
     async function loadWithdrawals() {
