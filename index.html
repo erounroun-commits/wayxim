@@ -2474,72 +2474,456 @@
     }
     
     async function saveSubs(arr){ 
-      console.log('💾 saveSubs 함수 시작, 데이터 수:', arr.length);
+      const list = Array.isArray(arr) ? arr : [];
+      console.log('💾 saveSubs(upsert) 시작, 데이터 수:', list.length);
+
+      // 빈 배열로 Firebase/캐시를 날리는 경로 차단 (전체삭제는 confirmDeleteAll만 허용)
+      if (list.length === 0) {
+        console.warn('[BLOCK][saveSubs] 빈 배열 저장 요청 거부 — 데이터 유실 방지');
+        return;
+      }
+
+      // 로컬 캐시: 기존보다 급격히 줄어들면 덮어쓰지 않음 (유실 전파 차단)
+      try {
+        const prevRaw = localStorage.getItem("wp_submissions");
+        const prevLen = prevRaw ? (JSON.parse(prevRaw) || []).length : 0;
+        if (prevLen > 0 && list.length < prevLen * 0.5) {
+          console.warn('[WARN][saveSubs] localStorage 축소 덮어쓰기 차단', {
+            prevLen,
+            incoming: list.length
+          });
+        } else {
+          localStorage.setItem("wp_submissions", JSON.stringify(list));
+        }
+      } catch (e) {
+        console.warn('localStorage 저장 실패:', e?.message || e);
+      }
       
-      // Firebase 연결 상태 확인 (더 강력한 확인)
+      // Firebase 연결 상태 확인
       if (!window.db) {
         console.warn('Firebase DB가 초기화되지 않음, localStorage에만 저장');
-        localStorage.setItem("wp_submissions", JSON.stringify(arr));
-        console.log('✅ localStorage에 저장 완료');
         return;
       }
       
       if (!window.firebaseReady) {
         console.warn('Firebase가 준비되지 않음, localStorage에만 저장');
-        localStorage.setItem("wp_submissions", JSON.stringify(arr));
-        console.log('✅ localStorage에 저장 완료');
         return;
       }
       
-      // Firebase 함수들이 전역으로 등록되었는지 확인
-      if (!window.collection || !window.getDocs || !window.addDoc || !window.deleteDoc) {
+      if (!window.collection || !window.getDocs || !window.doc || !window.setDoc) {
         console.warn('Firebase 함수들이 전역으로 등록되지 않음, localStorage에만 저장');
-        localStorage.setItem("wp_submissions", JSON.stringify(arr));
-        console.log('✅ localStorage에 저장 완료');
         return;
       }
       
-      console.log('✅ Firebase 연결 상태 확인 완료');
-      
-      // 안전한 Firebase 저장 작업
+      // 핵심: 전체 삭제 후 재저장 금지.
+      // 기존 문서를 id/no 기준으로 merge upsert 하여 유실을 원천 차단.
       const result = await safeFirebaseOperation(async () => {
-        console.log('🔥 Firebase에 데이터 저장 시작');
-        
-        // 기존 데이터 삭제 후 새로 저장
         const submissionsRef = window.collection(window.db, 'submissions');
         const snapshot = await window.getDocs(submissionsRef);
-        console.log('🗑️ 기존 데이터 삭제, 건수:', snapshot.docs.length);
-        
-        const deletePromises = snapshot.docs.map(doc => window.deleteDoc(doc.ref));
-        await Promise.all(deletePromises);
-        console.log('✅ 기존 데이터 삭제 완료');
-        
-        // 새 데이터 저장
-        console.log('📝 새 데이터 저장 시작, 건수:', arr.length);
-        const addPromises = arr.map(submission => {
-          // Firebase 저장 시 id 필드 제외 (Firebase가 자동 생성)
-          const { id, ...dataWithoutId } = submission;
-          console.log('📝 저장할 데이터 (id 제외):', { id, ...dataWithoutId });
-          return window.addDoc(submissionsRef, dataWithoutId);
+
+        if (snapshot.size > 0 && list.length < snapshot.size * 0.5) {
+          console.warn('[WARN][saveSubs-upsert] 저장 건수가 기존 대비 50% 미만입니다. 삭제는 하지 않고 upsert만 수행합니다.', {
+            existing: snapshot.size,
+            incoming: list.length
+          });
+        }
+
+        const byId = new Map();
+        const byNo = new Map();
+        snapshot.forEach(d => {
+          byId.set(d.id, d);
+          const data = d.data() || {};
+          if (data.no != null && data.no !== '') {
+            byNo.set(String(data.no), d);
+          }
         });
-        await Promise.all(addPromises);
-        console.log('✅ 새 데이터 저장 완료');
-        
+
+        const upsertRefs = [];
+        for (const submission of list) {
+          if (!submission || typeof submission !== 'object') continue;
+          const payload = { ...submission };
+          const id = payload.id ? String(payload.id) : null;
+          // Firestore 문서 ID는 doc.ref로 관리. 데이터 필드 id는 앱 호환을 위해 제거 후 로드 시 다시 붙임.
+          delete payload.id;
+
+          let ref;
+          if (id && byId.has(id)) {
+            ref = byId.get(id).ref;
+          } else if (payload.no != null && payload.no !== '' && byNo.has(String(payload.no))) {
+            ref = byNo.get(String(payload.no)).ref;
+          } else if (id) {
+            ref = window.doc(window.db, 'submissions', id);
+          } else {
+            ref = window.doc(submissionsRef); // 자동 ID
+          }
+          upsertRefs.push({ ref, payload });
+        }
+
+        // writeBatch로 빠르게 처리 (500개 제한 → 400개 단위)
+        if (typeof window.writeBatch === 'function') {
+          let batch = window.writeBatch(window.db);
+          let ops = 0;
+          const flush = async () => {
+            if (ops === 0) return;
+            await batch.commit();
+            batch = window.writeBatch(window.db);
+            ops = 0;
+          };
+          for (const item of upsertRefs) {
+            batch.set(item.ref, item.payload, { merge: true });
+            ops += 1;
+            if (ops >= 400) await flush();
+          }
+          await flush();
+        } else {
+          // 배치 미지원 시 순차 merge (안전 폴백)
+          for (const item of upsertRefs) {
+            await window.setDoc(item.ref, item.payload, { merge: true });
+          }
+        }
+
+        console.log('✅ saveSubs(upsert) 완료:', {
+          existing: snapshot.size,
+          upserted: upsertRefs.length,
+          deleted: 0
+        });
         return true;
       }, '데이터 저장');
       
-      if (result) {
-        // localStorage에도 백업 저장
-        localStorage.setItem("wp_submissions", JSON.stringify(arr));
-        console.log('✅ localStorage 백업 저장 완료');
-        console.log('🎉 saveSubs 함수 완료');
-      } else {
-        // Firebase 저장 실패 시 localStorage에만 저장
-        console.warn('Firebase 저장 실패, localStorage에만 저장');
-        localStorage.setItem("wp_submissions", JSON.stringify(arr));
-        console.log('✅ localStorage 저장 완료');
+      if (!result) {
+        console.warn('Firebase upsert 실패, localStorage 값은 유지됨');
       }
     }
+
+    // ===== 자동 데이터 백업 (Firebase dataBackups) =====
+    const AUTO_BACKUP_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2시간
+    const AUTO_BACKUP_CHECK_MS = 15 * 60 * 1000; // 15분마다 기한 체크
+    const AUTO_BACKUP_KEEP = 36; // 약 3일분 (2h × 36)
+    const AUTO_BACKUP_CHUNK = 80;
+    const AUTO_BACKUP_LAST_KEY = 'wp_last_auto_backup_at';
+    const AUTO_BACKUP_META_KEY = 'wp_last_backup_meta';
+    const AUTO_BACKUP_LOCK_KEY = 'wp_auto_backup_lock';
+    let autoBackupRunning = false;
+    let autoBackupTimer = null;
+
+    function getLastBackupMeta() {
+      try {
+        return JSON.parse(localStorage.getItem(AUTO_BACKUP_META_KEY) || 'null');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function setLastBackupMeta(meta) {
+      try {
+        localStorage.setItem(AUTO_BACKUP_META_KEY, JSON.stringify(meta));
+        if (meta && meta.createdAt) {
+          localStorage.setItem(AUTO_BACKUP_LAST_KEY, String(meta.createdAt));
+        }
+      } catch (_) {}
+      try {
+        const el = document.getElementById('autoBackupStatus');
+        if (el && meta) {
+          const when = new Date(meta.createdAt).toLocaleString('ko-KR');
+          el.textContent = `최근 백업: ${when} · 신청 ${meta.submissionCount || 0}건 · 출금 ${meta.withdrawalCount || 0}건 (${meta.source || 'auto'})`;
+        }
+      } catch (_) {}
+    }
+
+    function chunkArray(arr, size) {
+      const out = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    }
+
+    async function commitBatchWrites(writes) {
+      if (!writes.length) return;
+      if (typeof window.writeBatch === 'function') {
+        let batch = window.writeBatch(window.db);
+        let ops = 0;
+        for (const w of writes) {
+          if (w.merge) batch.set(w.ref, w.data, { merge: true });
+          else batch.set(w.ref, w.data);
+          ops += 1;
+          if (ops >= 400) {
+            await batch.commit();
+            batch = window.writeBatch(window.db);
+            ops = 0;
+          }
+        }
+        if (ops > 0) await batch.commit();
+      } else {
+        for (const w of writes) {
+          if (w.merge) await window.setDoc(w.ref, w.data, { merge: true });
+          else await window.setDoc(w.ref, w.data);
+        }
+      }
+    }
+
+    async function createDataBackup(source = 'auto') {
+      if (autoBackupRunning) {
+        console.log('⏳ 백업 이미 진행 중 — 스킵');
+        return null;
+      }
+      if (!window.db || !window.firebaseReady || !window.collection || !window.doc || !window.setDoc) {
+        console.warn('[BACKUP] Firebase 미준비 — 백업 스킵');
+        return null;
+      }
+
+      // 다중 탭 동시 백업 방지 (60초 락)
+      try {
+        const lockAt = Number(localStorage.getItem(AUTO_BACKUP_LOCK_KEY) || 0);
+        if (Date.now() - lockAt < 60 * 1000) {
+          console.log('⏳ 다른 탭에서 백업 중 — 스킵');
+          return null;
+        }
+        localStorage.setItem(AUTO_BACKUP_LOCK_KEY, String(Date.now()));
+      } catch (_) {}
+
+      autoBackupRunning = true;
+      const startedAt = Date.now();
+      const backupId = `bk_${startedAt}`;
+      console.log(`💾 [BACKUP] 시작 (${source}) id=${backupId}`);
+
+      try {
+        const [submissions, withdrawals, balanceMeta] = await Promise.all([
+          loadSubs(),
+          (typeof loadWithdrawals === 'function' ? loadWithdrawals() : Promise.resolve([])),
+          (typeof loadSettlementBalanceMeta === 'function' ? loadSettlementBalanceMeta() : Promise.resolve(null))
+        ]);
+
+        const subChunks = chunkArray(submissions || [], AUTO_BACKUP_CHUNK);
+        const wdChunks = chunkArray(withdrawals || [], AUTO_BACKUP_CHUNK);
+        const writes = [];
+
+        // 메타 문서 (진행 중)
+        writes.push({
+          ref: window.doc(window.db, 'dataBackups', backupId),
+          data: {
+            createdAt: startedAt,
+            createdAtISO: new Date(startedAt).toISOString(),
+            source,
+            status: 'writing',
+            submissionCount: (submissions || []).length,
+            withdrawalCount: (withdrawals || []).length,
+            chunkCount: subChunks.length + wdChunks.length + 1,
+            balanceMeta: balanceMeta || null
+          }
+        });
+
+        subChunks.forEach((items, i) => {
+          writes.push({
+            ref: window.doc(window.db, 'dataBackups', backupId, 'chunks', `submissions_${i}`),
+            data: { type: 'submissions', index: i, count: items.length, items }
+          });
+        });
+        wdChunks.forEach((items, i) => {
+          writes.push({
+            ref: window.doc(window.db, 'dataBackups', backupId, 'chunks', `withdrawals_${i}`),
+            data: { type: 'withdrawals', index: i, count: items.length, items }
+          });
+        });
+        writes.push({
+          ref: window.doc(window.db, 'dataBackups', backupId, 'chunks', 'meta_0'),
+          data: {
+            type: 'meta',
+            index: 0,
+            balanceMeta: balanceMeta || null,
+            nameToCode: JSON.parse(localStorage.getItem('wp_name_to_code') || '{}'),
+            codeToName: JSON.parse(localStorage.getItem('wp_code_to_name') || '{}')
+          }
+        });
+
+        await commitBatchWrites(writes);
+
+        // 완료 마킹
+        await window.setDoc(window.doc(window.db, 'dataBackups', backupId), {
+          status: 'complete',
+          finishedAt: Date.now(),
+          durationMs: Date.now() - startedAt
+        }, { merge: true });
+
+        const meta = {
+          id: backupId,
+          createdAt: startedAt,
+          source,
+          submissionCount: (submissions || []).length,
+          withdrawalCount: (withdrawals || []).length,
+          status: 'complete'
+        };
+        setLastBackupMeta(meta);
+        console.log('✅ [BACKUP] 완료:', meta);
+
+        // 오래된 백업 정리 (실패해도 본 백업은 유지)
+        try {
+          await pruneOldDataBackups(AUTO_BACKUP_KEEP);
+        } catch (pruneErr) {
+          console.warn('[BACKUP] 오래된 백업 정리 실패(무시):', pruneErr?.message || pruneErr);
+        }
+
+        return meta;
+      } catch (error) {
+        console.error('❌ [BACKUP] 실패:', error);
+        try {
+          await window.setDoc(window.doc(window.db, 'dataBackups', backupId), {
+            status: 'failed',
+            error: String(error?.message || error),
+            finishedAt: Date.now()
+          }, { merge: true });
+        } catch (_) {}
+        return null;
+      } finally {
+        autoBackupRunning = false;
+        try { localStorage.removeItem(AUTO_BACKUP_LOCK_KEY); } catch (_) {}
+      }
+    }
+
+    async function pruneOldDataBackups(keep = AUTO_BACKUP_KEEP) {
+      if (!window.db || !window.getDocs || !window.collection) return;
+      const snap = await window.getDocs(window.collection(window.db, 'dataBackups'));
+      const metas = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }))
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const toDelete = metas.slice(keep);
+      for (const m of toDelete) {
+        try {
+          const chunkSnap = await window.getDocs(window.collection(window.db, 'dataBackups', m.id, 'chunks'));
+          const dels = [];
+          if (typeof window.writeBatch === 'function') {
+            let batch = window.writeBatch(window.db);
+            let ops = 0;
+            for (const c of chunkSnap.docs) {
+              batch.delete(c.ref);
+              ops += 1;
+              if (ops >= 400) {
+                await batch.commit();
+                batch = window.writeBatch(window.db);
+                ops = 0;
+              }
+            }
+            batch.delete(window.doc(window.db, 'dataBackups', m.id));
+            ops += 1;
+            if (ops > 0) await batch.commit();
+          } else {
+            for (const c of chunkSnap.docs) {
+              await window.deleteDoc(c.ref);
+            }
+            await window.deleteDoc(window.doc(window.db, 'dataBackups', m.id));
+          }
+          console.log('🗑️ [BACKUP] 오래된 백업 삭제:', m.id);
+        } catch (e) {
+          console.warn('[BACKUP] 삭제 실패:', m.id, e?.message || e);
+        }
+      }
+    }
+
+    async function listDataBackups(limit = 20) {
+      if (!window.db || !window.getDocs) return [];
+      const snap = await window.getDocs(window.collection(window.db, 'dataBackups'));
+      return snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }))
+        .filter(x => x.status === 'complete')
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .slice(0, limit);
+    }
+
+    async function restoreDataBackup(backupId, opts = {}) {
+      const { restoreWithdrawals = false } = opts;
+      if (!backupId) throw new Error('backupId 필요');
+      if (!window.db) throw new Error('Firebase 미연결');
+
+      console.log('♻️ [BACKUP] 복원 시작:', backupId);
+      const chunkSnap = await window.getDocs(window.collection(window.db, 'dataBackups', backupId, 'chunks'));
+      const submissions = [];
+      const withdrawals = [];
+      let metaChunk = null;
+      chunkSnap.forEach(d => {
+        const data = d.data() || {};
+        if (data.type === 'submissions' && Array.isArray(data.items)) submissions.push(...data.items);
+        if (data.type === 'withdrawals' && Array.isArray(data.items)) withdrawals.push(...data.items);
+        if (data.type === 'meta') metaChunk = data;
+      });
+
+      // 신청 데이터는 upsert만 (유실된 건 복구, 현재 건 유지)
+      if (submissions.length) {
+        await saveSubs(submissions);
+      }
+
+      if (restoreWithdrawals && withdrawals.length && window.setDoc) {
+        for (const w of withdrawals) {
+          const id = w.id || `restored_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          const payload = { ...w };
+          delete payload.id;
+          await window.setDoc(window.doc(window.db, 'withdrawals', id), payload, { merge: true });
+        }
+      }
+
+      if (metaChunk && metaChunk.balanceMeta && typeof saveSettlementBalanceMeta === 'function') {
+        await saveSettlementBalanceMeta(metaChunk.balanceMeta);
+      }
+
+      window.wp_data_cache_cleared = true;
+      console.log('✅ [BACKUP] 복원 완료:', {
+        backupId,
+        submissions: submissions.length,
+        withdrawals: restoreWithdrawals ? withdrawals.length : 0
+      });
+      return { submissions: submissions.length, withdrawals: withdrawals.length };
+    }
+
+    async function runAutoBackupIfDue(force = false) {
+      try {
+        const last = Number(localStorage.getItem(AUTO_BACKUP_LAST_KEY) || 0);
+        if (!force && last && (Date.now() - last) < AUTO_BACKUP_INTERVAL_MS) {
+          return null;
+        }
+        return await createDataBackup(force ? 'manual' : 'auto');
+      } catch (e) {
+        console.warn('[BACKUP] 자동 백업 체크 실패:', e?.message || e);
+        return null;
+      }
+    }
+
+    function startAutoBackupScheduler() {
+      if (autoBackupTimer) return;
+      console.log('⏰ [BACKUP] 자동 백업 스케줄러 시작 (2시간 간격)');
+      // 페이지 연 뒤 30초 후 1회 기한 체크 (초기 로딩과 충돌 최소화)
+      setTimeout(() => runAutoBackupIfDue(false), 30 * 1000);
+      autoBackupTimer = setInterval(() => runAutoBackupIfDue(false), AUTO_BACKUP_CHECK_MS);
+    }
+
+    async function manualBackupNow() {
+      const btn = document.getElementById('manualBackupBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '백업 중...';
+      }
+      try {
+        const meta = await createDataBackup('manual');
+        if (meta) {
+          alert(`백업 완료\n\nID: ${meta.id}\n신청: ${meta.submissionCount}건\n출금: ${meta.withdrawalCount}건`);
+        } else {
+          alert('백업에 실패했거나 이미 진행 중입니다. 콘솔을 확인해주세요.');
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '지금 백업';
+        }
+      }
+    }
+
+    window.createDataBackup = createDataBackup;
+    window.listDataBackups = listDataBackups;
+    window.restoreDataBackup = restoreDataBackup;
+    window.manualBackupNow = manualBackupNow;
+    window.startAutoBackupScheduler = startAutoBackupScheduler;
+    window.runAutoBackupIfDue = runAutoBackupIfDue;
+
+    // Firebase가 먼저/나중에 준비돼도 스케줄러가 뜨도록 보강
+    setTimeout(() => {
+      if (window.firebaseReady && typeof window.startAutoBackupScheduler === 'function') {
+        window.startAutoBackupScheduler();
+      }
+    }, 3000);
     
     // 번호 생성 뮤텍스 (동시 호출 방지)
     let getNextNoMutex = false;
@@ -7311,7 +7695,12 @@ ${r.optPlan}
       </div>`;
       
       // Data management buttons
-      html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px;">
+      const lastBk = (typeof getLastBackupMeta === 'function' ? getLastBackupMeta() : null);
+      const lastBkText = lastBk
+        ? `최근 백업: ${new Date(lastBk.createdAt).toLocaleString('ko-KR')} · 신청 ${lastBk.submissionCount || 0}건 · 출금 ${lastBk.withdrawalCount || 0}건`
+        : '아직 자동 백업 기록이 없습니다. 페이지가 열려 있으면 2시간마다 Firebase에 스냅샷이 저장됩니다.';
+
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
         <div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
           <h3 style="margin:0 0 12px;color:var(--brand);font-size:16px;">데이터 생성/정정하기</h3>
           <p style="margin:0 0 12px;color:#6a7a89;font-size:14px;">수정된 CSV를 업로드하면 신규/변경 데이터만 반영됩니다. 중복은 무시됩니다.</p>
@@ -7328,10 +7717,20 @@ ${r.optPlan}
             <button class="btn ghost" id="debugVendorCsvBtn" type="button" style="width:100%;">디버그: VENDOR CSV 다운로드</button>
           </div>
         </div>
+
+        <div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
+          <h3 style="margin:0 0 12px;color:var(--brand);font-size:16px;">자동 백업</h3>
+          <p style="margin:0 0 12px;color:#6a7a89;font-size:14px;">신청·출금·정산메타를 Firebase <code>dataBackups</code>에 2시간마다 저장합니다. 최근 36개(약 3일)만 유지합니다.</p>
+          <p id="autoBackupStatus" style="margin:0 0 12px;font-size:13px;color:#334;">${lastBkText}</p>
+          <div class="right" style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+            <button class="btn" id="manualBackupBtn" type="button" onclick="manualBackupNow()" style="width:100%;">지금 백업</button>
+          </div>
+          <p class="muted" style="margin:8px 0 0;font-size:12px;color:#6a7a89;">관리자 페이지가 열려 있을 때 동작합니다. 복원: 콘솔에서 <code>await restoreDataBackup('bk_...')</code></p>
+        </div>
         
         <div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
           <h3 style="margin:0 0 12px;color:#8a2b2b;font-size:16px;">데이터 삭제</h3>
-          <p style="margin:0 0 16px;color:#6a7a89;font-size:14px;">모든 데이터를 삭제합니다. 신중하게 진행하세요.</p>
+          <p style="margin:0 0 16px;color:#6a7a89;font-size:14px;">모든 데이터를 삭제합니다. 신중하게 진행하세요. (자동 백업본은 삭제되지 않습니다)</p>
           <button class="btn" onclick="confirmDeleteAll()" type="button" style="background:#8a2b2b;">전체 데이터 삭제</button>
         </div>
       </div>`;
@@ -7564,21 +7963,33 @@ ${r.optPlan}
       
       if(confirm(`다음 데이터를 삭제하시겠습니까?\n\n번호: ${targetRow.no}\n업체명: ${targetRow.companyName}\n진행건수: ${targetRow.totalCnt}\n\n이 작업은 되돌릴 수 없습니다.`)){
         try {
-          // Firebase에서 직접 삭제 (문서 ID가 있는 경우)
-          if (window.db && targetRow.id) {
-            console.log('🔥 Firebase에서 직접 삭제 시도:', targetRow.id);
-            const docRef = window.doc(window.db, 'submissions', targetRow.id);
-            await window.deleteDoc(docRef);
-            console.log('✅ Firebase 직접 삭제 완료');
-            
-            // 삭제 후 localStorage 캐시도 갱신 (필터링된 배열로 업데이트)
-            const filteredRows = rows.filter(r => r.no !== no);
-            localStorage.setItem("wp_submissions", JSON.stringify(filteredRows));
-            console.log('✅ localStorage 캐시 갱신 완료');
-          } else {
-            console.log('📝 Firebase 직접 삭제 불가, 전체 데이터 재저장 방식 사용');
-            const filteredRows = rows.filter(r => r.no !== no);
-            await saveSubs(filteredRows);
+          // 단건만 삭제 (전체 재저장/전체 삭제 금지)
+          let deleted = false;
+          if (window.db && window.deleteDoc && window.doc) {
+            if (targetRow.id) {
+              console.log('🔥 Firebase 단건 삭제:', targetRow.id);
+              await window.deleteDoc(window.doc(window.db, 'submissions', targetRow.id));
+              deleted = true;
+            } else if (window.collection && window.query && window.where && window.getDocs) {
+              // id가 없으면 no로 찾아 삭제
+              const q = window.query(
+                window.collection(window.db, 'submissions'),
+                window.where('no', '==', no)
+              );
+              const snap = await window.getDocs(q);
+              for (const d of snap.docs) {
+                await window.deleteDoc(d.ref);
+                deleted = true;
+              }
+            }
+          }
+
+          // 로컬 캐시만 해당 건 제거 (saveSubs 전체치환 사용 안 함)
+          const filteredRows = rows.filter(r => r.no !== no);
+          localStorage.setItem("wp_submissions", JSON.stringify(filteredRows));
+
+          if (!deleted) {
+            console.warn('Firebase 단건 삭제 실패/미지원 → 로컬 캐시만 갱신됨');
           }
           
           // vendorTypeCache도 초기화하여 최신 데이터 반영
@@ -8424,27 +8835,13 @@ ${r.optPlan}
         
         console.log('✅ 데이터 검증 완료 - 모든 no 값이 숫자');
         
+        // 전체 삭제 없이 upsert 저장 (기존 번호 유지, 재정렬 금지)
         await saveSubs(rows);
-        console.log('✅ 데이터 저장 완료');
+        console.log('✅ 데이터 저장 완료 (upsert, 번호 유지)');
         
         // 저장 후 검증
         let savedData = await loadSubs();
         console.log('🔍 저장 후 데이터 검증, 건수:', savedData.length);
-        
-        // NO 순서 재정렬 (화면 표시 순서대로 1,2,3...)
-        console.log('🔄 NO 순서 재정렬 시작');
-        savedData = savedData.map((item, index) => ({
-          ...item,
-          no: index + 1
-        }));
-        
-        // 재정렬된 데이터 저장
-        await saveSubs(savedData);
-        console.log('✅ NO 순서 재정렬 완료 (1,2,3...)');
-        
-        // 최종 데이터 로드
-        savedData = await loadSubs();
-        console.log('🔍 최종 데이터 검증, 건수:', savedData.length);
         
         // 처리 결과 요약
         console.log('📊 처리 결과 요약:', {
@@ -9169,6 +9566,7 @@ ${r.optPlan}
     window.collection = collection;
     window.doc = doc;
     window.setDoc = setDoc;
+    window.writeBatch = writeBatch;
     window.safeFirebaseOperation = safeFirebaseOperation;
     window.checkFirebaseConnection = checkFirebaseConnection;
     window.disableRealtimeListener = disableRealtimeListener;
@@ -9381,6 +9779,22 @@ ${r.optPlan}
             console.error('❌ Firebase 모듈 내 실시간 리스너 재시도 활성화 실패:', retryError);
           }
         }, 1000);
+      }
+
+      // 자동 백업 스케줄러 (2시간 간격, 페이지 열려 있을 때)
+      try {
+        if (typeof window.startAutoBackupScheduler === 'function') {
+          window.startAutoBackupScheduler();
+        } else {
+          // 스크립트 로드 순서 대비: 약간 지연 후 재시도
+          setTimeout(() => {
+            if (typeof window.startAutoBackupScheduler === 'function') {
+              window.startAutoBackupScheduler();
+            }
+          }, 2000);
+        }
+      } catch (backupSchedErr) {
+        console.warn('[BACKUP] 스케줄러 시작 실패:', backupSchedErr?.message || backupSchedErr);
       }
     } else {
       console.log('❌ Firebase DB 초기화 실패');
