@@ -4484,6 +4484,61 @@ ${r.optPlan}
       return totalCnt * rate;
     }
 
+    // 출금가능액 원장 시각 파싱
+    function toSettlementTime(value) {
+      if (value == null || value === '') return 0;
+      if (typeof value === 'number') return value;
+      if (value instanceof Date) return value.getTime();
+      if (typeof value?.toMillis === 'function') return value.toMillis();
+      const parsed = new Date(value).getTime();
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    // 7/24(약 1,776,000원) 출금으로 잔액을 소진한 시점을 원장 리셋 기준으로 사용.
+    // 이 시점 이전 수수료/출금은 이미 정산 완료로 보고, 이후 발생분만 출금가능액에 반영한다.
+    // (과거 submission 재집계가 출금 합보다 작아져 마이너스가 나는 것을 방지)
+    function resolveSettlementLedgerResetAt(completedWithdrawals = []) {
+      const STORAGE_KEY = 'wp_settlement_ledger_reset_at';
+      const stored = Number(localStorage.getItem(STORAGE_KEY) || 0);
+      if (stored > 0) return stored;
+
+      const list = completedWithdrawals || [];
+      const matched = list.find(w => {
+        const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+        const t = toSettlementTime(w.requestedAt || w.processedAt);
+        if (!t) return false;
+        const d = new Date(t);
+        // 2026-07-24 전후, 1,776,000원 출금
+        const isTargetDay = d.getFullYear() === 2026 && d.getMonth() === 6 && d.getDate() === 24;
+        const isTargetAmount = Math.abs(amount - 1776000) < 1000;
+        return isTargetDay && isTargetAmount;
+      });
+
+      let resetAt = matched
+        ? toSettlementTime(matched.requestedAt || matched.processedAt)
+        : 0;
+
+      // 폴백: 7/24 매칭 실패 시 가장 최근 완료 출금 시점을 잔액 소진 시점으로 사용
+      if (!resetAt && list.length > 0) {
+        const latest = [...list].sort((a, b) => {
+          return toSettlementTime(b.requestedAt || b.processedAt) - toSettlementTime(a.requestedAt || a.processedAt);
+        })[0];
+        resetAt = toSettlementTime(latest?.requestedAt || latest?.processedAt);
+      }
+
+      if (resetAt > 0) {
+        localStorage.setItem(STORAGE_KEY, String(resetAt));
+        console.log('[INFO][settlement-ledger-reset] 원장 리셋 시각 저장:', {
+          resetAt,
+          resetAtIso: new Date(resetAt).toISOString(),
+          matchedAmount: matched?.amount ?? null,
+          mode: matched ? '7/24-1,776,000' : 'latest-completed-withdrawal'
+        });
+        return resetAt;
+      }
+      return 0;
+    }
+
     async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
       // 출금가능액 계산: 접수 완료 여부와 관계없이 모든 submission 포함
       // 중요: 중복 제거를 위해 no 기준으로 유일한 submission만 포함
@@ -4621,6 +4676,7 @@ ${r.optPlan}
       let regularCount = 0;
       let premiumCommission = 0;
       let regularCommission = 0;
+      const commissionEntries = []; // 원장 리셋 이후 수수료 재집계용
       
       for (const sub of sortedSubs) {
         const normalizedCompanyCode = sub.companyCode ? String(sub.companyCode).trim() : '';
@@ -4727,6 +4783,10 @@ ${r.optPlan}
         
         totalCommission += commission;
         totalCount += (parseInt(sub.totalCnt) || 0);
+        commissionEntries.push({
+          submittedAt: sub.submittedAt,
+          commission
+        });
         
         if (vType === '우수') {
           premiumCount += (parseInt(sub.totalCnt) || 0);
@@ -4787,13 +4847,54 @@ ${r.optPlan}
           id: w.id,
           amount: w.amount,
           status: w.status,
-          vendorId: w.vendorId
+          vendorId: w.vendorId,
+          requestedAt: w.requestedAt,
+          processedAt: w.processedAt
         }))
       });
+
+      // 출금가능액 = 총 수수료 - 총 출금액
+      // 불변조건: 절대 0 미만이 될 수 없음
+      const rawAvailable = totalCommission - totalWithdrawn;
+      let availableAmount = rawAvailable;
+      let ledgerResetAt = 0;
+      let postResetCommission = totalCommission;
+      let postResetWithdrawn = totalWithdrawn;
+      let ledgerNormalized = false;
+
+      // 현재 재집계 수수료가 완료 출금보다 작아 마이너스가 되면,
+      // 7/24 잔액 소진 출금 시점을 원장 리셋으로 보고 그 이후 발생분만 반영한다.
+      if (rawAvailable < 0) {
+        ledgerResetAt = resolveSettlementLedgerResetAt(relevantWithdrawals);
+        if (ledgerResetAt > 0) {
+          postResetCommission = commissionEntries.reduce((sum, entry) => {
+            return toSettlementTime(entry.submittedAt) > ledgerResetAt
+              ? sum + entry.commission
+              : sum;
+          }, 0);
+          postResetWithdrawn = relevantWithdrawals.reduce((sum, w) => {
+            const t = toSettlementTime(w.requestedAt || w.processedAt);
+            if (t <= ledgerResetAt) return sum;
+            const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+            return sum + amount;
+          }, 0);
+          availableAmount = postResetCommission - postResetWithdrawn;
+          ledgerNormalized = true;
+        }
+      }
+
+      // 절대 마이너스 표시/사용 금지
+      availableAmount = Math.max(0, availableAmount);
+
       const result = {
         totalCommission,
         totalWithdrawn,
-        availableAmount: totalCommission - totalWithdrawn,
+        availableAmount,
+        rawAvailable,
+        ledgerResetAt,
+        ledgerNormalized,
+        postResetCommission,
+        postResetWithdrawn,
         subsCount: subs.length
       };
       console.log('[DEBUG][settlement]', {
@@ -4804,7 +4905,13 @@ ${r.optPlan}
         subsCount: result.subsCount,
         totalCommission: result.totalCommission,
         totalWithdrawn: result.totalWithdrawn,
+        rawAvailable: result.rawAvailable,
         availableAmount: result.availableAmount,
+        ledgerNormalized: result.ledgerNormalized,
+        ledgerResetAt: result.ledgerResetAt,
+        ledgerResetAtIso: result.ledgerResetAt ? new Date(result.ledgerResetAt).toISOString() : null,
+        postResetCommission: result.postResetCommission,
+        postResetWithdrawn: result.postResetWithdrawn,
         averageCommissionPerSub: result.subsCount > 0 ? (result.totalCommission / result.subsCount).toFixed(2) : 0,
         duplicatesRemoved: submissions.length - uniqueSubs.length
       });
@@ -5317,7 +5424,18 @@ ${r.optPlan}
         
         // settlement 계산 최적화
         const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
-        const { totalCommission, totalWithdrawn, availableAmount } = settlement;
+        const { totalCommission, totalWithdrawn, availableAmount, ledgerNormalized, ledgerResetAt, rawAvailable } = settlement;
+
+        if (ledgerNormalized) {
+          console.log('[INFO][settlement-normalized] 출금가능액 원장 정상화 적용', {
+            rawAvailable,
+            availableAmount,
+            ledgerResetAt,
+            ledgerResetAtIso: ledgerResetAt ? new Date(ledgerResetAt).toISOString() : null,
+            totalCommission,
+            totalWithdrawn
+          });
+        }
         
         // 상단 영역 (모바일에서 sticky)
         let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
@@ -5350,7 +5468,7 @@ ${r.optPlan}
             </div>
             <div>
               <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">출금 신청액</label>
-              <input type="number" id="withdrawalAmount" class="input" placeholder="출금 가능액 이하" style="width:100%;" max="${availableAmount}">
+              <input type="number" id="withdrawalAmount" class="input" placeholder="출금 가능액 이하" style="width:100%;" max="${Math.max(0, availableAmount)}" min="0">
             </div>
           </div>
           <button id="submitWithdrawalBtn" class="btn w-full md:w-auto" style="margin-top:16px;background:var(--brand);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer;">출금 신청</button>
@@ -9521,6 +9639,12 @@ ${r.optPlan}
       window.wp_data_cache_cleared = true;
       console.log('🔄 데이터 캐시 강제 초기화 완료');
       console.log('💡 이제 다른 탭을 클릭하면 최신 데이터가 로드됩니다');
+    };
+
+    // 출금가능액 원장 리셋 기준 초기화 (디버깅/재보정용)
+    window.clearSettlementLedgerReset = function() {
+      localStorage.removeItem('wp_settlement_ledger_reset_at');
+      console.log('🗑️ 출금가능액 원장 리셋 기준 삭제 완료. 출금신청 탭을 다시 열어주세요.');
     };
     
     // 로딩 팝업 디버깅 함수
