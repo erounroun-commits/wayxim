@@ -5045,6 +5045,50 @@ ${r.optPlan}
       return payload;
     }
 
+    function sumManualCreditFromTopUps(topUps = []) {
+      return (topUps || []).reduce((sum, item) => sum + (Number(item?.amount) || 0), 0);
+    }
+
+    function computeOpeningAdjustment(rawAvailable, ledgerResetAt, postResetCommission, postResetWithdrawn) {
+      if (rawAvailable >= 0) return 0;
+      const bootstrapAdj = -rawAvailable;
+      if (!ledgerResetAt) return bootstrapAdj;
+      const postResetDeficit = Math.max(0, postResetWithdrawn - postResetCommission);
+      return bootstrapAdj - postResetDeficit;
+    }
+
+    async function buildAuthoritativeSettlementBalance({
+      totalCommission,
+      totalWithdrawn,
+      rawAvailable,
+      ledgerResetAt,
+      postResetCommission,
+      postResetWithdrawn,
+      manualCreditTotal
+    }) {
+      const openingAdjustment = computeOpeningAdjustment(
+        rawAvailable,
+        ledgerResetAt,
+        postResetCommission,
+        postResetWithdrawn
+      );
+      const availableAmount = Math.max(0, openingAdjustment + manualCreditTotal + rawAvailable);
+      return saveSettlementBalanceMeta({
+        openingAdjustment,
+        manualCreditTotal,
+        ledgerResetAt: ledgerResetAt || 0,
+        ledgerResetResolvedAt: ledgerResetAt > 0 ? Date.now() : 0,
+        ledgerResetSource: 'computed-authoritative',
+        totalCommissionLocked: totalCommission,
+        totalWithdrawnCompleted: totalWithdrawn,
+        balance: availableAmount,
+        canonicalLocked: true,
+        canonicalSource: 'computed-authoritative',
+        canonicalizedAt: Date.now(),
+        note: 'submission/withdrawal/top-up 데이터로 매번 재계산한 공용 기준값'
+      }, { replaceRemote: true });
+    }
+
     // 원장 잔액 = openingAdjustment(과거 보정, 고정) + manualCreditTotal(수동 증액) + 확정수수료합 - 완료출금합
     // openingAdjustment는 최초 1회만 산출하고 이후 변경하지 않음 → 신규 수수료/출금/수동증액만 잔액을 움직임
     async function ensureSettlementBalanceMeta(totalCommissionLocked, totalWithdrawnCompleted, desiredAvailableIfDeficit = 0, metaOverrides = {}) {
@@ -5480,13 +5524,14 @@ ${r.optPlan}
       // 출금가능액 원장:
       // balance = openingAdjustment(고정 보정) + manualCreditTotal(수동 증액) + 확정 수수료합 - 완료 출금합
       const rawAvailable = totalCommission - totalWithdrawn;
+      const topUps = await loadAvailableTopUps();
+      const manualCreditTotal = sumManualCreditFromTopUps(topUps);
       let ledgerResetAt = 0;
       let postResetCommission = totalCommission;
       let postResetWithdrawn = totalWithdrawn;
-      let desiredAvailableIfDeficit = 0;
 
       if (rawAvailable < 0) {
-        ledgerResetAt = await resolveSettlementLedgerResetAt(relevantWithdrawals);
+        ledgerResetAt = computeSettlementLedgerResetAt(relevantWithdrawals);
         if (ledgerResetAt > 0) {
           postResetCommission = commissionEntries.reduce((sum, entry) => {
             return toSettlementTime(entry.submittedAt) > ledgerResetAt
@@ -5499,25 +5544,20 @@ ${r.optPlan}
             const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
             return sum + amount;
           }, 0);
-          desiredAvailableIfDeficit = Math.max(0, postResetCommission - postResetWithdrawn);
         }
       }
 
-      const balanceMeta = await ensureSettlementBalanceMeta(
+      const balanceMeta = await buildAuthoritativeSettlementBalance({
         totalCommission,
         totalWithdrawn,
-        desiredAvailableIfDeficit,
-        ledgerResetAt > 0
-          ? {
-              ledgerResetAt,
-              ledgerResetResolvedAt: Date.now(),
-              ledgerResetSource: 'shared-settlement-meta'
-            }
-          : {}
-      );
+        rawAvailable,
+        ledgerResetAt,
+        postResetCommission,
+        postResetWithdrawn,
+        manualCreditTotal
+      });
       const openingAdjustment = Number(balanceMeta.openingAdjustment) || 0;
-      const manualCreditTotal = Number(balanceMeta.manualCreditTotal) || 0;
-      const availableAmount = Math.max(0, openingAdjustment + manualCreditTotal + totalCommission - totalWithdrawn);
+      const availableAmount = Math.max(0, openingAdjustment + manualCreditTotal + rawAvailable);
       const ledgerNormalized = openingAdjustment > 0;
 
       // ===== 7/24 전후 원장 건별 검증 리포트 =====
@@ -6396,7 +6436,7 @@ ${r.optPlan}
         const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
         const previousAvailable = Math.max(0, settlement.availableAmount || 0);
         const meta = settlement.balanceMeta || (await loadSettlementBalanceMeta()) || {};
-        const prevCredit = Number(meta.manualCreditTotal) || 0;
+        const prevCredit = sumManualCreditFromTopUps(await loadAvailableTopUps());
         const nextCredit = prevCredit + amt;
         const newAvailable = previousAvailable + amt;
 
