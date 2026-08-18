@@ -4896,26 +4896,39 @@ ${r.optPlan}
 
     const SETTLEMENT_BALANCE_STORAGE_KEY = 'wp_settlement_balance_meta';
     const SETTLEMENT_BALANCE_DOC = 'balance';
+    const SETTLEMENT_LEDGER_RESET_STORAGE_KEY = 'wp_settlement_ledger_reset_at';
 
-    async function loadSettlementBalanceMeta() {
-      try {
-        if (window.db && window.doc && window.getDoc) {
-          const ref = window.doc(window.db, 'settlementMeta', SETTLEMENT_BALANCE_DOC);
-          const snap = await window.getDoc(ref);
-          if (snap.exists()) {
-            const data = snap.data() || {};
-            localStorage.setItem(SETTLEMENT_BALANCE_STORAGE_KEY, JSON.stringify(data));
-            return data;
-          }
-        }
-      } catch (e) {
-        console.warn('[WARN][settlement-balance-load]', e?.message || e);
+    async function loadSettlementBalanceMetaRemote() {
+      if (!(window.db && window.doc && window.getDoc)) return null;
+      const ref = window.doc(window.db, 'settlementMeta', SETTLEMENT_BALANCE_DOC);
+      const snap = await window.getDoc(ref);
+      if (!snap.exists()) return null;
+      const data = snap.data() || {};
+      localStorage.setItem(SETTLEMENT_BALANCE_STORAGE_KEY, JSON.stringify(data));
+      if (Number(data.ledgerResetAt) > 0) {
+        localStorage.setItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY, String(Number(data.ledgerResetAt)));
       }
+      return data;
+    }
+
+    function loadSettlementBalanceMetaLocal() {
       try {
         return JSON.parse(localStorage.getItem(SETTLEMENT_BALANCE_STORAGE_KEY) || 'null') || null;
       } catch (_) {
         return null;
       }
+    }
+
+    async function loadSettlementBalanceMeta(options = {}) {
+      const { allowLocalFallback = !(window.db && window.doc && window.getDoc) } = options;
+      try {
+        const remote = await loadSettlementBalanceMetaRemote();
+        if (remote) return remote;
+      } catch (e) {
+        console.warn('[WARN][settlement-balance-load]', e?.message || e);
+      }
+      if (!allowLocalFallback) return null;
+      return loadSettlementBalanceMetaLocal();
     }
 
     async function saveSettlementBalanceMeta(meta) {
@@ -4924,6 +4937,9 @@ ${r.optPlan}
         updatedAt: Date.now()
       };
       localStorage.setItem(SETTLEMENT_BALANCE_STORAGE_KEY, JSON.stringify(payload));
+      if (Number(payload.ledgerResetAt) > 0) {
+        localStorage.setItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY, String(Number(payload.ledgerResetAt)));
+      }
       try {
         if (window.db && window.doc && window.setDoc) {
           const ref = window.doc(window.db, 'settlementMeta', SETTLEMENT_BALANCE_DOC);
@@ -4937,17 +4953,21 @@ ${r.optPlan}
 
     // 원장 잔액 = openingAdjustment(과거 보정, 고정) + manualCreditTotal(수동 증액) + 확정수수료합 - 완료출금합
     // openingAdjustment는 최초 1회만 산출하고 이후 변경하지 않음 → 신규 수수료/출금/수동증액만 잔액을 움직임
-    async function ensureSettlementBalanceMeta(totalCommissionLocked, totalWithdrawnCompleted, desiredAvailableIfDeficit = 0) {
-      let meta = await loadSettlementBalanceMeta();
+    async function ensureSettlementBalanceMeta(totalCommissionLocked, totalWithdrawnCompleted, desiredAvailableIfDeficit = 0, metaOverrides = {}) {
+      let meta = {
+        ...(await loadSettlementBalanceMeta({ allowLocalFallback: true }) || {}),
+        ...metaOverrides
+      };
       const raw = totalCommissionLocked - totalWithdrawnCompleted;
 
-      if (!meta || meta.openingAdjustment == null || !Number.isFinite(Number(meta.openingAdjustment))) {
+      if (meta.openingAdjustment == null || !Number.isFinite(Number(meta.openingAdjustment))) {
         let openingAdjustment = 0;
         if (raw < 0) {
           const desired = Math.max(0, Number(desiredAvailableIfDeficit) || 0);
           openingAdjustment = desired - raw; // raw가 음수이므로 보정으로 원하는 잔액까지 맞춤
         }
         meta = await saveSettlementBalanceMeta({
+          ...meta,
           openingAdjustment,
           manualCreditTotal: 0,
           bootstrappedAt: Date.now(),
@@ -4991,11 +5011,7 @@ ${r.optPlan}
     // 7/24(약 1,776,000원) 출금으로 잔액을 소진한 시점을 원장 리셋 기준으로 사용.
     // 이 시점 이전 수수료/출금은 이미 정산 완료로 보고, 이후 발생분만 출금가능액에 반영한다.
     // (과거 submission 재집계가 출금 합보다 작아져 마이너스가 나는 것을 방지)
-    function resolveSettlementLedgerResetAt(completedWithdrawals = []) {
-      const STORAGE_KEY = 'wp_settlement_ledger_reset_at';
-      const stored = Number(localStorage.getItem(STORAGE_KEY) || 0);
-      if (stored > 0) return stored;
-
+    function computeSettlementLedgerResetAt(completedWithdrawals = []) {
       const list = completedWithdrawals || [];
       const matched = list.find(w => {
         const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
@@ -5020,17 +5036,33 @@ ${r.optPlan}
         resetAt = toSettlementTime(latest?.requestedAt || latest?.processedAt);
       }
 
+      return resetAt > 0 ? resetAt : 0;
+    }
+
+    async function resolveSettlementLedgerResetAt(completedWithdrawals = []) {
+      const remoteMeta = await loadSettlementBalanceMeta({ allowLocalFallback: false });
+      const remoteResetAt = Number(remoteMeta?.ledgerResetAt) || 0;
+      if (remoteResetAt > 0) {
+        localStorage.setItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY, String(remoteResetAt));
+        return remoteResetAt;
+      }
+
+      const resetAt = computeSettlementLedgerResetAt(completedWithdrawals);
       if (resetAt > 0) {
-        localStorage.setItem(STORAGE_KEY, String(resetAt));
-        console.log('[INFO][settlement-ledger-reset] 원장 리셋 시각 저장:', {
+        const nextMeta = {
+          ...(remoteMeta || {}),
+          ledgerResetAt: resetAt,
+          ledgerResetResolvedAt: Date.now(),
+          ledgerResetSource: 'computed-from-completed-withdrawals'
+        };
+        await saveSettlementBalanceMeta(nextMeta);
+        console.log('[INFO][settlement-ledger-reset] 공용 원장 리셋 시각 저장:', {
           resetAt,
           resetAtIso: new Date(resetAt).toISOString(),
-          matchedAmount: matched?.amount ?? null,
-          mode: matched ? '7/24-1,776,000' : 'latest-completed-withdrawal'
+          source: nextMeta.ledgerResetSource
         });
-        return resetAt;
       }
-      return 0;
+      return resetAt;
     }
 
     async function calcSettlementForVendor(submissions = [], withdrawals = [], vendorId = null, vendorTypes = {}) {
@@ -5359,7 +5391,7 @@ ${r.optPlan}
       let desiredAvailableIfDeficit = 0;
 
       if (rawAvailable < 0) {
-        ledgerResetAt = resolveSettlementLedgerResetAt(relevantWithdrawals);
+        ledgerResetAt = await resolveSettlementLedgerResetAt(relevantWithdrawals);
         if (ledgerResetAt > 0) {
           postResetCommission = commissionEntries.reduce((sum, entry) => {
             return toSettlementTime(entry.submittedAt) > ledgerResetAt
@@ -5379,7 +5411,14 @@ ${r.optPlan}
       const balanceMeta = await ensureSettlementBalanceMeta(
         totalCommission,
         totalWithdrawn,
-        desiredAvailableIfDeficit
+        desiredAvailableIfDeficit,
+        ledgerResetAt > 0
+          ? {
+              ledgerResetAt,
+              ledgerResetResolvedAt: Date.now(),
+              ledgerResetSource: 'shared-settlement-meta'
+            }
+          : {}
       );
       const openingAdjustment = Number(balanceMeta.openingAdjustment) || 0;
       const manualCreditTotal = Number(balanceMeta.manualCreditTotal) || 0;
@@ -10494,9 +10533,43 @@ ${r.optPlan}
     };
 
     // 출금가능액 원장 리셋 기준 초기화 (디버깅/재보정용)
-    window.clearSettlementLedgerReset = function() {
+    window.clearSettlementLedgerReset = async function() {
       localStorage.removeItem('wp_settlement_ledger_reset_at');
+      try {
+        const meta = (await loadSettlementBalanceMeta({ allowLocalFallback: true })) || {};
+        await saveSettlementBalanceMeta({
+          ...meta,
+          ledgerResetAt: 0,
+          ledgerResetResolvedAt: Date.now(),
+          ledgerResetSource: 'cleared-manually'
+        });
+      } catch (e) {
+        console.warn('settlement ledger reset 공용 메타 초기화 실패(무시 가능):', e?.message || e);
+      }
       console.log('🗑️ 출금가능액 원장 리셋 기준 삭제 완료. 출금신청 탭을 다시 열어주세요.');
+    };
+
+    // 현재 PC의 출금가능액 메타를 공용 기준값으로 승격
+    window.publishCurrentSettlementAsCanonical = async function() {
+      const localMeta = loadSettlementBalanceMetaLocal() || {};
+      const localResetAt = Number(localStorage.getItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY) || localMeta.ledgerResetAt || 0);
+      const payload = {
+        ...localMeta,
+        ledgerResetAt: localResetAt,
+        canonicalizedAt: Date.now(),
+        canonicalSource: 'current-pc'
+      };
+      if (payload.openingAdjustment == null || !Number.isFinite(Number(payload.openingAdjustment))) {
+        throw new Error('현재 PC에 openingAdjustment가 없습니다. 먼저 출금신청 탭을 열어 출금 가능액을 계산해주세요.');
+      }
+      const saved = await saveSettlementBalanceMeta(payload);
+      console.log('✅ 현재 PC의 출금가능액 메타를 공용 기준값으로 저장했습니다.', {
+        openingAdjustment: saved.openingAdjustment,
+        manualCreditTotal: saved.manualCreditTotal,
+        ledgerResetAt: saved.ledgerResetAt || 0,
+        balance: saved.balance
+      });
+      return saved;
     };
 
     // 출금가능액 openingAdjustment(고정 보정) 초기화 — 재부트스트랩용
