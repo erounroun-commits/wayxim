@@ -5537,6 +5537,11 @@ ${r.optPlan}
         duplicatesRemoved: submissions.length - uniqueSubs.length,
         lockedCommissionCount: commissionEntries.filter(e => e.usedLocked).length
       });
+      window.lastSettlementSnapshot = {
+        ...result,
+        vendorId: vendorId || 'ALL',
+        capturedAt: Date.now()
+      };
       return result;
     }
 
@@ -10551,11 +10556,17 @@ ${r.optPlan}
 
     // 현재 PC의 출금가능액 메타를 공용 기준값으로 승격
     window.publishCurrentSettlementAsCanonical = async function() {
+      const snapshot = window.lastSettlementSnapshot || null;
       const localMeta = loadSettlementBalanceMetaLocal() || {};
-      const localResetAt = Number(localStorage.getItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY) || localMeta.ledgerResetAt || 0);
+      const localResetAt = Number(localStorage.getItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY) || snapshot?.ledgerResetAt || localMeta.ledgerResetAt || 0);
       const payload = {
         ...localMeta,
+        openingAdjustment: Number(snapshot?.openingAdjustment ?? localMeta.openingAdjustment) || 0,
+        manualCreditTotal: Number(snapshot?.manualCreditTotal ?? localMeta.manualCreditTotal) || 0,
         ledgerResetAt: localResetAt,
+        totalCommissionLocked: Number(snapshot?.totalCommission ?? localMeta.totalCommissionLocked) || 0,
+        totalWithdrawnCompleted: Number(snapshot?.totalWithdrawn ?? localMeta.totalWithdrawnCompleted) || 0,
+        balance: Number(snapshot?.availableAmount ?? localMeta.balance) || 0,
         canonicalizedAt: Date.now(),
         canonicalSource: 'current-pc'
       };
@@ -10569,6 +10580,24 @@ ${r.optPlan}
         ledgerResetAt: saved.ledgerResetAt || 0,
         balance: saved.balance
       });
+      return saved;
+    };
+
+    // 관리자용: 확인된 기준값을 공용 메타에 강제로 반영
+    window.forceCanonicalSettlementBalance = async function(values = {}) {
+      const payload = {
+        ...(loadSettlementBalanceMetaLocal() || {}),
+        openingAdjustment: Number(values.openingAdjustment) || 0,
+        manualCreditTotal: Number(values.manualCreditTotal) || 0,
+        ledgerResetAt: Number(values.ledgerResetAt) || 0,
+        totalCommissionLocked: Number(values.totalCommissionLocked) || 0,
+        totalWithdrawnCompleted: Number(values.totalWithdrawnCompleted) || 0,
+        balance: Number(values.balance) || 0,
+        canonicalizedAt: Date.now(),
+        canonicalSource: 'forced-admin-values'
+      };
+      const saved = await saveSettlementBalanceMeta(payload);
+      console.log('✅ 출금가능액 기준값을 강제로 복구했습니다.', saved);
       return saved;
     };
 
