@@ -4898,17 +4898,77 @@ ${r.optPlan}
     const SETTLEMENT_BALANCE_DOC = 'balance';
     const SETTLEMENT_LEDGER_RESET_STORAGE_KEY = 'wp_settlement_ledger_reset_at';
 
+    function getSettlementMetaTimestamp(meta = {}) {
+      return Math.max(
+        Number(meta.canonicalizedAt) || 0,
+        Number(meta.updatedAt) || 0,
+        Number(meta.bootstrappedAt) || 0
+      );
+    }
+
+    function isCanonicalSettlementMeta(meta = {}) {
+      return Boolean(
+        meta.canonicalLocked ||
+        meta.canonicalSource === 'forced-admin-values' ||
+        meta.canonicalSource === 'current-pc'
+      );
+    }
+
+    function cacheSettlementBalanceMeta(meta) {
+      if (!meta || typeof meta !== 'object') return;
+      localStorage.setItem(SETTLEMENT_BALANCE_STORAGE_KEY, JSON.stringify(meta));
+      if (Number(meta.ledgerResetAt) > 0) {
+        localStorage.setItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY, String(Number(meta.ledgerResetAt)));
+      }
+    }
+
+    function mergeSettlementBalanceMeta(remote = null, local = null) {
+      if (!remote && !local) return null;
+      if (!remote) return { ...local };
+      if (!local) return { ...remote };
+
+      const remoteCanonical = isCanonicalSettlementMeta(remote);
+      const localCanonical = isCanonicalSettlementMeta(local);
+      const remoteTs = getSettlementMetaTimestamp(remote);
+      const localTs = getSettlementMetaTimestamp(local);
+
+      let winner = remote;
+      if (localCanonical && !remoteCanonical) {
+        winner = local;
+      } else if (remoteCanonical && !localCanonical) {
+        winner = remote;
+      } else if (localTs > remoteTs) {
+        winner = local;
+      }
+
+      const loser = winner === local ? remote : local;
+      const merged = {
+        ...loser,
+        ...winner,
+        manualCreditTotal: Math.max(
+          Number(winner.manualCreditTotal) || 0,
+          Number(loser.manualCreditTotal) || 0
+        )
+      };
+
+      if (isCanonicalSettlementMeta(winner)) {
+        merged.openingAdjustment = Number(winner.openingAdjustment) || 0;
+        merged.manualCreditTotal = Number(winner.manualCreditTotal) || 0;
+        merged.balance = Number(winner.balance) || 0;
+        merged.canonicalSource = winner.canonicalSource;
+        merged.canonicalizedAt = winner.canonicalizedAt;
+        merged.canonicalLocked = true;
+      }
+
+      return merged;
+    }
+
     async function loadSettlementBalanceMetaRemote() {
       if (!(window.db && window.doc && window.getDoc)) return null;
       const ref = window.doc(window.db, 'settlementMeta', SETTLEMENT_BALANCE_DOC);
       const snap = await window.getDoc(ref);
       if (!snap.exists()) return null;
-      const data = snap.data() || {};
-      localStorage.setItem(SETTLEMENT_BALANCE_STORAGE_KEY, JSON.stringify(data));
-      if (Number(data.ledgerResetAt) > 0) {
-        localStorage.setItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY, String(Number(data.ledgerResetAt)));
-      }
-      return data;
+      return snap.data() || {};
     }
 
     function loadSettlementBalanceMetaLocal() {
@@ -4921,29 +4981,63 @@ ${r.optPlan}
 
     async function loadSettlementBalanceMeta(options = {}) {
       const { allowLocalFallback = !(window.db && window.doc && window.getDoc) } = options;
+      const local = loadSettlementBalanceMetaLocal();
+      let remote = null;
+
       try {
-        const remote = await loadSettlementBalanceMetaRemote();
-        if (remote) return remote;
+        remote = await loadSettlementBalanceMetaRemote();
       } catch (e) {
         console.warn('[WARN][settlement-balance-load]', e?.message || e);
       }
+
+      if (remote || local) {
+        const merged = mergeSettlementBalanceMeta(remote, local);
+        cacheSettlementBalanceMeta(merged);
+
+        const shouldPushCanonicalLocal =
+          local &&
+          isCanonicalSettlementMeta(local) &&
+          (!remote || getSettlementMetaTimestamp(local) >= getSettlementMetaTimestamp(remote));
+
+        if (shouldPushCanonicalLocal && window.db && window.doc && window.setDoc) {
+          try {
+            const ref = window.doc(window.db, 'settlementMeta', SETTLEMENT_BALANCE_DOC);
+            await window.setDoc(ref, merged);
+            console.log('[INFO][settlement-balance-sync] 로컬 기준값을 공용 메타로 동기화했습니다.', {
+              openingAdjustment: merged.openingAdjustment,
+              manualCreditTotal: merged.manualCreditTotal,
+              balance: merged.balance
+            });
+          } catch (e) {
+            console.warn('[WARN][settlement-balance-sync]', e?.message || e);
+          }
+        }
+
+        return merged;
+      }
+
       if (!allowLocalFallback) return null;
-      return loadSettlementBalanceMetaLocal();
+      return local;
     }
 
-    async function saveSettlementBalanceMeta(meta) {
+    async function saveSettlementBalanceMeta(meta, options = {}) {
+      const { replaceRemote = isCanonicalSettlementMeta(meta) } = options;
       const payload = {
         ...meta,
         updatedAt: Date.now()
       };
-      localStorage.setItem(SETTLEMENT_BALANCE_STORAGE_KEY, JSON.stringify(payload));
-      if (Number(payload.ledgerResetAt) > 0) {
-        localStorage.setItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY, String(Number(payload.ledgerResetAt)));
+      if (isCanonicalSettlementMeta(payload)) {
+        payload.canonicalLocked = true;
       }
+      cacheSettlementBalanceMeta(payload);
       try {
         if (window.db && window.doc && window.setDoc) {
           const ref = window.doc(window.db, 'settlementMeta', SETTLEMENT_BALANCE_DOC);
-          await window.setDoc(ref, payload, { merge: true });
+          if (replaceRemote) {
+            await window.setDoc(ref, payload);
+          } else {
+            await window.setDoc(ref, payload, { merge: true });
+          }
         }
       } catch (e) {
         console.warn('[WARN][settlement-balance-save]', e?.message || e);
@@ -4959,8 +5053,9 @@ ${r.optPlan}
         ...metaOverrides
       };
       const raw = totalCommissionLocked - totalWithdrawnCompleted;
+      const canonical = isCanonicalSettlementMeta(meta);
 
-      if (meta.openingAdjustment == null || !Number.isFinite(Number(meta.openingAdjustment))) {
+      if (!canonical && (meta.openingAdjustment == null || !Number.isFinite(Number(meta.openingAdjustment)))) {
         let openingAdjustment = 0;
         if (raw < 0) {
           const desired = Math.max(0, Number(desiredAvailableIfDeficit) || 0);
@@ -4969,7 +5064,7 @@ ${r.optPlan}
         meta = await saveSettlementBalanceMeta({
           ...meta,
           openingAdjustment,
-          manualCreditTotal: 0,
+          manualCreditTotal: Number(meta.manualCreditTotal) || 0,
           bootstrappedAt: Date.now(),
           note: raw < 0
             ? '과거 출금 대비 재집계 수수료 부족분을 고정 보정(openingAdjustment)으로 반영'
@@ -4994,7 +5089,7 @@ ${r.optPlan}
         totalCommissionLocked,
         totalWithdrawnCompleted,
         balance
-      });
+      }, { replaceRemote: canonical });
       return synced;
     }
 
@@ -5040,17 +5135,17 @@ ${r.optPlan}
     }
 
     async function resolveSettlementLedgerResetAt(completedWithdrawals = []) {
-      const remoteMeta = await loadSettlementBalanceMeta({ allowLocalFallback: false });
-      const remoteResetAt = Number(remoteMeta?.ledgerResetAt) || 0;
+      const meta = await loadSettlementBalanceMeta({ allowLocalFallback: true });
+      const remoteResetAt = Number(meta?.ledgerResetAt) || 0;
       if (remoteResetAt > 0) {
         localStorage.setItem(SETTLEMENT_LEDGER_RESET_STORAGE_KEY, String(remoteResetAt));
         return remoteResetAt;
       }
 
       const resetAt = computeSettlementLedgerResetAt(completedWithdrawals);
-      if (resetAt > 0) {
+      if (resetAt > 0 && !isCanonicalSettlementMeta(meta)) {
         const nextMeta = {
-          ...(remoteMeta || {}),
+          ...(meta || {}),
           ledgerResetAt: resetAt,
           ledgerResetResolvedAt: Date.now(),
           ledgerResetSource: 'computed-from-completed-withdrawals'
@@ -10594,10 +10689,14 @@ ${r.optPlan}
         totalWithdrawnCompleted: Number(values.totalWithdrawnCompleted) || 0,
         balance: Number(values.balance) || 0,
         canonicalizedAt: Date.now(),
-        canonicalSource: 'forced-admin-values'
+        canonicalSource: 'forced-admin-values',
+        canonicalLocked: true
       };
-      const saved = await saveSettlementBalanceMeta(payload);
+      const saved = await saveSettlementBalanceMeta(payload, { replaceRemote: true });
       console.log('✅ 출금가능액 기준값을 강제로 복구했습니다.', saved);
+      if (typeof showWithdrawalRequest === 'function') {
+        await showWithdrawalRequest();
+      }
       return saved;
     };
 
