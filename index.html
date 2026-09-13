@@ -5920,6 +5920,57 @@ ${r.optPlan}
       }, 0);
     }
 
+    /**
+     * 엑셀 장부 리셋 경계: 2026-08-12 출금 648,000.
+     * 이 출금은 "이전 누적을 0으로 만드는 경계"일 뿐, 리셋 이후 차감 대상에 넣지 않는다.
+     */
+    function resolveExcelResetBoundary(withdrawals = []) {
+      const dayStart = Date.parse('2026-08-12T00:00:00+09:00');
+      const dayEnd = Date.parse('2026-08-13T00:00:00+09:00');
+      const excelDefaultMs = Date.parse('2026-08-12T12:04:05+09:00');
+      const resetIds = new Set();
+      let boundaryMs = excelDefaultMs;
+      let source = 'excel-default-12:04:05';
+
+      const onDay = (withdrawals || []).filter(w => {
+        if (!w || w.status !== 'completed') return false;
+        const amt = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+        if (Math.round(amt) !== 648000) return false;
+        const t = Number(w.processedAt || w.requestedAt || w.createdAt) || 0;
+        return t >= dayStart && t < dayEnd;
+      });
+
+      if (onDay.length) {
+        onDay.forEach(w => { if (w.id) resetIds.add(String(w.id)); });
+        boundaryMs = Math.max(...onDay.map(w => Number(w.processedAt || w.requestedAt || w.createdAt) || 0));
+        source = `withdrawal-648000×${onDay.length}`;
+      }
+
+      return {
+        boundaryMs,
+        boundaryIso: new Date(boundaryMs).toISOString(),
+        resetWithdrawalIds: resetIds,
+        resetWithdrawalCount: resetIds.size || (source.startsWith('excel') ? 0 : onDay.length),
+        source
+      };
+    }
+
+    function isAfterExcelResetBoundary(ts, boundary) {
+      const ms = typeof ts === 'number' ? ts : new Date(ts).getTime();
+      if (!Number.isFinite(ms) || ms <= 0) return false;
+      // 리셋 출금 시각과 같거나 이전이면 "이후"가 아님 (경계 자체 제외)
+      return ms > boundary.boundaryMs;
+    }
+
+    function filterWithdrawalsAfterExcelReset(completedWithdrawals, boundary) {
+      return (completedWithdrawals || []).filter(w => {
+        if (!w) return false;
+        if (w.id && boundary.resetWithdrawalIds.has(String(w.id))) return false;
+        const t = w.processedAt || w.requestedAt || w.createdAt || 0;
+        return isAfterExcelResetBoundary(t, boundary);
+      });
+    }
+
     async function diagnoseAvailableBalance(options = {}) {
       const targetManual = Number(options.targetManual != null ? options.targetManual : 856500);
       const uiStuckHint = Number(options.uiStuckAt != null ? options.uiStuckAt : 382500);
@@ -6141,21 +6192,13 @@ ${r.optPlan}
           }
         ];
 
-        // H/I: 수기 엑셀(임반장 정산 기록)과 동일 가정
-        // - 2026-08-12 전후 대규모 출금(648,000)으로 잔액 0 리셋 이후
-        // - 이후 submission만 누적, 건당 1500원 × 진행건수 (엑셀은 우수 1000 미사용)
-        // - 해당 구간 완료 출금 차감
-        const EXCEL_RESET_MS = Date.parse('2026-08-12T12:00:00+09:00');
+        // H/I: 수기 엑셀과 동일 — 리셋 출금(648,000)은 경계일 뿐 이후 차감에 포함하지 않음
+        const excelReset = resolveExcelResetBoundary(completedWd);
         const afterResetActive = settlementFilterRows.filter(r => {
-          const t = r.submittedAt ? new Date(r.submittedAt).getTime() : 0;
-          return t > EXCEL_RESET_MS;
+          return isAfterExcelResetBoundary(r.submittedAt || 0, excelReset);
         });
         const afterResetDedup = _dedupeSubsByNoLatest(afterResetActive);
-        const wdAfterReset = completedWd.filter(w => {
-          const t = w.processedAt || w.requestedAt || w.createdAt || 0;
-          const ms = typeof t === 'number' ? t : new Date(t).getTime();
-          return ms > EXCEL_RESET_MS;
-        });
+        const wdAfterReset = filterWithdrawalsAfterExcelReset(completedWd, excelReset);
         const wdAfterSum = _sumWithdrawalAmount(wdAfterReset);
         let excelStyle1500 = 0;
         let excelStyleLocked = 0;
@@ -6170,21 +6213,26 @@ ${r.optPlan}
         scenarios.push(
           {
             id: 'H_excel_style_1500_after_2026_08_12',
-            label: 'H: 수기엑셀식 — 2026-08-12 리셋 이후 · no중복제거 · (총진행×1500) − 이후완료출금',
+            label: 'H: 수기엑셀식 — 리셋경계 이후 · no중복제거 · (총진행×1500) − 이후완료출금(리셋출금 제외)',
             commission: excelStyle1500,
             withdrawnCompleted: wdAfterSum,
             available: excelStyle1500 - wdAfterSum,
             subsCount: afterResetDedup.length,
-            note: '엑셀과 동일하게 전원 1500원 단가 가정'
+            resetBoundary: excelReset.source,
+            resetBoundaryIso: excelReset.boundaryIso,
+            excludedResetWithdrawals: excelReset.resetWithdrawalCount,
+            note: '리셋 출금 648,000은 차감 대상에서 제외'
           },
           {
             id: 'I_excel_window_locked_commission',
-            label: 'I: 동일 기간 · commissionAtSubmission(잠금)합 − 이후완료출금',
+            label: 'I: 동일 기간 · commissionAtSubmission(잠금)합 − 이후완료출금(리셋출금 제외)',
             commission: excelStyleLocked,
             withdrawnCompleted: wdAfterSum,
             available: excelStyleLocked - wdAfterSum,
             missingCommissionCount: excelMissingLock,
-            subsCount: afterResetDedup.length
+            subsCount: afterResetDedup.length,
+            resetBoundary: excelReset.source,
+            resetBoundaryIso: excelReset.boundaryIso
           }
         );
 
@@ -6210,6 +6258,16 @@ ${r.optPlan}
             '수기 엑셀(임반장 정산 기록.xlsx): 2026-08-12 출금 648,000으로 잔액0 리셋 후, 전원 건당1500×진행건수 누적 → 최종 856,500. UI가 382,500에 머물면 원장(ledger) 합계가 엑셀과 다른 측정임.',
           uiStuckHint,
           gapExcelMinusStuck: targetManual - uiStuckHint,
+          excelResetBoundary: {
+            source: excelReset.source,
+            boundaryIso: excelReset.boundaryIso,
+            boundaryMs: excelReset.boundaryMs,
+            excludedResetWithdrawalIds: Array.from(excelReset.resetWithdrawalIds),
+            postResetWithdrawalCount: wdAfterReset.length,
+            postResetWithdrawalSum: wdAfterSum,
+            postResetCommission1500: excelStyle1500,
+            postResetCommissionLocked: excelStyleLocked
+          },
           mode: {
             useLedger,
             settlementMeta: meta ? {
