@@ -30,7 +30,7 @@
     :root{
       --brand:#5086a7;
       --brand-accent:#3c6f8b;
-      --accent:#18d1a1;
+      --accent:#3c6f8b;
       --bg:#f5f7fb;
       --text:#1f2a33;
       --text-muted:#5c6b7a;
@@ -39,7 +39,7 @@
       --danger:#b22b2b;
       --danger-bg:#fff1f1;
       --warning:#8a5a00;
-      --warning-bg:#fff6e6;
+      --warning-bg:#f7f3eb;
       --success:#0d5c44;
       --success-bg:#e6fbf4;
       --space-1:4px;
@@ -71,9 +71,12 @@
     .header-inner{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-4) var(--space-5)}
     .brand{font-weight:900;letter-spacing:.2px;font-size:var(--text-xl)}
     .header-actions{display:flex;gap:var(--space-2);flex-wrap:wrap}
-    .admin-btn{ display:inline-flex;align-items:center;gap:var(--space-2); padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:rgba(255,255,255,.12); color:#fff;text-decoration:none;transition:filter .15s ease,transform .08s ease;font-size:var(--text-sm);font-weight:800 }
-    .admin-btn:hover{filter:brightness(1.1)}
+    .admin-btn{ display:inline-flex;align-items:center;gap:var(--space-2); padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:rgba(255,255,255,.22); color:#fff;text-decoration:none;transition:background .15s ease,transform .08s ease,opacity .15s ease;font-size:var(--text-sm);font-weight:800;border:1px solid rgba(255,255,255,.35) }
+    .admin-btn:hover{background:rgba(255,255,255,.32)}
     .admin-btn:active{transform:translateY(1px)}
+    .admin-btn.admin-btn-main{background:#fff;color:var(--brand);border-color:#fff}
+    .admin-btn.admin-btn-main:hover{background:#f3f8fb;color:var(--brand-accent)}
+    .admin-status{display:inline-flex;align-items:center;padding:var(--space-2) var(--space-3);border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-size:var(--text-xs);font-weight:800;letter-spacing:.02em;border:1px solid rgba(255,255,255,.2);cursor:default;user-select:none;pointer-events:none;opacity:1}
     .card{background:var(--panel);border-radius:var(--radius-lg);padding:var(--space-7);box-shadow:var(--shadow-sm);border:1px solid var(--border);margin:var(--space-5) auto}
     .panel-card{border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);background:var(--panel);box-shadow:var(--shadow-sm)}
     h1{font-size:var(--text-xl);margin:0 0 var(--space-2);color:var(--brand);font-weight:900}
@@ -90,11 +93,11 @@
     .btn:disabled,.btn[disabled]{opacity:.5;cursor:not-allowed;transform:none}
     .btn.btn-hero{padding:var(--space-4) var(--space-6);font-size:var(--text-md);background:var(--brand);box-shadow:var(--shadow-md)}
     .btn.btn-hero:hover{background:var(--brand-accent)}
-    .btn.secondary{background:var(--accent);color:#073b2f}
-    .btn.secondary:hover{filter:brightness(.95);background:var(--accent)}
+    .btn.secondary{background:#fff;color:var(--brand);border:1.5px solid var(--brand);box-shadow:none}
+    .btn.secondary:hover{background:#f3f8fb;color:var(--brand-accent);border-color:var(--brand-accent)}
     .btn.ghost{background:#eef2f7;color:#283848;box-shadow:none}
     .btn.ghost:hover{background:#e4ebf3}
-    .btn.inquiry-btn{background:#fff;color:var(--brand);border:2px solid var(--brand);box-shadow:none}
+    .btn.inquiry-btn{background:#fff;color:var(--brand);border:1.5px solid var(--brand);box-shadow:none}
     .btn.inquiry-btn:hover{background:#f3f8fb}
     .floating-save-btn{position:fixed;right:var(--space-6);bottom:var(--space-6);z-index:60;border-radius:999px;padding:var(--space-3) var(--space-5);font-weight:900;box-shadow:var(--shadow-md)}
     .floating-save-btn[disabled]{opacity:.5;cursor:not-allowed}
@@ -115,12 +118,12 @@
     .nav-group:first-of-type{margin-top:0;padding-top:0;border-top:none}
     .nav-item{display:block;padding:var(--space-3);border-radius:var(--radius-sm);color:#1f2d3d;text-decoration:none;font-weight:800;font-size:var(--text-sm);transition:background .15s ease,color .15s ease;position:relative}
     .nav-item:hover{background:#f2f6fa}
-    .nav-item.active{background:var(--brand);color:#fff;box-shadow:inset 3px 0 0 var(--accent)}
+    .nav-item.active{background:var(--brand);color:#fff;box-shadow:inset 3px 0 0 rgba(255,255,255,.45)}
     .nav-item.active:hover{background:var(--brand-accent)}
     .nav-item.collapsed{padding:var(--space-3) var(--space-2);text-align:center}
     .nav-item.collapsed span{display:none}
     .nav-item.collapsed::after{content:"📁";font-size:18px}
-    .nav-sub{margin:var(--space-1) 0 var(--space-2) var(--space-2);padding-left:var(--space-2);border-left:2px solid var(--border);transition:all 0.3s ease}
+    .nav-sub{margin:var(--space-1) 0 var(--space-2) var(--space-3);padding-left:var(--space-3);border-left:2px solid #d7e3ee;transition:all 0.3s ease}
     .nav-sub.collapsed{margin-left:0;padding-left:0;border-left:none}
     .nav-sub a{display:block;font-weight:700;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);color:#3b4b5a;text-decoration:none;font-size:var(--text-sm);transition:background .15s ease,color .15s ease}
     .nav-sub a:hover{background:#f6f9fc}
@@ -184,9 +187,15 @@
 
     .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-5);margin-bottom:var(--space-5)}
     .stats-section{display:flex;flex-direction:column;gap:var(--space-3)}
-    .stat-box{border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4) var(--space-5);background:var(--panel);box-shadow:var(--shadow-sm);min-height:96px;display:flex;flex-direction:column;justify-content:center}
+    .stat-box{border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4) var(--space-5);background:var(--panel);box-shadow:var(--shadow-sm);min-height:0;display:flex;flex-direction:column;justify-content:center}
+    .stat-box.stat-box-compact{min-height:0;padding:var(--space-3) var(--space-4)}
     .stat-title{font-size:var(--text-xs);font-weight:800;color:var(--text-muted);margin-bottom:var(--space-2);letter-spacing:.02em;text-transform:uppercase}
     .stat-value{font-size:var(--text-display);font-weight:900;color:var(--brand);letter-spacing:-.02em;line-height:1.1}
+    .stat-meta{font-size:var(--text-xs);color:var(--text-muted);margin-top:var(--space-2);line-height:1.4}
+    .dash-alert{margin-bottom:var(--space-5);padding:var(--space-4);background:#f7fafc;border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:var(--radius-md)}
+    .dash-alert h3{margin:0 0 var(--space-3);color:var(--brand);font-size:var(--text-md)}
+    .btn-with-hint{display:inline-flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+    .btn-hint{font-size:var(--text-xs);color:var(--text-muted);font-weight:600}
     .chart-section{border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);background:var(--panel);box-shadow:var(--shadow-sm)}
     .chart-title{font-size:var(--text-md);font-weight:800;color:var(--brand);margin-bottom:var(--space-4);text-align:center}
     .chart-container{height:300px;position:relative;background:#f8fafc;border-radius:var(--radius-sm);padding:var(--space-4);border:1px solid var(--border)}
@@ -218,15 +227,26 @@
     .table-like header div, .table-like .row div{padding:var(--space-3);border-bottom:1px solid var(--border)}
     .table-like .row:last-child div{border-bottom:none}
     .right{display:flex;justify-content:flex-end;gap:var(--space-3)}
-    .admin-table{width:100%;border-collapse:collapse;font-size:var(--text-sm);table-layout:fixed}
-    .admin-table th,.admin-table td{border:1px solid var(--border);padding:var(--space-3);vertical-align:middle;white-space:normal;word-break:break-word;line-height:1.55}
+    .admin-table{width:100%;border-collapse:collapse;font-size:var(--text-sm);table-layout:auto}
+    .admin-table th,.admin-table td{border:1px solid var(--border);padding:var(--space-3);vertical-align:middle;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;line-height:1.55}
     .admin-table th{background:#f3f7fb;color:#2f3e4d;position:sticky;top:0;z-index:1;font-weight:800}
     .admin-table tbody tr:nth-child(even) td{background:#fafcfe}
     .admin-table tbody tr:hover td{background:#f0f6fb}
     .admin-table .num,.admin-table td.num{text-align:right;font-variant-numeric:tabular-nums}
     .admin-table td a{word-break:break-all}
-    .admin-table .nowrap{white-space:normal}
-    .nowrap{white-space:nowrap}
+    .admin-table .nowrap,.nowrap{white-space:nowrap !important;word-break:keep-all;overflow-wrap:normal}
+    .admin-table .col-contact,.admin-table td.col-contact{min-width:8.5rem;white-space:nowrap !important;word-break:keep-all;overflow-wrap:normal;font-variant-numeric:tabular-nums}
+    .admin-table .col-keyword,.admin-table td.col-keyword{min-width:7.5rem;white-space:nowrap !important;word-break:keep-all}
+    .admin-table .col-company,.admin-table td.col-company{min-width:6.5rem}
+    .admin-table .col-action,.admin-table th.col-action,.admin-table td.col-action{
+      position:sticky;right:0;z-index:2;min-width:7.5rem;white-space:nowrap !important;
+      background:#f3f7fb;box-shadow:-6px 0 8px -6px rgba(31,42,51,.18);
+    }
+    .admin-table tbody td.col-action{background:#fff;z-index:1}
+    .admin-table tbody tr:nth-child(even) td.col-action{background:#fafcfe}
+    .admin-table tbody tr:hover td.col-action{background:#f0f6fb}
+    .admin-table th.col-action{z-index:3}
+    .req-list-table{min-width:720px}
     .scroll-x{overflow:auto}
 
 .admin-table pre.opt {
@@ -736,7 +756,7 @@
     <div class="header-inner container">
       <div class="brand">WAY PROJECT X 임반장</div>
       <div class="header-actions">
-        <a id="mainTrigger" class="admin-btn" href="#" aria-label="MAIN">MAIN</a>
+        <a id="mainTrigger" class="admin-btn admin-btn-main" href="#" aria-label="MAIN">MAIN</a>
         <button id="notificationBtn" class="notification-btn" aria-label="알림" style="display: none;">
           <span class="notification-icon">🔔</span>
           <span id="notificationCount" class="notification-count" style="display: none;">0</span>
@@ -793,10 +813,10 @@
       <div class="divider"></div>
 
       <div class="btn-row btn-row-hero" aria-label="바로가기">
-        <a class="btn btn-hero" href="https://www.wayproject.co.kr/#doz_body" target="_blank" rel="noopener">홈페이지 바로가기</a>
+        <a class="btn btn-hero" id="openRequestForm" href="#">작업요청서 바로가기</a>
+        <a class="btn secondary" href="https://www.wayproject.co.kr/#doz_body" target="_blank" rel="noopener">홈페이지 바로가기</a>
         <a class="btn secondary" href="https://docs.google.com/document/d/10zDa-0fJbDmcMLAB6iCvuULxfRvOYl18FbUlo_ApNDE/edit?usp=drive_link" target="_blank" rel="noopener">안내사항 바로가기</a>
-        <a class="btn" id="openRequestForm" href="#">작업요청서 바로가기</a>
-        <a class="btn inquiry-btn" href="http://pf.kakao.com/_qqhUn/chat" target="_blank" rel="noopener">1:1 문의하기</a>
+        <a class="btn secondary inquiry-btn" href="http://pf.kakao.com/_qqhUn/chat" target="_blank" rel="noopener">1:1 문의하기</a>
       </div>
     </section>
 
@@ -870,27 +890,27 @@
         <div class="nav-group">
           <a class="nav-item" href="#" data-section="req"><span>작업요청서 관리</span></a>
           <div class="nav-sub">
-            <a href="#" data-section="req-new"><span>ㄴ 신규요청건</span></a>
-            <a href="#" data-section="req-accepted"><span>ㄴ 접수 완료건</span></a>
-            <a href="#" data-section="req-all"><span>ㄴ 전체요청건</span></a>
-            <a href="#" data-section="data-management"><span>ㄴ 데이터 관리</span></a>
+            <a href="#" data-section="req-new"><span>신규요청건</span></a>
+            <a href="#" data-section="req-accepted"><span>접수 완료건</span></a>
+            <a href="#" data-section="req-all"><span>전체요청건</span></a>
+            <a href="#" data-section="data-management"><span>데이터 관리</span></a>
           </div>
         </div>
 
         <div class="nav-group">
           <a class="nav-item" href="#" data-section="vendor"><span>VENDOR관리</span></a>
           <div class="nav-sub">
-            <a href="#" data-section="vendor-list"><span>ㄴ LIST</span></a>
+            <a href="#" data-section="vendor-list"><span>LIST</span></a>
           </div>
         </div>
 
         <div class="nav-group">
           <a class="nav-item" href="#" data-section="settle"><span>정산관리</span></a>
           <div class="nav-sub">
-            <a href="#" data-section="rate"><span>ㄴ 적용단가</span></a>
-            <a href="#" data-section="settle-weekly"><span>ㄴ 주별 정산 LIST</span></a>
-            <a href="#" data-section="settle-monthly"><span>ㄴ 월별 정산 LIST</span></a>
-            <a href="#" data-section="settle-withdrawal"><span>ㄴ 출금신청</span></a>
+            <a href="#" data-section="rate"><span>적용단가</span></a>
+            <a href="#" data-section="settle-weekly"><span>주별 정산 LIST</span></a>
+            <a href="#" data-section="settle-monthly"><span>월별 정산 LIST</span></a>
+            <a href="#" data-section="settle-withdrawal"><span>출금신청</span></a>
           </div>
         </div>
       </aside>
@@ -1051,7 +1071,8 @@
     </div>
   </div>
 
-  <footer class="footer"> © 2025 WAY PROJECT X 임반장. All Rights Reserved. </footer>
+  <footer class="footer"> © <span id="footerYear"></span> WAY PROJECT X 임반장. All Rights Reserved. </footer>
+  <script>document.getElementById('footerYear').textContent = new Date().getFullYear();</script>
 
   <script>
     /** false: 관리자 알림(상단 벨, 화면 푸시, 알림 목록, 알림음) 비활성화 */
@@ -1848,8 +1869,8 @@
       // 신규요청건 목록 추가
       const newRequests = rows.filter(r => !r.accepted);
       if (newRequests.length > 0) {
-        html += `<div style="margin-bottom:20px;padding:16px;background:#fff3cd;border:1px solid #ffeaa7;border-radius:8px;">`;
-        html += `<h3 style="margin:0 0 12px;color:#856404;font-size:16px;">🔔 신규요청건 (${newRequests.length}건)</h3>`;
+        html += `<div class="dash-alert">`;
+        html += `<h3>🔔 신규요청건 (${newRequests.length}건)</h3>`;
         html += `<div style="max-height:200px;overflow-y:auto;">`;
         html += `<table style="width:100%;border-collapse:collapse;font-size:13px;">`;
         html += `<thead><tr style="background:#f8f9fa;"><th style="padding:8px;text-align:left;border-bottom:1px solid #dee2e6;">번호</th><th style="padding:8px;text-align:left;border-bottom:1px solid #dee2e6;">업체명</th><th style="padding:8px;text-align:left;border-bottom:1px solid #dee2e6;">제출시간</th><th style="padding:8px;text-align:left;border-bottom:1px solid #dee2e6;">액션</th></tr></thead>`;
@@ -1871,19 +1892,22 @@
         html += `</tbody></table></div></div>`;
       }
       
+      const acceptedCount = rows.filter(r => !!r.accepted).length;
+      const pendingCount = newRequests.length;
+
       // 2x2 Grid layout
       html += `<div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:20px;">`;
       
       // Top row - Stats boxes
-      html += `<div class="stat-box">
+      html += `<div class="stat-box stat-box-compact">
         <div class="stat-title">신규 요청건 수</div>
         <div class="stat-value">${newRequestsToday}</div>
-        <div style="font-size:12px;color:#6a7a89;margin-top:4px;">금일 기준</div>
+        <div class="stat-meta">금일 접수 대기 · 전체 대기 ${pendingCount}건</div>
       </div>`;
-      html += `<div class="stat-box">
+      html += `<div class="stat-box stat-box-compact">
         <div class="stat-title">누적 VENDOR 수</div>
         <div class="stat-value">${uniqueVendors}</div>
-        <div style="font-size:12px;color:#6a7a89;margin-top:4px;">전체 기준</div>
+        <div class="stat-meta">전체 기준 · 접수완료 ${acceptedCount}건</div>
       </div>`;
       
       // Bottom row - Charts
@@ -2099,12 +2123,13 @@
       adminWrap.style.display = "block";
       await showAdminHome();
       
-      // 관리자 전환 탭을 관리자로 접속중으로 변경
+      // 관리자 전환 탭을 상태 뱃지로 변경
       const adminTrigger = document.getElementById('adminTrigger');
       if (adminTrigger) {
         adminTrigger.textContent = '관리자로 접속중';
-        adminTrigger.style.pointerEvents = 'none';
-        adminTrigger.style.opacity = '0.7';
+        adminTrigger.className = 'admin-status';
+        adminTrigger.removeAttribute('href');
+        adminTrigger.setAttribute('role', 'status');
         adminTrigger.setAttribute('aria-label', '관리자로 접속중');
       }
       
@@ -2218,6 +2243,9 @@
       const adminTrigger = document.getElementById('adminTrigger');
       if (adminTrigger) {
         adminTrigger.textContent = '관리자 전환';
+        adminTrigger.className = 'admin-btn';
+        adminTrigger.setAttribute('href', '#');
+        adminTrigger.removeAttribute('role');
         adminTrigger.style.pointerEvents = 'auto';
         adminTrigger.style.opacity = '1';
         adminTrigger.setAttribute('aria-label', '관리자 전환');
@@ -3707,20 +3735,20 @@ ${r.optPlan}
       
       // 신규요청건에만 모든 요청건 접수처리 버튼 추가 (데스크탑만 표시)
       if (!isAccepted && rows.length > 0) {
-        html += ` <button class="req-desktop-bulk-btn btn" id="bulkAcceptAll" style="display:none;margin-left:12px;padding:4px 12px;font-size:14px;background:var(--brand);color:white;border:none;border-radius:4px;">
+        html += ` <button class="req-desktop-bulk-btn btn" id="bulkAcceptAll" style="display:none;margin-left:12px;">
           <style>
             @media (min-width: 768px) {
-              .req-desktop-bulk-btn { display: inline-block !important; }
+              .req-desktop-bulk-btn { display: inline-flex !important; }
             }
           </style>
-          [모든 요청건 접수처리]
+          모든 요청건 접수처리
         </button>`;
       }
       
       html += `</h2>
       </div>`;
       
-      // Desktop Table - 데스크탑에서만 표시
+      // Desktop Table - 데스크탑에서만 표시 (사업자번호·카톡은 전문 보기에서 확인)
       html += `<div class="req-desktop-table" style="display:none;">
         <style>
           @media (min-width: 768px) {
@@ -3728,21 +3756,18 @@ ${r.optPlan}
           }
         </style>
         <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
-          <table class="admin-table">
+          <table class="admin-table req-list-table">
             <thead><tr>
-              <th rowspan="2">no.</th>
-              <th rowspan="2">제출시간</th>
-              <th colspan="4" class="company-info">업체 기본 정보</th>
-              <th rowspan="2">구매키워드</th>
-              <th rowspan="2">총/일</th>
-              <th rowspan="2">건당 제휴 수수료</th>
-              ${isAccepted ? '<th rowspan="2">접수 시간</th>' : '<th rowspan="2">접수 여부</th>'}
-              <th rowspan="2">전문</th>
-            </tr><tr>
+              <th>no.</th>
+              <th>제출시간</th>
               <th class="company-info">업체코드</th>
-              <th class="company-info">업체명</th>
-              <th class="company-info">사업자번호</th>
-              <th class="company-info">카톡/번호</th>
+              <th class="company-info col-company">업체명</th>
+              <th class="col-contact">카톡/번호</th>
+              <th class="col-keyword">구매키워드</th>
+              <th>총/일</th>
+              <th>건당 제휴 수수료</th>
+              ${isAccepted ? '<th>접수 시간</th>' : '<th>접수 여부</th>'}
+              <th class="col-action">전문</th>
             </tr></thead>
             <tbody id="reqDesktopTableBody">
             </tbody>
@@ -3782,7 +3807,7 @@ ${r.optPlan}
         const desktopTbody = document.getElementById('reqDesktopTableBody');
         if (desktopTbody) {
           if(sorted.length===0){
-            desktopTbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
+            desktopTbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#6a7a89">표시할 데이터가 없습니다.</td></tr>';
       } else {
             let desktopHtml = '';
             for(const r of sorted){
@@ -3791,19 +3816,18 @@ ${r.optPlan}
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               desktopHtml += `<tr data-no="${r.no}">`+
             `<td>${r.no}</td>`+
-            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
+            `<td class="nowrap">${formatCompactDateTime(r.submittedAt)}</td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td>${escapeHtml(r.companyName)}</td>`+
-            `<td>${escapeHtml(r.bizNo)}</td>`+
-            `<td>${escapeHtml(r.contact)}</td>`+
-            `<td>${escapeHtml(r.keywords)}</td>`+
-            `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
-                `<td>${commissionPerUnit}</td>`+
+            `<td class="col-company">${escapeHtml(r.companyName)}</td>`+
+            `<td class="col-contact">${escapeHtml(r.contact)}</td>`+
+            `<td class="col-keyword">${escapeHtml(r.keywords)}</td>`+
+            `<td class="nowrap">${r.totalCnt} / ${r.dailyCnt}</td>`+
+                `<td class="nowrap">${commissionPerUnit}</td>`+
             (isAccepted
-              ? `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
+              ? `<td class="nowrap">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
               : `<td style="text-align:center"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""}></td>`
             )+
-            `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
+            `<td class="col-action"><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
           `</tr>`;
         }
             desktopTbody.innerHTML = desktopHtml;
@@ -4060,21 +4084,18 @@ ${r.optPlan}
           }
         </style>
         <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
-          <table class="admin-table">
+          <table class="admin-table req-list-table">
             <thead><tr>
-              <th rowspan="2">no.</th>
-              <th rowspan="2">제출시간</th>
-              <th colspan="4" class="company-info">업체 기본 정보</th>
-              <th rowspan="2">구매키워드</th>
-              <th rowspan="2">총/일</th>
-              <th rowspan="2">건당 제휴 수수료</th>
-              <th rowspan="2">접수시간</th>
-              <th rowspan="2">전문</th>
-            </tr><tr>
+              <th>no.</th>
+              <th>제출시간</th>
               <th class="company-info">업체코드</th>
-              <th class="company-info">업체명</th>
-              <th class="company-info">사업자번호</th>
-              <th class="company-info">카톡/번호</th>
+              <th class="company-info col-company">업체명</th>
+              <th class="col-contact">카톡/번호</th>
+              <th class="col-keyword">구매키워드</th>
+              <th>총/일</th>
+              <th>건당 제휴 수수료</th>
+              <th>접수시간</th>
+              <th class="col-action">전문</th>
             </tr></thead>
             <tbody id="reqAllDesktopTableBody">
             </tbody>
@@ -4115,16 +4136,15 @@ ${r.optPlan}
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               desktopHtml += `<tr data-no="${r.no}">`+
             `<td>${r.no}</td>`+
-            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
+            `<td class="nowrap">${formatCompactDateTime(r.submittedAt)}</td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td>${escapeHtml(r.companyName)}</td>`+
-            `<td>${escapeHtml(r.bizNo)}</td>`+
-            `<td>${escapeHtml(r.contact)}</td>`+
-            `<td>${escapeHtml(r.keywords)}</td>`+
-            `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
-                `<td>${commissionPerUnit}</td>`+
-            `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
-            `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
+            `<td class="col-company">${escapeHtml(r.companyName)}</td>`+
+            `<td class="col-contact">${escapeHtml(r.contact)}</td>`+
+            `<td class="col-keyword">${escapeHtml(r.keywords)}</td>`+
+            `<td class="nowrap">${r.totalCnt} / ${r.dailyCnt}</td>`+
+                `<td class="nowrap">${commissionPerUnit}</td>`+
+            `<td class="nowrap">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
+            `<td class="col-action"><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
           `</tr>`;
         }
             desktopTbody.innerHTML = desktopHtml;
@@ -4933,20 +4953,19 @@ ${r.optPlan}
         requestsList.innerHTML = '<div style="text-align:center;color:#6a7a89;padding:20px;">의뢰 내역이 없습니다.</div>';
       } else {
         // Desktop Table
-        let listHtml = '<div class="vendor-requests-desktop" style="display:none;"><style>@media (min-width: 768px) { .vendor-requests-desktop { display: block !important; } }</style><div class="scroll-x" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table"><thead><tr><th rowspan="2">no.</th><th rowspan="2">제출시간</th><th colspan="4" class="company-info">업체 기본 정보</th><th rowspan="2">구매키워드</th><th rowspan="2">총/일</th><th rowspan="2">접수시간</th><th rowspan="2">전문</th></tr><tr><th class="company-info">업체코드</th><th class="company-info">업체명</th><th class="company-info">사업자번호</th><th class="company-info">카톡/번호</th></tr></thead><tbody>';
+        let listHtml = '<div class="vendor-requests-desktop" style="display:none;"><style>@media (min-width: 768px) { .vendor-requests-desktop { display: block !important; } }</style><div class="scroll-x" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table req-list-table"><thead><tr><th>no.</th><th>제출시간</th><th class="company-info">업체코드</th><th class="company-info col-company">업체명</th><th class="col-contact">카톡/번호</th><th class="col-keyword">구매키워드</th><th>총/일</th><th>접수시간</th><th class="col-action">전문</th></tr></thead><tbody>';
         
         vendorRows.forEach(r => {
           listHtml += `<tr data-no="${r.no}">`+
             `<td>${r.no}</td>`+
-            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
+            `<td class="nowrap">${formatCompactDateTime(r.submittedAt)}</td>`+
             `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td>${escapeHtml(r.companyName)}</td>`+
-            `<td>${escapeHtml(r.bizNo)}</td>`+
-            `<td>${escapeHtml(r.contact)}</td>`+
-            `<td>${escapeHtml(r.keywords)}</td>`+
-            `<td>${r.totalCnt} / ${r.dailyCnt}</td>`+
-            `<td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
-            `<td><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
+            `<td class="col-company">${escapeHtml(r.companyName)}</td>`+
+            `<td class="col-contact">${escapeHtml(r.contact)}</td>`+
+            `<td class="col-keyword">${escapeHtml(r.keywords)}</td>`+
+            `<td class="nowrap">${r.totalCnt} / ${r.dailyCnt}</td>`+
+            `<td class="nowrap">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
+            `<td class="col-action"><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
           `</tr>`;
         });
         
@@ -8139,9 +8158,11 @@ ${r.optPlan}
         let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
           <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
             <h2 style="margin:0;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">출금신청</h2>
-            <button type="button" id="refreshAvailableBalanceBtn" class="btn ghost" style="white-space:nowrap;">출금 가능액 업데이트</button>
+            <div class="btn-with-hint">
+              <button type="button" id="refreshAvailableBalanceBtn" class="btn ghost" style="white-space:nowrap;" title="최신 데이터로 출금 가능액을 다시 계산합니다">출금 가능액 업데이트</button>
+              <span class="btn-hint">최신 데이터로 다시 계산</span>
+            </div>
           </div>
-          <p class="muted" style="margin:0 0 12px;font-size:12px;color:#6a7a89;">기준일 ${new Date(boundary.boundaryMs).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} 이후 · 엑셀식(진행건×1,500). 9/14 목표 856,500원.</p>
         </div>`;
         
         // 상단 KPI 카드 (모바일에서 2열)
@@ -8163,30 +8184,9 @@ ${r.optPlan}
 
         html += `<div id="withdrawalPanelCurrent">`;
         
-        // 출금신청 입력 폼 + 증액 신청 버튼
+        // 출금신청 입력 폼
         html += `<div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
-          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;">
-            <h3 style="margin:0;color:var(--brand);font-size:16px;">출금 신청</h3>
-            <button type="button" id="toggleTopUpPanelBtn" class="btn ghost" style="white-space:nowrap;">출금 가능액 증액 신청</button>
-          </div>
-
-          <div id="availableTopUpPanel" style="display:none;margin-bottom:16px;padding:14px;border:1px dashed var(--border);border-radius:8px;background:#fafbfc;">
-            <div style="font-weight:600;margin-bottom:10px;color:var(--text);">출금 가능액 증액</div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3" style="align-items:end;">
-              <div>
-                <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">증액 금액</label>
-                <input type="number" id="topUpAmount" class="input" placeholder="예: 380000" min="1" step="1" style="width:100%;">
-              </div>
-              <div>
-                <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">비밀번호</label>
-                <input type="password" id="topUpPassword" class="input" placeholder="관리자 비밀번호" style="width:100%;">
-              </div>
-              <div>
-                <button type="button" id="submitTopUpBtn" class="btn w-full" style="background:var(--brand);color:#fff;">증액</button>
-              </div>
-            </div>
-            <p class="muted" style="margin:8px 0 0;font-size:12px;color:#6a7a89;">현재 가능액 ${availableAmount.toLocaleString()}원 기준으로 증액됩니다. (기준일 이후 수동 증액: ${(manualCreditTotal || 0).toLocaleString()}원)</p>
-          </div>
+          <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">출금 신청</h3>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-3">
             <div>
@@ -8202,7 +8202,35 @@ ${r.optPlan}
               <input type="number" id="withdrawalAmount" class="input" placeholder="출금 가능액 이하" style="width:100%;" max="${Math.max(0, availableAmount)}" min="0">
             </div>
           </div>
-          <button id="submitWithdrawalBtn" class="btn w-full md:w-auto" style="margin-top:16px;background:var(--brand);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer;">출금 신청</button>
+          <button id="submitWithdrawalBtn" class="btn w-full md:w-auto" style="margin-top:16px;">출금 신청</button>
+        </div>`;
+
+        // 증액은 별도 관리자 섹션
+        html += `<div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+            <div>
+              <h3 style="margin:0;color:var(--brand);font-size:16px;">출금 가능액 증액</h3>
+              <p class="muted" style="margin:6px 0 0;font-size:12px;">관리자용 잔액 조정입니다. 출금 신청과 별도입니다.</p>
+            </div>
+            <button type="button" id="toggleTopUpPanelBtn" class="btn ghost" style="white-space:nowrap;">증액 신청 열기</button>
+          </div>
+
+          <div id="availableTopUpPanel" style="display:none;margin-top:12px;padding:14px;border:1px dashed var(--border);border-radius:8px;background:#fafbfc;">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3" style="align-items:end;">
+              <div>
+                <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">증액 금액</label>
+                <input type="number" id="topUpAmount" class="input" placeholder="예: 380000" min="1" step="1" style="width:100%;">
+              </div>
+              <div>
+                <label style="display:block;font-weight:600;margin-bottom:4px;color:var(--text);">비밀번호</label>
+                <input type="password" id="topUpPassword" class="input" placeholder="관리자 비밀번호" style="width:100%;">
+              </div>
+              <div>
+                <button type="button" id="submitTopUpBtn" class="btn w-full">증액</button>
+              </div>
+            </div>
+            <p class="muted" style="margin:8px 0 0;font-size:12px;color:#6a7a89;">현재 가능액 ${availableAmount.toLocaleString()}원 기준 (기준일 이후 수동 증액: ${(manualCreditTotal || 0).toLocaleString()}원)</p>
+          </div>
         </div>`;
 
         // 현재 증액 리스트
@@ -8344,7 +8372,7 @@ ${r.optPlan}
           toggleTopUpBtn.addEventListener('click', () => {
             const open = topUpPanel.style.display !== 'none';
             topUpPanel.style.display = open ? 'none' : 'block';
-            toggleTopUpBtn.textContent = open ? '출금 가능액 증액 신청' : '증액 신청 닫기';
+            toggleTopUpBtn.textContent = open ? '증액 신청 열기' : '증액 신청 닫기';
             if (!open) {
               const amountEl = document.getElementById('topUpAmount');
               if (amountEl) amountEl.focus();
