@@ -1617,7 +1617,8 @@
             monthlyCountDelta: Number(productData.totalCnt) || 0,
             monthlyKey: monthKey,
             commissionDelta: Number(rec.commissionAtSubmission) || 0,
-            submissionCountDelta: 1
+            submissionCountDelta: 1,
+            firstSubmittedAt: Number(rec.submittedAt) || Date.now()
           });
         } catch (sumErr) {
           console.warn('[WARN][vendorSummary]', sumErr?.message || sumErr);
@@ -2676,6 +2677,15 @@
           submissionCount: (Number(cur.submissionCount) || 0) + (Number(patch.submissionCountDelta) || 0),
           updatedAt: Date.now()
         };
+        if (patch.firstSubmittedAt != null) {
+          const incoming = Number(patch.firstSubmittedAt);
+          const existing = Number(cur.firstSubmittedAt);
+          next.firstSubmittedAt = Number.isFinite(existing)
+            ? Math.min(existing, incoming)
+            : incoming;
+        } else if (cur.firstSubmittedAt != null) {
+          next.firstSubmittedAt = cur.firstSubmittedAt;
+        }
         if (patch.resetMonthly) {
           next.monthlyCount = Number(patch.totalCountDelta) || 0;
           next.monthlyKey = patch.monthlyKey || '';
@@ -2711,7 +2721,8 @@
             totalCount: 0,
             monthlyCount: 0,
             commissionTotal: 0,
-            submissionCount: 0
+            submissionCount: 0,
+            firstSubmittedAt: null
           };
         }
         const v = byVendor[id];
@@ -2719,6 +2730,12 @@
         v.totalCount += Number(r.totalCnt) || 0;
         v.commissionTotal += Number(r.commissionAtSubmission) || 0;
         v.submissionCount += 1;
+        const submittedAtMs = Number(r.submittedAt);
+        if (Number.isFinite(submittedAtMs)) {
+          v.firstSubmittedAt = v.firstSubmittedAt == null
+            ? submittedAtMs
+            : Math.min(v.firstSubmittedAt, submittedAtMs);
+        }
         const d = r.submittedAt ? new Date(r.submittedAt) : null;
         if (d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
           v.monthlyCount += Number(r.totalCnt) || 0;
@@ -2734,6 +2751,7 @@
           monthlyKey: monthKey,
           commissionTotal: v.commissionTotal,
           submissionCount: v.submissionCount,
+          firstSubmittedAt: v.firstSubmittedAt,
           updatedAt: Date.now(),
           rebuiltAt: Date.now()
         });
@@ -3483,23 +3501,23 @@ ${r.optPlan}
     }
 
     async function showReqDashboard(){
-      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
       
-      // Calculate statistics
       const today = new Date();
       const todayStr = today.toDateString();
       const currentMonth = today.getMonth();
       const currentYear = today.getFullYear();
+
+      // 금일/당월/차트: 최근 4개월만 범위 쿼리. 누적: vendorSummary 합산
+      const rangeStart = new Date(currentYear, currentMonth - 3, 1, 0, 0, 0, 0).getTime();
+      const rangeEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999).getTime();
+      const rows = await loadSubsByDateRange(rangeStart, rangeEnd);
       
       let dailyCount = 0;
       let monthlyCount = 0;
       let totalCount = 0;
       
-      // Monthly data for chart - 최근 4개월
       const monthlyData = {};
-      
-      // Generate last 4 months
       for(let i = 3; i >= 0; i--) {
         const monthDate = new Date(currentYear, currentMonth - i, 1);
         const monthKey = `${monthDate.getFullYear()}-${pad(monthDate.getMonth() + 1)}`;
@@ -3510,26 +3528,30 @@ ${r.optPlan}
         const submissionDate = new Date(r.submittedAt);
         const monthKey = `${submissionDate.getFullYear()}-${pad(submissionDate.getMonth() + 1)}`;
         
-        // Daily count
         if (submissionDate.toDateString() === todayStr) {
           dailyCount += r.totalCnt;
         }
-        
-        // Monthly count
         if (submissionDate.getMonth() === currentMonth && submissionDate.getFullYear() === currentYear) {
           monthlyCount += r.totalCnt;
         }
-        
-        // Total count
-        totalCount += r.totalCnt;
-        
-        // Monthly data for chart
         if (monthlyData.hasOwnProperty(monthKey)) {
           monthlyData[monthKey] += r.totalCnt;
         }
       });
+
+      let usedSummary = false;
+      try {
+        const summaries = await loadVendorSummaries();
+        if (summaries.length > 0) {
+          usedSummary = true;
+          totalCount = summaries.reduce((sum, s) => sum + (Number(s.totalCount) || 0), 0);
+        }
+      } catch (_) {}
+      if (!usedSummary) {
+        // 요약 없으면 최근 4개월 합만 표시(전체 스캔 회피). 재구축 권장.
+        totalCount = rows.reduce((sum, r) => sum + (Number(r.totalCnt) || 0), 0);
+      }
       
-      // Generate chart data - 최근 4개월만
       const chartData = Object.keys(monthlyData).sort().map(month => ({
         month: month,
         count: monthlyData[month]
@@ -3538,7 +3560,6 @@ ${r.optPlan}
       let html = `<h2 style="margin:0 0 8px;color:var(--brand)">작업요청서 관리</h2>`;
       html += `<div class="dashboard-grid">`;
       
-      // Stats section
       html += `<div class="stats-section">`;
       html += `<div class="stat-box">
         <div class="stat-title">금일 요청건수</div>
@@ -3549,12 +3570,11 @@ ${r.optPlan}
         <div class="stat-value">${monthlyCount}</div>
       </div>`;
       html += `<div class="stat-box">
-        <div class="stat-title">누적 요청건수</div>
+        <div class="stat-title">누적 요청건수${usedSummary ? '' : ' (최근 4개월)'}</div>
         <div class="stat-value">${totalCount}</div>
       </div>`;
       html += `</div>`;
       
-      // Chart section
       html += `<div class="chart-section">
         <div class="chart-title">월별 요청건수 그래프 (최근 4개월)</div>
         <div class="chart-container" id="monthlyChart"></div>
@@ -3564,7 +3584,6 @@ ${r.optPlan}
       
       main.innerHTML = html;
       
-      // Draw simple bar chart
       drawChart(chartData);
     }
     
@@ -3950,21 +3969,36 @@ ${r.optPlan}
     async function showAllReqList(){
       showLoading();
       try {
-      const rows = await loadSubs();
-      // 모든 vendor type을 한 번에 계산 (캐시 활용)
-      const vendorTypes = await getAllVendorTypes(rows, false);
-      let sortOrder = 'desc'; // 기본값: 최신순(내림차순)
+      let pageCursor = null;
+      let hasMore = true;
+      let rows = [];
+      try {
+        const first = await loadSubsPage({
+          pageSize: DEFAULT_LIST_PAGE_SIZE,
+          accepted: null,
+          sinceMs: Date.now() - DEFAULT_ACTIVE_WINDOW_MS
+        });
+        rows = first.rows;
+        pageCursor = first.lastDoc;
+        hasMore = first.hasMore;
+      } catch (pageErr) {
+        console.warn('페이지 로드 실패, 전체 로드 폴백:', pageErr?.message || pageErr);
+        rows = await loadSubs();
+        hasMore = false;
+      }
+      let vendorTypes = await getAllVendorTypes(rows, false);
+      let sortOrder = 'desc';
       const main = document.getElementById("adminMain");
       
-      // 상단 영역 (모바일에서 sticky)
       let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
-        <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">전체요청건</h2>
+        <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">전체요청건
+          <span style="font-size:12px;font-weight:600;color:#6a7a89;margin-left:8px;">최근 6개월 · ${rows.length}건</span>
+        </h2>
         <button id="reqAllSortToggle" class="btn" style="margin-top:8px;padding:4px 10px;font-size:12px;background:#eef2f7;color:#22303d;border:1px solid var(--border);border-radius:4px;">
           정렬: 최신순
         </button>
       </div>`;
       
-      // Desktop Table - 데스크탑에서만 표시
       html += `<div class="req-desktop-table" style="display:none;">
         <style>
           @media (min-width: 768px) {
@@ -3994,21 +4028,20 @@ ${r.optPlan}
         </div>
       </div>`;
       
-      // Mobile List - 모바일에서만 표시
       html += `<div id="reqAllMobileList" class="block md:hidden space-y-3 px-4 pb-4"></div>`;
+      html += `<div style="text-align:center;margin:16px 0;">
+        <button class="btn ghost" id="reqAllLoadMoreBtn" type="button" style="${hasMore ? '' : 'display:none;'}">더 보기 (50건)</button>
+      </div>`;
       
       main.innerHTML = html;
       
-        // 렌더링 함수 (비동기로 변경 - 제출 시점 기준 vendorType 계산)
         async function renderAllReqList() {
-        // 전체요청건은 제출시간 기준 정렬
         const sorted = [...rows].sort((a, b) => {
           const av = a.submittedAt ?? 0;
           const bv = b.submittedAt ?? 0;
           return sortOrder === 'desc' ? (bv - av) : (av - bv);
         });
         
-        // 각 row의 제출 시점 기준 vendorType 계산 (병렬 처리)
         const vendorTypePromises = sorted.map(async (r) => {
           if (!r.companyCode || !r.submittedAt) return { no: r.no, vendorType: '일반' };
           const vendorType = await getVendorTypeAtDate(r.companyCode, new Date(r.submittedAt));
@@ -4017,7 +4050,6 @@ ${r.optPlan}
         const vendorTypeResults = await Promise.all(vendorTypePromises);
         const vendorTypeMap = new Map(vendorTypeResults.map(r => [r.no, r.vendorType]));
         
-        // Desktop Table
         const desktopTbody = document.getElementById('reqAllDesktopTableBody');
         if (desktopTbody) {
           if(sorted.length===0){
@@ -4025,7 +4057,6 @@ ${r.optPlan}
       } else {
             let desktopHtml = '';
             for(const r of sorted){
-              // 제출 시점 기준 vendorType 사용
               const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               desktopHtml += `<tr data-no="${r.no}">`+
@@ -4046,7 +4077,6 @@ ${r.optPlan}
           }
         }
         
-        // Mobile List
         const mobileList = document.getElementById('reqAllMobileList');
         if (mobileList) {
           if(sorted.length===0){
@@ -4055,7 +4085,6 @@ ${r.optPlan}
             let mobileHtml = '';
             for(const r of sorted){
               const detailId = `reqAllDetail-${r.no}`;
-              // 제출 시점 기준 vendorType 사용
               const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               mobileHtml += `
@@ -4078,7 +4107,6 @@ ${r.optPlan}
                   </button>
                 </div>
                 
-                <!-- Mobile Detail Sheet -->
                 <div id="${detailId}" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-[60] transform translate-y-full transition-transform duration-300 max-h-[90vh] overflow-y-auto">
                   <div class="p-4">
                     <div class="flex items-center justify-between mb-4 pb-4 border-b">
@@ -4110,17 +4138,47 @@ ${r.optPlan}
             mobileList.innerHTML = mobileHtml;
           }
         }
+
+        const countSpan = document.querySelector('#adminMain h2 span');
+        if (countSpan) countSpan.textContent = `최근 6개월 · ${rows.length}건`;
       }
       
       await renderAllReqList();
       
-      // 정렬 토글 이벤트
       const sortBtn = document.getElementById('reqAllSortToggle');
       if (sortBtn) {
         sortBtn.addEventListener('click', async () => {
           sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
           sortBtn.textContent = `정렬: ${sortOrder === 'desc' ? '최신순' : '오름차순'}`;
           await renderAllReqList();
+        });
+      }
+
+      const loadMoreBtn = document.getElementById('reqAllLoadMoreBtn');
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', async () => {
+          if (!hasMore || !pageCursor) return;
+          loadMoreBtn.disabled = true;
+          loadMoreBtn.textContent = '불러오는 중...';
+          try {
+            const next = await loadSubsPage({
+              pageSize: DEFAULT_LIST_PAGE_SIZE,
+              cursor: pageCursor,
+              accepted: null,
+              sinceMs: Date.now() - DEFAULT_ACTIVE_WINDOW_MS
+            });
+            rows = rows.concat(next.rows);
+            pageCursor = next.lastDoc;
+            hasMore = next.hasMore;
+            Object.assign(vendorTypes, await getAllVendorTypes(next.rows, false));
+            await renderAllReqList();
+            loadMoreBtn.style.display = hasMore ? '' : 'none';
+          } catch (e) {
+            alert('추가 로드 실패: ' + (e?.message || e));
+          } finally {
+            loadMoreBtn.disabled = false;
+            loadMoreBtn.textContent = '더 보기 (50건)';
+          }
         });
       }
       } finally {
@@ -4131,37 +4189,85 @@ ${r.optPlan}
     async function showVendorDashboard(){
       showLoading();
       try {
-      const rows = await loadSubs();
       const main = document.getElementById("adminMain");
-      
-      // 모든 vendor type을 한 번에 계산 (캐시 활용)
-      const vendorTypes = await getAllVendorTypes(rows, false);
-      
-      // Calculate vendor statistics
-      const vendorStats = {};
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
-      
-      for (const r of rows) {
-        const submissionDate = new Date(r.submittedAt);
-        const isCurrentMonth = submissionDate.getMonth() === currentMonth && submissionDate.getFullYear() === currentYear;
-        
-        if (!vendorStats[r.companyCode]) {
-          vendorStats[r.companyCode] = {
-            companyName: r.companyName,
-            monthlyCount: 0,
-            totalCount: 0,
-            vendorType: vendorTypes[r.companyCode] || '일반'
-          };
+
+      let vendorStats = {};
+      let usedSummary = false;
+      let vendorFirstAppearance = {};
+
+      try {
+        const summaries = await loadVendorSummaries();
+        if (summaries.length > 0) {
+          usedSummary = true;
+          for (const s of summaries) {
+            const code = s.vendorId || s.companyCode || s.id;
+            if (!code) continue;
+            vendorStats[code] = {
+              companyName: s.companyName || '',
+              monthlyCount: Number(s.monthlyCount) || 0,
+              totalCount: Number(s.totalCount) || 0,
+              vendorType: '일반'
+            };
+            if (s.firstSubmittedAt != null) {
+              vendorFirstAppearance[code] = Number(s.firstSubmittedAt);
+            }
+          }
         }
-        
-        vendorStats[r.companyCode].totalCount += r.totalCnt;
-        if (isCurrentMonth) {
-          vendorStats[r.companyCode].monthlyCount += r.totalCnt;
+      } catch (sumErr) {
+        console.warn('vendorSummary 로드 실패, submissions 집계 폴백:', sumErr?.message || sumErr);
+      }
+
+      if (!usedSummary) {
+        const rows = await loadSubs();
+        const vendorTypes = await getAllVendorTypes(rows, false);
+        for (const r of rows) {
+          const submissionDate = new Date(r.submittedAt);
+          const isCurrentMonth = submissionDate.getMonth() === currentMonth && submissionDate.getFullYear() === currentYear;
+          if (!vendorStats[r.companyCode]) {
+            vendorStats[r.companyCode] = {
+              companyName: r.companyName,
+              monthlyCount: 0,
+              totalCount: 0,
+              vendorType: vendorTypes[r.companyCode] || '일반'
+            };
+          }
+          vendorStats[r.companyCode].totalCount += r.totalCnt;
+          if (isCurrentMonth) vendorStats[r.companyCode].monthlyCount += r.totalCnt;
+          if (!vendorFirstAppearance[r.companyCode] || r.submittedAt < vendorFirstAppearance[r.companyCode]) {
+            vendorFirstAppearance[r.companyCode] = r.submittedAt;
+          }
+        }
+      } else {
+        let vendorTypes = {};
+        try {
+          // 요약 경로: 코드만 넘겨 override 등급 적용 (전체 submissions 스캔 없음)
+          const stubRows = Object.keys(vendorStats).map(code => ({ companyCode: code }));
+          vendorTypes = await getAllVendorTypes(stubRows, false);
+        } catch (_) {
+          vendorTypes = {};
+        }
+        for (const code of Object.keys(vendorStats)) {
+          vendorStats[code].vendorType = vendorTypes[code] || vendorStats[code].vendorType || '일반';
+        }
+        // firstSubmittedAt 없는 요약은 최근 3개월 범위로만 신규 유입 추정(재구축 권장)
+        const missingFirst = Object.keys(vendorStats).filter(c => vendorFirstAppearance[c] == null);
+        if (missingFirst.length > 0) {
+          const rangeStart = new Date(currentYear, currentMonth - 2, 1, 0, 0, 0, 0).getTime();
+          const rangeEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999).getTime();
+          try {
+            const recent = await loadSubsByDateRange(rangeStart, rangeEnd);
+            for (const r of recent) {
+              if (!r.companyCode) continue;
+              if (vendorFirstAppearance[r.companyCode] == null || r.submittedAt < vendorFirstAppearance[r.companyCode]) {
+                vendorFirstAppearance[r.companyCode] = r.submittedAt;
+              }
+            }
+          } catch (_) {}
         }
       }
       
-      // Count vendor types
       let totalVendors = 0;
       let premiumVendors = 0;
       let regularVendors = 0;
@@ -4175,28 +4281,13 @@ ${r.optPlan}
         }
       });
       
-      // Calculate new vendor data for chart
       const newVendorData = {};
-      const currentDate = new Date();
-      
-      // Generate last 3 months
       for(let i = 2; i >= 0; i--) {
         const monthDate = new Date(currentYear, currentMonth - i, 1);
         const monthKey = `${monthDate.getFullYear()}-${pad(monthDate.getMonth() + 1)}`;
         newVendorData[monthKey] = 0;
       }
       
-      // Track first appearance of each vendor
-      const vendorFirstAppearance = {};
-      rows.forEach(r => {
-        if (!vendorFirstAppearance[r.companyCode]) {
-          vendorFirstAppearance[r.companyCode] = r.submittedAt;
-        } else if (r.submittedAt < vendorFirstAppearance[r.companyCode]) {
-          vendorFirstAppearance[r.companyCode] = r.submittedAt;
-        }
-      });
-      
-      // Count new vendors by month
       Object.entries(vendorFirstAppearance).forEach(([code, firstAppearance]) => {
         const firstDate = new Date(firstAppearance);
         const monthKey = `${firstDate.getFullYear()}-${pad(firstDate.getMonth() + 1)}`;
@@ -4205,13 +4296,11 @@ ${r.optPlan}
         }
       });
       
-      // Generate chart data
       const chartData = Object.keys(newVendorData).sort().map(month => ({
         month: month,
         count: newVendorData[month]
       }));
       
-      // Separate vendors by type
       const premiumVendorsList = Object.entries(vendorStats)
         .filter(([code, stats]) => stats.vendorType === '우수')
         .sort(([a], [b]) => a.localeCompare(b));
@@ -4220,7 +4309,9 @@ ${r.optPlan}
         .filter(([code, stats]) => stats.vendorType === '일반')
         .sort(([a], [b]) => a.localeCompare(b));
       
-      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">VENDOR 관리</h2>`;
+      let html = `<h2 style="margin:0 0 8px;color:var(--brand)">VENDOR 관리
+        <span style="font-size:12px;font-weight:600;color:#6a7a89;margin-left:8px;">${usedSummary ? '요약 문서' : '전체 재집계'}</span>
+      </h2>`;
       
       // Summary section - separated boxes
       html += `<div class="vendor-summary-section">`;
