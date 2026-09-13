@@ -5922,6 +5922,7 @@ ${r.optPlan}
 
     async function diagnoseAvailableBalance(options = {}) {
       const targetManual = Number(options.targetManual != null ? options.targetManual : 856500);
+      const uiStuckHint = Number(options.uiStuckAt != null ? options.uiStuckAt : 382500);
       const showUi = options.showUi !== false;
       showLoading();
       try {
@@ -6206,7 +6207,9 @@ ${r.optPlan}
           generatedAtISO: new Date().toISOString(),
           targetManual,
           manualBasisNote:
-            '수기 엑셀(임반장 정산 기록): 2026-08-12 출금 648,000으로 잔액0 리셋 후, 건당1500×진행건수 누적. 최종 잔액 856,500. 시나리오 H/I 참고.',
+            '수기 엑셀(임반장 정산 기록.xlsx): 2026-08-12 출금 648,000으로 잔액0 리셋 후, 전원 건당1500×진행건수 누적 → 최종 856,500. UI가 382,500에 머물면 원장(ledger) 합계가 엑셀과 다른 측정임.',
+          uiStuckHint,
+          gapExcelMinusStuck: targetManual - uiStuckHint,
           mode: {
             useLedger,
             settlementMeta: meta ? {
@@ -6415,36 +6418,157 @@ ${r.optPlan}
     window.downloadAvailableBalanceDiagCsv = downloadAvailableBalanceDiagCsv;
     window.downloadAvailableBalanceDiagJson = downloadAvailableBalanceDiagJson;
 
+    function isValidCommissionLockFields(sub) {
+      if (!sub) return false;
+      const hasType = sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반';
+      const c = Number(sub.commissionAtSubmission);
+      const hasComm = sub.commissionAtSubmission != null && sub.commissionAtSubmission !== '' && Number.isFinite(c);
+      return hasType && hasComm;
+    }
+
+    async function countInvalidCommissionLocks(options = {}) {
+      const includeDeleted = !!(options && options.includeDeleted);
+      const includeTest = !!(options && options.includeTest);
+      const rows = options.rows || await loadSubs({ includeDeleted: true });
+      const target = (rows || []).filter(s => {
+        if (!s) return false;
+        if (!includeDeleted && s.isDeleted === true) return false;
+        if (!includeTest && s.isTest === true) return false;
+        return true;
+      });
+      const invalid = [];
+      let premium = 0;
+      let regular = 0;
+      let lockedSum = 0;
+      for (const sub of target) {
+        if (!isValidCommissionLockFields(sub)) {
+          invalid.push({
+            id: sub.id,
+            no: sub.no,
+            companyCode: sub.companyCode,
+            companyName: sub.companyName,
+            vendorTypeAtSubmission: sub.vendorTypeAtSubmission ?? null,
+            commissionAtSubmission: sub.commissionAtSubmission ?? null,
+            totalCnt: sub.totalCnt,
+            isDeleted: sub.isDeleted === true
+          });
+          continue;
+        }
+        if (sub.vendorTypeAtSubmission === '우수') premium++;
+        else regular++;
+        lockedSum += Number(sub.commissionAtSubmission) || 0;
+      }
+      return {
+        scanned: target.length,
+        invalidCount: invalid.length,
+        validCount: target.length - invalid.length,
+        premiumCount: premium,
+        regularCount: regular,
+        lockedCommissionSum: lockedSum,
+        invalidSample: invalid.slice(0, 30)
+      };
+    }
+
     async function migrateCommissionLocks() {
       const rows = await loadSubs({ includeDeleted: true });
+      const before = await countInvalidCommissionLocks({ rows, includeDeleted: false, includeTest: false });
       let fixed = 0;
-      let missing = 0;
+      let previouslyMissing = 0;
+      let fallbackGeneral = 0;
+      const typeCounts = { '우수': 0, '일반': 0 };
+      const errors = [];
+
       for (const sub of rows) {
         if (!sub || !sub.id) continue;
-        const hasType = sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반';
-        const hasComm = sub.commissionAtSubmission != null && sub.commissionAtSubmission !== '';
-        if (hasType && hasComm) continue;
-        missing++;
+        // 삭제/테스트도 원장 재구축 대비 잠금은 채움 (집계 before/after는 활성만)
+        if (isValidCommissionLockFields(sub)) continue;
+
+        previouslyMissing++;
         const submittedAt = sub.submittedAt || Date.now();
         const code = String(sub.companyCode || '').trim();
-        let vType = hasType ? sub.vendorTypeAtSubmission : '일반';
-        if (!hasType && code) {
+        const hasType = sub.vendorTypeAtSubmission === '우수' || sub.vendorTypeAtSubmission === '일반';
+        let vType = hasType ? sub.vendorTypeAtSubmission : null;
+
+        if (!vType && code) {
           try {
             vType = await getVendorTypeAtDate(code, new Date(submittedAt));
-          } catch (_) {
-            vType = '일반';
+          } catch (e) {
+            console.warn('[migrateCommissionLocks] getVendorTypeAtDate 실패', sub.no, e?.message || e);
+            vType = null;
           }
         }
+        if (vType !== '우수' && vType !== '일반') {
+          // 등급 판정 불능 시에만 일반 — 백필 리포트에 기록
+          vType = '일반';
+          fallbackGeneral++;
+        }
+
         const lock = buildCommissionLockFields(sub.totalCnt, vType);
-        await window.updateDoc(window.doc(window.db, 'submissions', sub.id), {
-          vendorTypeAtSubmission: lock.vendorTypeAtSubmission,
-          commissionAtSubmission: lock.commissionAtSubmission,
-          commissionLockedAt: lock.commissionLockedAt || Date.now()
-        });
-        fixed++;
+        try {
+          if (!window.db || !window.updateDoc) throw new Error('Firebase updateDoc 불가');
+          await window.updateDoc(window.doc(window.db, 'submissions', sub.id), {
+            vendorTypeAtSubmission: lock.vendorTypeAtSubmission,
+            commissionAtSubmission: lock.commissionAtSubmission,
+            commissionLockedAt: lock.commissionLockedAt || Date.now()
+          });
+          fixed++;
+          typeCounts[lock.vendorTypeAtSubmission] = (typeCounts[lock.vendorTypeAtSubmission] || 0) + 1;
+        } catch (e) {
+          errors.push({ id: sub.id, no: sub.no, error: String(e?.message || e) });
+        }
       }
-      return { scanned: rows.length, fixed, previouslyMissing: missing };
+
+      // 캐시 무효화 후 재집계
+      window.wp_data_cache_cleared = true;
+      const afterRows = await loadSubs({ includeDeleted: true });
+      const after = await countInvalidCommissionLocks({ rows: afterRows, includeDeleted: false, includeTest: false });
+
+      const report = {
+        scanned: rows.length,
+        fixed,
+        previouslyMissing,
+        fallbackGeneral,
+        typeCountsOnFix: typeCounts,
+        errors,
+        beforeInvalid: before.invalidCount,
+        afterInvalid: after.invalidCount,
+        before,
+        after
+      };
+      console.log('[INFO][migrateCommissionLocks]', report);
+      return report;
     }
+
+    async function runCommissionLockBackfillAndVerify() {
+      if (!confirm('1단계: 수수료 잠금 백필을 실행할까요?\n\n제출 시점 등급(getVendorTypeAtDate)으로 commissionAtSubmission을 채웁니다.\n엑셀처럼 전원 1500으로 강제하지 않습니다.')) {
+        return null;
+      }
+      showLoading();
+      try {
+        const report = await migrateCommissionLocks();
+        const msg =
+          `수수료 잠금 백필 결과\n\n` +
+          `활성 무효수수료: ${report.beforeInvalid} → ${report.afterInvalid}\n` +
+          `수정 완료: ${report.fixed}건\n` +
+          `등급판정 실패→일반 fallback: ${report.fallbackGeneral}건\n` +
+          `이번에 채운 유형: 우수 ${report.typeCountsOnFix['우수'] || 0} / 일반 ${report.typeCountsOnFix['일반'] || 0}\n` +
+          `백필 후 잠금수수료 합(활성): ${(report.after.lockedCommissionSum || 0).toLocaleString()}원\n` +
+          `우수 ${report.after.premiumCount} / 일반 ${report.after.regularCount}\n` +
+          (report.errors?.length ? `\n실패 ${report.errors.length}건 (콘솔 확인)` : '') +
+          (report.afterInvalid === 0 ? `\n\n✅ 무효수수료 0건 — 1단계 통과` : `\n\n⚠️ 무효수수료가 아직 ${report.afterInvalid}건입니다`);
+        alert(msg);
+        return report;
+      } catch (e) {
+        console.error(e);
+        alert('백필 실패: ' + (e?.message || e));
+        return null;
+      } finally {
+        hideLoading();
+      }
+    }
+
+    window.countInvalidCommissionLocks = countInvalidCommissionLocks;
+    window.runCommissionLockBackfillAndVerify = runCommissionLockBackfillAndVerify;
 
     async function bootstrapGlobalLedger({ enable = false } = {}) {
       const [rows, withdrawals, topUps] = await Promise.all([
@@ -9651,6 +9775,7 @@ ${r.optPlan}
             <button class="btn" onclick="exportAllData()" type="button" style="width:100%;">엑셀 파일로 추출하기</button>
             <button class="btn ghost" id="debugVendorCsvBtn" type="button" style="width:100%;">디버그: VENDOR CSV 다운로드</button>
             <button class="btn" id="exportBaselineBtn" type="button" onclick="exportSettlementBaseline()" style="width:100%;background:#2f5369;">정산 baseline 내보내기</button>
+            <button class="btn" id="commissionLockBackfillBtn" type="button" onclick="runCommissionLockBackfillAndVerify()" style="width:100%;background:#8a5a00;">1단계: 수수료 잠금 백필</button>
             <button class="btn" id="ledgerMigrateBtn" type="button" onclick="runLedgerMigrationWizard()" style="width:100%;background:#3c6f8b;">원장 마이그레이션 (useLedger)</button>
             <button class="btn ghost" id="rebuildSummaryBtn" type="button" onclick="(async()=>{try{showLoading();const r=await rebuildVendorSummariesFromSubs();alert('vendorSummary 재구축: '+r.vendors+'개 업체');}catch(e){alert(e.message||e);}finally{hideLoading();}})()" style="width:100%;">VENDOR 요약 재구축</button>
             <button class="btn" type="button" onclick="runAvailableBalanceDiagnosis()" style="width:100%;background:#8a5a00;">출금가능액 진단 (읽기전용)</button>
