@@ -1,0 +1,13 @@
+{
+  "name": "wayxim-functions",
+  "description": "WAYxim ledger / counter Cloud Functions",
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^11.11.1",
+    "firebase-functions": "^4.9.0"
+  },
+  "private": true
+}
