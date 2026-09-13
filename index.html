@@ -6405,6 +6405,7 @@ ${r.optPlan}
         </div>
         <div class="actions">
           <button class="btn ghost" type="button" id="diagCloseBtn">닫기</button>
+          <button class="btn ghost" type="button" id="diagCopyCmdBtn">콘솔 명령 복사</button>
           <button class="btn ghost" type="button" id="diagJsonBtn">JSON 다운로드</button>
           <button class="btn" type="button" id="diagCsvBtn">submission CSV</button>
         </div>
@@ -6412,6 +6413,7 @@ ${r.optPlan}
       document.body.appendChild(el);
       el.addEventListener('click', (e) => { if (e.target === el) el.remove(); });
       el.querySelector('#diagCloseBtn')?.addEventListener('click', () => el.remove());
+      el.querySelector('#diagCopyCmdBtn')?.addEventListener('click', () => copyDiagnoseBalanceConsoleCommand());
       el.querySelector('#diagJsonBtn')?.addEventListener('click', () => downloadAvailableBalanceDiagJson());
       el.querySelector('#diagCsvBtn')?.addEventListener('click', () => downloadAvailableBalanceDiagCsv());
     }
@@ -6464,15 +6466,42 @@ ${r.optPlan}
 
     async function runAvailableBalanceDiagnosis() {
       try {
-        await diagnoseAvailableBalance({ targetManual: 856500, showUi: true });
+        await diagnoseAvailableBalance({ targetManual: 856500, uiStuckAt: 382500, showUi: true });
       } catch (e) {
         console.error(e);
         alert('진단 실패: ' + (e?.message || e));
       }
     }
 
+    /** 콘솔용 짧은 별칭 — 붙여넣기: await diagBal() */
+    async function diagBal(opts = {}) {
+      return diagnoseAvailableBalance({
+        targetManual: 856500,
+        uiStuckAt: 382500,
+        showUi: true,
+        ...opts
+      });
+    }
+
+    function copyDiagnoseBalanceConsoleCommand() {
+      const cmd = 'await diagBal()';
+      const done = () => {
+        try { console.log('📋 콘솔에 붙여넣기:', cmd); } catch (_) {}
+        alert('복사됨:\n\n' + cmd + '\n\nF12 → Console에 붙여넣고 Enter');
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(cmd).then(done).catch(() => {
+          window.prompt('복사하세요 (Ctrl+C):', cmd);
+        });
+      } else {
+        window.prompt('복사하세요 (Ctrl+C):', cmd);
+      }
+    }
+
     window.diagnoseAvailableBalance = diagnoseAvailableBalance;
     window.runAvailableBalanceDiagnosis = runAvailableBalanceDiagnosis;
+    window.diagBal = diagBal;
+    window.copyDiagnoseBalanceConsoleCommand = copyDiagnoseBalanceConsoleCommand;
     window.downloadAvailableBalanceDiagCsv = downloadAvailableBalanceDiagCsv;
     window.downloadAvailableBalanceDiagJson = downloadAvailableBalanceDiagJson;
 
@@ -9837,6 +9866,7 @@ ${r.optPlan}
             <button class="btn" id="ledgerMigrateBtn" type="button" onclick="runLedgerMigrationWizard()" style="width:100%;background:#3c6f8b;">원장 마이그레이션 (useLedger)</button>
             <button class="btn ghost" id="rebuildSummaryBtn" type="button" onclick="(async()=>{try{showLoading();const r=await rebuildVendorSummariesFromSubs();alert('vendorSummary 재구축: '+r.vendors+'개 업체');}catch(e){alert(e.message||e);}finally{hideLoading();}})()" style="width:100%;">VENDOR 요약 재구축</button>
             <button class="btn" type="button" onclick="runAvailableBalanceDiagnosis()" style="width:100%;background:#8a5a00;">출금가능액 진단 (읽기전용)</button>
+            <button class="btn ghost" type="button" onclick="copyDiagnoseBalanceConsoleCommand()" style="width:100%;">진단 콘솔 명령 복사 (await diagBal())</button>
             <button class="btn ghost" type="button" onclick="downloadAvailableBalanceDiagCsv()" style="width:100%;">진단용 submission CSV</button>
           </div>
         </div>
