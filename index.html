@@ -5669,10 +5669,166 @@ ${r.optPlan}
       return sum;
     }
 
+    async function loadLedgerEntryIdSet() {
+      const ids = new Set();
+      if (!(window.db && window.getDocs)) return ids;
+      const snap = await window.getDocs(window.collection(window.db, 'ledgerEntries'));
+      snap.forEach(d => ids.add(d.id));
+      return ids;
+    }
+
+    /** 엔트리 합계로 캐시를 맞춘다 (보정값이 아니라 원장 재합산) */
+    async function reconcileGlobalBalanceCache() {
+      const summed = await sumLedgerEntries();
+      if (window.db && window.setDoc) {
+        try {
+          await window.setDoc(window.doc(window.db, 'globalBalance', LEDGER_BALANCE_DOC), {
+            balance: summed,
+            updatedAt: Date.now(),
+            reconciledFromEntriesAt: Date.now()
+          }, { merge: true });
+        } catch (e) {
+          console.warn('[ledger] cache reconcile failed', e?.message || e);
+        }
+      }
+      return summed;
+    }
+
+    /**
+     * 운영 데이터에 있는데 원장에 없는 credit/debit을 idempotent로 채운 뒤 캐시 재합산.
+     * openingAdjustment 같은 임의 보정은 하지 않음.
+     */
+    async function syncLedgerWithOperationalData() {
+      const report = {
+        creditsAdded: 0,
+        debitsAdded: 0,
+        topUpsAdded: 0,
+        alreadyPresent: 0,
+        errors: [],
+        balanceAfter: null,
+        useLedger: false
+      };
+      if (!(await isLedgerModeEnabled())) {
+        report.useLedger = false;
+        return report;
+      }
+      report.useLedger = true;
+
+      const [rows, withdrawals, topUps, existingIds] = await Promise.all([
+        loadSubs({ includeDeleted: true }),
+        typeof loadWithdrawals === 'function' ? loadWithdrawals({ allowCacheFallback: false }) : Promise.resolve([]),
+        typeof loadAvailableTopUps === 'function' ? loadAvailableTopUps() : Promise.resolve([]),
+        loadLedgerEntryIdSet()
+      ]);
+
+      for (const sub of rows || []) {
+        if (!sub?.id) continue;
+        if (sub.isDeleted === true || sub.isTest === true) continue;
+        const commission = Number(sub.commissionAtSubmission);
+        if (!Number.isFinite(commission) || commission === 0) continue;
+        const entryId = `commission_credit_${sub.id}`;
+        if (existingIds.has(entryId)) {
+          report.alreadyPresent++;
+          continue;
+        }
+        try {
+          const r = await appendLedgerEntry({
+            type: 'commission_credit',
+            amount: commission,
+            refType: 'submission',
+            refId: sub.id,
+            note: `sync no=${sub.no}`,
+            allowNegative: true
+          });
+          if (r?.skipped) report.alreadyPresent++;
+          else {
+            report.creditsAdded++;
+            existingIds.add(entryId);
+          }
+        } catch (e) {
+          report.errors.push(`credit ${sub.id}: ${e?.message || e}`);
+        }
+      }
+
+      for (const w of withdrawals || []) {
+        if (!w?.id || w.status !== 'completed') continue;
+        const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+        if (amount <= 0) continue;
+        const entryId = `withdrawal_debit_${w.id}`;
+        if (existingIds.has(entryId)) {
+          report.alreadyPresent++;
+          continue;
+        }
+        // 완료 후 취소(reversal)가 있으면 debit을 새로 넣지 않음
+        if (existingIds.has(`withdrawal_reversal_${w.id}`)) {
+          report.alreadyPresent++;
+          continue;
+        }
+        try {
+          const r = await appendLedgerEntry({
+            type: 'withdrawal_debit',
+            amount,
+            refType: 'withdrawal',
+            refId: w.id,
+            note: 'sync completed withdrawal',
+            allowNegative: true
+          });
+          if (r?.skipped) report.alreadyPresent++;
+          else {
+            report.debitsAdded++;
+            existingIds.add(entryId);
+          }
+        } catch (e) {
+          report.errors.push(`debit ${w.id}: ${e?.message || e}`);
+        }
+      }
+
+      for (const t of topUps || []) {
+        if (!t?.id) continue;
+        const amount = Number(t.amount) || 0;
+        if (amount <= 0) continue;
+        const entryId = `manual_credit_${t.id}`;
+        if (existingIds.has(entryId)) {
+          report.alreadyPresent++;
+          continue;
+        }
+        try {
+          const r = await appendLedgerEntry({
+            type: 'manual_credit',
+            amount,
+            refType: 'topup',
+            refId: t.id,
+            note: 'sync top-up',
+            allowNegative: true
+          });
+          if (r?.skipped) report.alreadyPresent++;
+          else {
+            report.topUpsAdded++;
+            existingIds.add(entryId);
+          }
+        } catch (e) {
+          report.errors.push(`topup ${t.id}: ${e?.message || e}`);
+        }
+      }
+
+      report.balanceAfter = await reconcileGlobalBalanceCache();
+      console.log('[INFO][ledger-sync]', report);
+      return report;
+    }
+
     async function getGlobalAvailableFromLedger() {
+      // 캐시만 믿으면 누락 credit 시 화면이 멈춤 → 엔트리 합계를 기준으로 표시하고 캐시 맞춤
+      const summed = await sumLedgerEntries();
       const cached = await getLedgerBalanceCached();
-      if (cached != null) return Math.max(0, cached);
-      return Math.max(0, await sumLedgerEntries());
+      if (cached == null || cached !== summed) {
+        if (cached != null && cached !== summed) {
+          console.warn('[ledger] cache≠entries', { cached, summed, diff: cached - summed });
+        }
+        try {
+          await reconcileGlobalBalanceCache();
+        } catch (_) {}
+      }
+      return Math.max(0, summed);
     }
 
     /**
@@ -5722,6 +5878,542 @@ ${r.optPlan}
     window.appendLedgerEntry = appendLedgerEntry;
     window.getGlobalAvailableFromLedger = getGlobalAvailableFromLedger;
     window.isLedgerModeEnabled = isLedgerModeEnabled;
+    window.syncLedgerWithOperationalData = syncLedgerWithOperationalData;
+    window.reconcileGlobalBalanceCache = reconcileGlobalBalanceCache;
+
+    /** 출금가능액 불일치 진단 전용 — 값을 보정하지 않고 읽기/집계만 수행 */
+    function _dedupeSubsByNoLatest(subs = []) {
+      const map = new Map();
+      for (const sub of subs) {
+        if (!sub || sub.no == null || sub.no === '') continue;
+        const key = String(sub.no);
+        const existing = map.get(key);
+        if (!existing) {
+          map.set(key, sub);
+          continue;
+        }
+        const et = existing.submittedAt ? new Date(existing.submittedAt).getTime() : 0;
+        const ct = sub.submittedAt ? new Date(sub.submittedAt).getTime() : 0;
+        if (ct >= et) map.set(key, sub);
+      }
+      return Array.from(map.values());
+    }
+
+    function _sumCommissionField(subs = []) {
+      let sum = 0;
+      let missing = 0;
+      for (const s of subs) {
+        const c = s.commissionAtSubmission;
+        if (c == null || c === '' || !Number.isFinite(Number(c))) {
+          missing++;
+          continue;
+        }
+        sum += Number(c);
+      }
+      return { sum, missing };
+    }
+
+    function _sumWithdrawalAmount(list = []) {
+      return (list || []).reduce((sum, w) => {
+        const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+        return sum + amount;
+      }, 0);
+    }
+
+    async function diagnoseAvailableBalance(options = {}) {
+      const targetManual = Number(options.targetManual != null ? options.targetManual : 856500);
+      const showUi = options.showUi !== false;
+      showLoading();
+      try {
+        const [rowsAll, withdrawals, topUps, meta] = await Promise.all([
+          loadSubs({ includeDeleted: true }),
+          typeof loadWithdrawals === 'function' ? loadWithdrawals({ allowCacheFallback: false }) : Promise.resolve([]),
+          typeof loadAvailableTopUps === 'function' ? loadAvailableTopUps() : Promise.resolve([]),
+          typeof loadSettlementBalanceMeta === 'function'
+            ? loadSettlementBalanceMeta({ allowLocalFallback: false }).catch(() => null)
+            : Promise.resolve(null)
+        ]);
+
+        const useLedger = !!(meta && meta.useLedger === true);
+        const activeRows = rowsAll.filter(r => r && r.isDeleted !== true);
+        const deletedRows = rowsAll.filter(r => r && r.isDeleted === true);
+        const testRows = rowsAll.filter(r => r && r.isTest === true);
+        const settlementFilterRows = getSubsForVendor(rowsAll, null, false); // notDeleted && notTest
+
+        // --- commission invalid ---
+        const invalidCommission = [];
+        for (const r of rowsAll) {
+          const c = r.commissionAtSubmission;
+          const invalid = c == null || c === '' || !Number.isFinite(Number(c));
+          if (invalid) {
+            invalidCommission.push({
+              id: r.id,
+              no: r.no,
+              companyName: r.companyName,
+              companyCode: r.companyCode,
+              commissionAtSubmission: c,
+              isDeleted: r.isDeleted === true,
+              accepted: !!r.accepted
+            });
+          }
+        }
+
+        // --- duplicate no ---
+        const byNo = new Map();
+        for (const r of rowsAll) {
+          if (r.no == null || r.no === '') continue;
+          const key = String(r.no);
+          if (!byNo.has(key)) byNo.set(key, []);
+          byNo.get(key).push(r);
+        }
+        const duplicateNoGroups = [];
+        for (const [no, list] of byNo.entries()) {
+          if (list.length < 2) continue;
+          duplicateNoGroups.push({
+            no,
+            count: list.length,
+            docs: list.map(r => ({
+              id: r.id,
+              commissionAtSubmission: r.commissionAtSubmission,
+              isDeleted: r.isDeleted === true,
+              accepted: !!r.accepted,
+              submittedAt: r.submittedAt,
+              companyName: r.companyName
+            })),
+            commissionSumAll: list.reduce((s, r) => s + (Number(r.commissionAtSubmission) || 0), 0)
+          });
+        }
+        duplicateNoGroups.sort((a, b) => b.count - a.count);
+
+        // --- withdrawals ---
+        const completedWd = (withdrawals || []).filter(w => w && w.status === 'completed');
+        const pendingWd = (withdrawals || []).filter(w => w && w.status === 'pending');
+        const completedWdSum = _sumWithdrawalAmount(completedWd);
+        const pendingWdSum = _sumWithdrawalAmount(pendingWd);
+
+        // --- isDeleted exclusion check ---
+        const deletedInSettlementFilter = settlementFilterRows.filter(r => r.isDeleted === true);
+        const deletedCommissionIfIncluded = _sumCommissionField(deletedRows).sum;
+
+        // --- ledger ---
+        let ledger = null;
+        if (useLedger || options.forceLedgerScan) {
+          const entriesSnap = (window.db && window.getDocs)
+            ? await window.getDocs(window.collection(window.db, 'ledgerEntries'))
+            : null;
+          const entries = [];
+          const byType = {};
+          let signedSum = 0;
+          if (entriesSnap) {
+            entriesSnap.forEach(d => {
+              const data = d.data() || {};
+              let signed = Number(data.signedAmount);
+              if (!Number.isFinite(signed)) {
+                const amt = Math.abs(Number(data.amount) || 0);
+                signed = String(data.type || '').includes('debit') ? -amt : amt;
+              }
+              signedSum += signed;
+              const type = data.type || '(unknown)';
+              if (!byType[type]) byType[type] = { count: 0, signedSum: 0, amountSumAbs: 0 };
+              byType[type].count += 1;
+              byType[type].signedSum += signed;
+              byType[type].amountSumAbs += Math.abs(Number(data.amount) || 0);
+              entries.push({ id: d.id, ...data, _signed: signed });
+            });
+          }
+          const cached = await getLedgerBalanceCached();
+          ledger = {
+            cachedBalance: cached,
+            signedSumFromEntries: signedSum,
+            cacheMatchesSum: cached != null ? cached === signedSum : null,
+            cacheDiff: cached != null ? cached - signedSum : null,
+            entryCount: entries.length,
+            byType,
+            sampleEntries: entries.slice(0, 5).map(e => ({ id: e.id, type: e.type, signedAmount: e._signed, refId: e.refId }))
+          };
+        }
+
+        // --- settlement calc (UI path + legacy force) ---
+        const vendorTypes = await getAllVendorTypes(activeRows, false);
+        let uiSettlement = null;
+        let legacySettlement = null;
+        let uiError = null;
+        let legacyError = null;
+        try {
+          uiSettlement = await calcSettlementForVendor(rowsAll, withdrawals, null, vendorTypes);
+        } catch (e) {
+          uiError = String(e?.message || e);
+        }
+        try {
+          legacySettlement = await calcSettlementForVendor(rowsAll, withdrawals, null, vendorTypes, { forceLegacy: true });
+        } catch (e) {
+          legacyError = String(e?.message || e);
+        }
+
+        // --- scenario recalcs (수기 비교용, 보정값 미포함) ---
+        const dedupActive = _dedupeSubsByNoLatest(settlementFilterRows);
+        const dedupAllIncludingDeleted = _dedupeSubsByNoLatest(rowsAll);
+        const cActiveDedup = _sumCommissionField(dedupActive);
+        const cActiveAllDocs = _sumCommissionField(settlementFilterRows);
+        const cAllDocs = _sumCommissionField(rowsAll);
+        const cDeletedOnly = _sumCommissionField(deletedRows);
+        const manualTopUp = sumManualCreditFromTopUps(topUps);
+
+        let scenarios = [
+          {
+            id: 'ui_current',
+            label: 'UI 현재 경로 (calcSettlementForVendor)',
+            available: uiSettlement ? Number(uiSettlement.availableAmount) : null,
+            detail: uiSettlement ? {
+              totalCommission: uiSettlement.totalCommission,
+              totalWithdrawn: uiSettlement.totalWithdrawn,
+              openingAdjustment: uiSettlement.openingAdjustment,
+              manualCreditTotal: uiSettlement.manualCreditTotal,
+              rawAvailable: uiSettlement.rawAvailable,
+              usedLedgerBalance: !!uiSettlement.usedLedgerBalance
+            } : { error: uiError }
+          },
+          {
+            id: 'legacy_force',
+            label: '레거시 forceLegacy (opening+manual+수수료-완료출금)',
+            available: legacySettlement ? Number(legacySettlement.availableAmount) : null,
+            detail: legacySettlement ? {
+              totalCommission: legacySettlement.totalCommission,
+              totalWithdrawn: legacySettlement.totalWithdrawn,
+              openingAdjustment: legacySettlement.openingAdjustment,
+              manualCreditTotal: legacySettlement.manualCreditTotal,
+              rawAvailable: legacySettlement.rawAvailable
+            } : { error: legacyError }
+          },
+          {
+            id: 'A_active_dedup_minus_completed',
+            label: 'A: 활성(삭제·테스트제외) · no중복제거(최신) · commissionAtSubmission합 − 완료출금',
+            commission: cActiveDedup.sum,
+            withdrawnCompleted: completedWdSum,
+            available: cActiveDedup.sum - completedWdSum,
+            missingCommissionCount: cActiveDedup.missing,
+            subsCount: dedupActive.length
+          },
+          {
+            id: 'B_active_all_docs_minus_completed',
+            label: 'B: 활성 · no중복제거 안 함(문서 전부) · commission합 − 완료출금',
+            commission: cActiveAllDocs.sum,
+            withdrawnCompleted: completedWdSum,
+            available: cActiveAllDocs.sum - completedWdSum,
+            missingCommissionCount: cActiveAllDocs.missing,
+            subsCount: settlementFilterRows.length
+          },
+          {
+            id: 'C_include_deleted_dedup_minus_completed',
+            label: 'C: 삭제 포함 · no중복제거 · commission합 − 완료출금',
+            commission: _sumCommissionField(dedupAllIncludingDeleted).sum,
+            withdrawnCompleted: completedWdSum,
+            available: _sumCommissionField(dedupAllIncludingDeleted).sum - completedWdSum,
+            subsCount: dedupAllIncludingDeleted.length
+          },
+          {
+            id: 'D_all_docs_no_dedup_minus_completed',
+            label: 'D: 전체 문서(삭제·테스트 포함) · 중복제거 없음 · commission합 − 완료출금',
+            commission: cAllDocs.sum,
+            withdrawnCompleted: completedWdSum,
+            available: cAllDocs.sum - completedWdSum,
+            subsCount: rowsAll.length
+          },
+          {
+            id: 'E_A_plus_manual_topups',
+            label: 'E: A + 수동증액(topUps) − 완료출금 (openingAdjustment 없음)',
+            commission: cActiveDedup.sum,
+            manualTopUp,
+            withdrawnCompleted: completedWdSum,
+            available: cActiveDedup.sum + manualTopUp - completedWdSum
+          },
+          {
+            id: 'F_ledger_signed_sum',
+            label: 'F: ledgerEntries signedAmount 합계 (캐시 무시)',
+            available: ledger ? ledger.signedSumFromEntries : null,
+            detail: ledger
+          },
+          {
+            id: 'G_ledger_cached',
+            label: 'G: globalBalance/current.balance 캐시',
+            available: ledger ? ledger.cachedBalance : null
+          }
+        ];
+
+        // H/I: 수기 엑셀(임반장 정산 기록)과 동일 가정
+        // - 2026-08-12 전후 대규모 출금(648,000)으로 잔액 0 리셋 이후
+        // - 이후 submission만 누적, 건당 1500원 × 진행건수 (엑셀은 우수 1000 미사용)
+        // - 해당 구간 완료 출금 차감
+        const EXCEL_RESET_MS = Date.parse('2026-08-12T12:00:00+09:00');
+        const afterResetActive = settlementFilterRows.filter(r => {
+          const t = r.submittedAt ? new Date(r.submittedAt).getTime() : 0;
+          return t > EXCEL_RESET_MS;
+        });
+        const afterResetDedup = _dedupeSubsByNoLatest(afterResetActive);
+        const wdAfterReset = completedWd.filter(w => {
+          const t = w.processedAt || w.requestedAt || w.createdAt || 0;
+          const ms = typeof t === 'number' ? t : new Date(t).getTime();
+          return ms > EXCEL_RESET_MS;
+        });
+        const wdAfterSum = _sumWithdrawalAmount(wdAfterReset);
+        let excelStyle1500 = 0;
+        let excelStyleLocked = 0;
+        let excelMissingLock = 0;
+        for (const s of afterResetDedup) {
+          const cnt = parseInt(String(s.totalCnt ?? '0').split(/[\/\s]/)[0].replace(/[^0-9-]/g, ''), 10) || 0;
+          excelStyle1500 += cnt * 1500;
+          const c = Number(s.commissionAtSubmission);
+          if (Number.isFinite(c)) excelStyleLocked += c;
+          else excelMissingLock++;
+        }
+        scenarios.push(
+          {
+            id: 'H_excel_style_1500_after_2026_08_12',
+            label: 'H: 수기엑셀식 — 2026-08-12 리셋 이후 · no중복제거 · (총진행×1500) − 이후완료출금',
+            commission: excelStyle1500,
+            withdrawnCompleted: wdAfterSum,
+            available: excelStyle1500 - wdAfterSum,
+            subsCount: afterResetDedup.length,
+            note: '엑셀과 동일하게 전원 1500원 단가 가정'
+          },
+          {
+            id: 'I_excel_window_locked_commission',
+            label: 'I: 동일 기간 · commissionAtSubmission(잠금)합 − 이후완료출금',
+            commission: excelStyleLocked,
+            withdrawnCompleted: wdAfterSum,
+            available: excelStyleLocked - wdAfterSum,
+            missingCommissionCount: excelMissingLock,
+            subsCount: afterResetDedup.length
+          }
+        );
+
+        scenarios = scenarios.map(s => ({
+          ...s,
+          diffVsManual: s.available != null && Number.isFinite(Number(s.available))
+            ? Number(s.available) - targetManual
+            : null,
+          absDiffVsManual: s.available != null && Number.isFinite(Number(s.available))
+            ? Math.abs(Number(s.available) - targetManual)
+            : null
+        }));
+
+        const withDiff = scenarios.filter(s => s.absDiffVsManual != null);
+        withDiff.sort((a, b) => a.absDiffVsManual - b.absDiffVsManual);
+        const closest = withDiff[0] || null;
+
+        const report = {
+          generatedAt: Date.now(),
+          generatedAtISO: new Date().toISOString(),
+          targetManual,
+          manualBasisNote:
+            '수기 엑셀(임반장 정산 기록): 2026-08-12 출금 648,000으로 잔액0 리셋 후, 건당1500×진행건수 누적. 최종 잔액 856,500. 시나리오 H/I 참고.',
+          mode: {
+            useLedger,
+            settlementMeta: meta ? {
+              useLedger: meta.useLedger,
+              openingAdjustment: meta.openingAdjustment,
+              manualCreditTotal: meta.manualCreditTotal,
+              balance: meta.balance,
+              updatedAt: meta.updatedAt,
+              ledgerMigratedAt: meta.ledgerMigratedAt || null
+            } : null
+          },
+          ledger,
+          uiSettlement: uiSettlement ? {
+            totalCommission: uiSettlement.totalCommission,
+            totalWithdrawn: uiSettlement.totalWithdrawn,
+            openingAdjustment: uiSettlement.openingAdjustment,
+            manualCreditTotal: uiSettlement.manualCreditTotal,
+            rawAvailable: uiSettlement.rawAvailable,
+            availableAmount: uiSettlement.availableAmount,
+            usedLedgerBalance: !!uiSettlement.usedLedgerBalance
+          } : { error: uiError },
+          legacySettlement: legacySettlement ? {
+            totalCommission: legacySettlement.totalCommission,
+            totalWithdrawn: legacySettlement.totalWithdrawn,
+            openingAdjustment: legacySettlement.openingAdjustment,
+            manualCreditTotal: legacySettlement.manualCreditTotal,
+            rawAvailable: legacySettlement.rawAvailable,
+            availableAmount: legacySettlement.availableAmount
+          } : { error: legacyError },
+          submissions: {
+            totalDocs: rowsAll.length,
+            activeNotDeleted: activeRows.length,
+            deleted: deletedRows.length,
+            isTest: testRows.length,
+            usedInSettlementFilter: settlementFilterRows.length,
+            deletedLeakIntoSettlementFilter: deletedInSettlementFilter.length,
+            deletedCommissionIfIncluded,
+            invalidCommissionCount: invalidCommission.length,
+            invalidCommissionSample: invalidCommission.slice(0, 50),
+            duplicateNoGroupCount: duplicateNoGroups.length,
+            duplicateNoGroups: duplicateNoGroups.slice(0, 40),
+            noteIsDeleted:
+              deletedInSettlementFilter.length === 0
+                ? 'OK: getSubsForVendor가 isDeleted===true를 제외함'
+                : 'WARN: 삭제 건이 정산 필터에 포함됨',
+            noteIsTest: '정산 필터는 isTest===true도 제외함'
+          },
+          withdrawals: {
+            completedCount: completedWd.length,
+            completedSum: completedWdSum,
+            pendingCount: pendingWd.length,
+            pendingSum: pendingWdSum
+          },
+          topUps: {
+            count: (topUps || []).length,
+            manualCreditTotal: manualTopUp
+          },
+          scenarios,
+          closestScenarioToManual: closest
+            ? { id: closest.id, label: closest.label, available: closest.available, diffVsManual: closest.diffVsManual }
+            : null
+        };
+
+        window.__lastAvailableBalanceDiag = report;
+        console.log('[DIAG][available-balance]', report);
+        console.log('[DIAG][available-balance][scenarios]');
+        console.table(scenarios.map(s => ({
+          id: s.id,
+          available: s.available,
+          diffVsManual: s.diffVsManual,
+          label: s.label
+        })));
+        if (duplicateNoGroups.length) {
+          console.warn('[DIAG] 중복 no 그룹:', duplicateNoGroups.length);
+          console.table(duplicateNoGroups.map(g => ({
+            no: g.no,
+            count: g.count,
+            commissionSumAll: g.commissionSumAll,
+            ids: g.docs.map(d => d.id).join(',')
+          })));
+        }
+        if (invalidCommission.length) {
+          console.warn('[DIAG] commissionAtSubmission 무효:', invalidCommission.length);
+        }
+
+        if (showUi) showAvailableBalanceDiagModal(report);
+        return report;
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function showAvailableBalanceDiagModal(report) {
+      const existing = document.getElementById('availableBalanceDiagModal');
+      if (existing) existing.remove();
+      const fmt = (n) => (n == null || !Number.isFinite(Number(n))) ? '—' : Number(n).toLocaleString('ko-KR') + '원';
+      const rows = (report.scenarios || []).map(s => {
+        const close = report.closestScenarioToManual && report.closestScenarioToManual.id === s.id;
+        return `<tr${close ? ' style="background:#e6fbf4;"' : ''}>
+          <td>${escapeHtml(s.id)}</td>
+          <td>${escapeHtml(s.label)}</td>
+          <td class="num">${fmt(s.available)}</td>
+          <td class="num">${s.diffVsManual == null ? '—' : (s.diffVsManual > 0 ? '+' : '') + Number(s.diffVsManual).toLocaleString('ko-KR')}</td>
+        </tr>`;
+      }).join('');
+      const el = document.createElement('div');
+      el.id = 'availableBalanceDiagModal';
+      el.className = 'modal-backdrop';
+      el.style.display = 'flex';
+      el.style.zIndex = '80';
+      el.innerHTML = `<div class="modal" style="max-width:920px;max-height:90vh;overflow:auto;">
+        <h2>출금가능액 진단</h2>
+        <p class="muted" style="margin:0 0 12px;font-size:13px;">보정 없이 읽기만 합니다. 결과는 <code>window.__lastAvailableBalanceDiag</code> / 콘솔에도 있습니다.</p>
+        <div class="panel-card" style="margin-bottom:12px;">
+          <div><strong>모드</strong>: ${report.mode.useLedger ? '원장(useLedger=true)' : '레거시(계산식)'}</div>
+          <div><strong>UI 표시 가능액</strong>: ${fmt(report.uiSettlement?.availableAmount)}</div>
+          <div><strong>수기 목표</strong>: ${fmt(report.targetManual)}</div>
+          <div><strong>가장 가까운 시나리오</strong>: ${escapeHtml(report.closestScenarioToManual?.id || '—')}
+            (${fmt(report.closestScenarioToManual?.available)}, Δ ${report.closestScenarioToManual?.diffVsManual ?? '—'})</div>
+          ${report.ledger ? `<div><strong>원장 캐시</strong>: ${fmt(report.ledger.cachedBalance)} /
+            <strong>엔트리 합</strong>: ${fmt(report.ledger.signedSumFromEntries)} /
+            일치: ${report.ledger.cacheMatchesSum === true ? 'YES' : (report.ledger.cacheMatchesSum === false ? 'NO' : '—')}</div>` : ''}
+          <div style="margin-top:8px;font-size:13px;">완료출금 ${report.withdrawals.completedCount}건 / ${fmt(report.withdrawals.completedSum)} ·
+            대기 ${report.withdrawals.pendingCount}건 / ${fmt(report.withdrawals.pendingSum)}</div>
+          <div style="font-size:13px;">submission 전체 ${report.submissions.totalDocs} · 활성 ${report.submissions.activeNotDeleted} ·
+            삭제 ${report.submissions.deleted} · 무효수수료 ${report.submissions.invalidCommissionCount} ·
+            중복no그룹 ${report.submissions.duplicateNoGroupCount}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${escapeHtml(report.submissions.noteIsDeleted)} · ${escapeHtml(report.submissions.noteIsTest)}</div>
+        </div>
+        <div class="scroll-x" style="margin-bottom:12px;">
+          <table class="admin-table">
+            <thead><tr><th>id</th><th>시나리오</th><th>재계산</th><th>수기 대비 Δ</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" type="button" id="diagCloseBtn">닫기</button>
+          <button class="btn ghost" type="button" id="diagJsonBtn">JSON 다운로드</button>
+          <button class="btn" type="button" id="diagCsvBtn">submission CSV</button>
+        </div>
+      </div>`;
+      document.body.appendChild(el);
+      el.addEventListener('click', (e) => { if (e.target === el) el.remove(); });
+      el.querySelector('#diagCloseBtn')?.addEventListener('click', () => el.remove());
+      el.querySelector('#diagJsonBtn')?.addEventListener('click', () => downloadAvailableBalanceDiagJson());
+      el.querySelector('#diagCsvBtn')?.addEventListener('click', () => downloadAvailableBalanceDiagCsv());
+    }
+
+    function downloadAvailableBalanceDiagJson() {
+      const report = window.__lastAvailableBalanceDiag;
+      if (!report) {
+        alert('먼저 진단을 실행하세요.');
+        return;
+      }
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `available-balance-diag-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    async function downloadAvailableBalanceDiagCsv() {
+      showLoading();
+      try {
+        const rows = await loadSubs({ includeDeleted: true });
+        const header = ['no', 'id', 'companyCode', 'companyName', 'commissionAtSubmission', 'accepted', 'isDeleted', 'isTest', 'submittedAt', 'vendorTypeAtSubmission', 'totalCnt'];
+        const lines = [header.join(',')];
+        const esc = (v) => {
+          const s = v == null ? '' : String(v);
+          if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+          return s;
+        };
+        const sorted = [...rows].sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0));
+        for (const r of sorted) {
+          lines.push([
+            r.no, r.id, r.companyCode, r.companyName, r.commissionAtSubmission,
+            r.accepted === true, r.isDeleted === true, r.isTest === true,
+            r.submittedAt, r.vendorTypeAtSubmission, r.totalCnt
+          ].map(esc).join(','));
+        }
+        const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `submissions-for-balance-diag-${Date.now()}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (e) {
+        alert('CSV 내보내기 실패: ' + (e?.message || e));
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function runAvailableBalanceDiagnosis() {
+      try {
+        await diagnoseAvailableBalance({ targetManual: 856500, showUi: true });
+      } catch (e) {
+        console.error(e);
+        alert('진단 실패: ' + (e?.message || e));
+      }
+    }
+
+    window.diagnoseAvailableBalance = diagnoseAvailableBalance;
+    window.runAvailableBalanceDiagnosis = runAvailableBalanceDiagnosis;
+    window.downloadAvailableBalanceDiagCsv = downloadAvailableBalanceDiagCsv;
+    window.downloadAvailableBalanceDiagJson = downloadAvailableBalanceDiagJson;
 
     async function migrateCommissionLocks() {
       const rows = await loadSubs({ includeDeleted: true });
@@ -7043,6 +7735,16 @@ ${r.optPlan}
       showLoading();
       try {
         const main = document.getElementById("adminMain");
+
+        // 원장 모드: 탭 진입 시 누락 credit/debit 동기화 후 합계로 가능액 산정
+        let ledgerSyncReport = null;
+        if (await isLedgerModeEnabled()) {
+          try {
+            ledgerSyncReport = await syncLedgerWithOperationalData();
+          } catch (syncErr) {
+            console.warn('[WARN][ledger-sync-on-open]', syncErr?.message || syncErr);
+          }
+        }
         
         // 병렬로 데이터 로드 (성능 최적화)
         const [rows, withdrawals, topUps] = await Promise.all([
@@ -7067,13 +7769,17 @@ ${r.optPlan}
             ledgerResetAt,
             ledgerResetAtIso: ledgerResetAt ? new Date(ledgerResetAt).toISOString() : null,
             totalCommission,
-            totalWithdrawn
+            totalWithdrawn,
+            ledgerSyncReport
           });
         }
         
         // 상단 영역 (모바일에서 sticky)
         let html = `<div class="md:static sticky top-0 z-40 bg-white/80 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
-          <h2 style="margin:0 0 8px;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">출금신청</h2>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+            <h2 style="margin:0;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">출금신청</h2>
+            <button type="button" id="refreshAvailableBalanceBtn" class="btn ghost" style="white-space:nowrap;">출금 가능액 업데이트</button>
+          </div>
         </div>`;
         
         // 상단 KPI 카드 (모바일에서 2열)
@@ -7197,6 +7903,30 @@ ${r.optPlan}
             if (!open) {
               const amountEl = document.getElementById('topUpAmount');
               if (amountEl) amountEl.focus();
+            }
+          });
+        }
+
+        const refreshAvailBtn = document.getElementById('refreshAvailableBalanceBtn');
+        if (refreshAvailBtn) {
+          refreshAvailBtn.addEventListener('click', async () => {
+            refreshAvailBtn.disabled = true;
+            refreshAvailBtn.textContent = '업데이트 중...';
+            try {
+              let msg = '출금 가능액을 다시 계산했습니다.';
+              if (await isLedgerModeEnabled()) {
+                const sync = await syncLedgerWithOperationalData();
+                msg = `출금 가능액 업데이트 완료\n\n가능액: ${(sync.balanceAfter ?? 0).toLocaleString()}원` +
+                  `\n신규 반영 — 수수료 ${sync.creditsAdded}건, 출금 ${sync.debitsAdded}건, 증액 ${sync.topUpsAdded}건` +
+                  (sync.errors?.length ? `\n경고: ${sync.errors.length}건 실패 (콘솔 확인)` : '');
+              }
+              await showWithdrawalRequest();
+              alert(msg);
+            } catch (e) {
+              console.error(e);
+              alert('업데이트 실패: ' + (e?.message || e));
+            } finally {
+              // showWithdrawalRequest가 DOM을 갈아끼우므로 버튼 참조는 버려도 됨
             }
           });
         }
@@ -8923,6 +9653,8 @@ ${r.optPlan}
             <button class="btn" id="exportBaselineBtn" type="button" onclick="exportSettlementBaseline()" style="width:100%;background:#2f5369;">정산 baseline 내보내기</button>
             <button class="btn" id="ledgerMigrateBtn" type="button" onclick="runLedgerMigrationWizard()" style="width:100%;background:#3c6f8b;">원장 마이그레이션 (useLedger)</button>
             <button class="btn ghost" id="rebuildSummaryBtn" type="button" onclick="(async()=>{try{showLoading();const r=await rebuildVendorSummariesFromSubs();alert('vendorSummary 재구축: '+r.vendors+'개 업체');}catch(e){alert(e.message||e);}finally{hideLoading();}})()" style="width:100%;">VENDOR 요약 재구축</button>
+            <button class="btn" type="button" onclick="runAvailableBalanceDiagnosis()" style="width:100%;background:#8a5a00;">출금가능액 진단 (읽기전용)</button>
+            <button class="btn ghost" type="button" onclick="downloadAvailableBalanceDiagCsv()" style="width:100%;">진단용 submission CSV</button>
           </div>
         </div>
 
