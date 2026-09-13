@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // 이메일/비밀번호로 로그인한 관리자만 (익명 Auth와 구분)
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
+    // submissions: 익명 포함 로그인 사용자는 생성만 가능. 수정/삭제는 관리자.
+    // 물리 삭제(delete)는 금지 — soft-delete(update isDeleted)만 허용.
+    match /submissions/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['no', 'submittedAt'])
+        && request.resource.data.get('isDeleted', false) != true;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /withdrawals/{docId} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // 공개 제출 시 번호/업체코드 매핑 필요 → 로그인(익명 포함) 쓰기 허용
+    match /counters/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /nameToCode/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /codeToName/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /vendorTypeOverrides/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 불변 vendorId + 표시명. vendorId/companyCode 변경은 금지.
+    match /vendors/{vendorId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.vendorId == vendorId
+        && request.resource.data.companyCode == vendorId;
+      allow update: if isSignedIn()
+        && request.resource.data.vendorId == resource.data.vendorId
+        && request.resource.data.companyCode == resource.data.companyCode;
+      allow delete: if false;
+    }
+
+    match /vendorSummary/{vendorId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+      allow delete: if false;
+    }
+
+    match /settlementMeta/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /availableTopUps/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /settlementBaselines/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 전역 append-only 원장 (잔액의 단일 소스)
+    match /ledgerEntries/{entryId} {
+      allow read: if isSignedIn();
+      // 제출 즉시 수수료 credit은 익명 포함 허용(자기 ref만). 그 외는 관리자.
+      allow create: if isAdmin()
+        || (isSignedIn()
+            && request.resource.data.type == 'commission_credit'
+            && request.resource.data.refType == 'submission'
+            && request.resource.data.signedAmount > 0);
+      allow update, delete: if false;
+    }
+
+    match /globalBalance/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin()
+        || (isSignedIn() && docId == 'current');
+    }
+
+    match /dataBackups/{docId} {
+      allow read, write: if isAdmin();
+      match /chunks/{chunkId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    match /test/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 명시되지 않은 컬렉션은 기본 거부
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
