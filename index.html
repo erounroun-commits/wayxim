@@ -7395,9 +7395,12 @@ ${r.optPlan}
         
         totalCommission += commission;
         totalCount += (parseInt(sub.totalCnt) || 0);
+        const cnt = parseInt(sub.totalCnt) || 0;
         commissionEntries.push({
           submittedAt: sub.submittedAt,
           commission,
+          excelCommission: cnt * 1500,
+          totalCnt: cnt,
           usedLocked
         });
         
@@ -7466,17 +7469,21 @@ ${r.optPlan}
         }))
       });
 
-      // 출금가능액 = 엑셀과 동일하게 2026-08-12 12:04:05 이후분만.
-      // 리셋 시점 잔액 0, openingAdjustment 사용 안 함.
-      // available = (이후 잠금수수료) + (이후 수동증액) − (이후 완료출금, 리셋 648,000 제외)
+      // 출금가능액 = 엑셀 수기식 (2026-08-12 12:04:05 이후 · 진행건×1500 − 이후완료출금).
+      // 9/14 기준 목표 856,500. openingAdjustment 사용 안 함.
       const allTimeRaw = totalCommission - totalWithdrawn;
       const topUps = await loadAvailableTopUps();
       const boundary = resolveExcelResetBoundary(relevantWithdrawals);
-      const ledgerResetAt = boundary.boundaryMs; // EXCEL_SETTLEMENT_RESET_MS
+      const ledgerResetAt = boundary.boundaryMs;
 
-      const postResetCommission = commissionEntries.reduce((sum, entry) => {
+      const postResetCommissionLocked = commissionEntries.reduce((sum, entry) => {
         return isAfterExcelResetBoundary(entry.submittedAt, boundary)
           ? sum + entry.commission
+          : sum;
+      }, 0);
+      const postResetCommission = commissionEntries.reduce((sum, entry) => {
+        return isAfterExcelResetBoundary(entry.submittedAt, boundary)
+          ? sum + (Number(entry.excelCommission) || 0)
           : sum;
       }, 0);
       const postResetWds = filterWithdrawalsAfterExcelReset(relevantWithdrawals, boundary);
@@ -7501,12 +7508,13 @@ ${r.optPlan}
           totalCommissionLocked: totalCommission,
           totalWithdrawnCompleted: totalWithdrawn,
           postResetCommission,
+          postResetCommissionLocked,
           postResetWithdrawn,
           balance: availableAmount,
           canonicalLocked: true,
-          canonicalSource: 'excel-fixed-2026-08-12T12:04:05',
+          canonicalSource: 'excel-1500-after-2026-08-12T12:04:05',
           canonicalizedAt: Date.now(),
-          note: '엑셀 기준일(2026-08-12 12:04:05) 이후분만 재계산. openingAdjustment=0, useLedger=OFF'
+          note: '엑셀식(진행건×1500) · 기준일 이후분. 9/14 목표 856,500. openingAdjustment=0'
         }, { replaceRemote: true });
       } catch (metaErr) {
         console.warn('[WARN][settlement-meta-save]', metaErr?.message || metaErr);
@@ -7520,9 +7528,12 @@ ${r.optPlan}
         allTimeWithdrawn: totalWithdrawn,
         allTimeRaw,
         postResetCommission,
+        postResetCommissionLocked,
         postResetWithdrawn,
         manualCreditTotal,
         availableAmount,
+        targetAsOf2026_09_14: 856500,
+        diffVsTarget: availableAmount - 856500,
         excludedResetWithdrawals: boundary.resetWithdrawalCount
       });
 
@@ -7530,8 +7541,8 @@ ${r.optPlan}
       if (ledgerResetAt > 0) {
         const preEntries = commissionEntries.filter(e => !isAfterExcelResetBoundary(e.submittedAt, boundary));
         const postEntries = commissionEntries.filter(e => isAfterExcelResetBoundary(e.submittedAt, boundary));
-        const preCommission = preEntries.reduce((s, e) => s + e.commission, 0);
-        const postCommission = postEntries.reduce((s, e) => s + e.commission, 0);
+        const preCommission = preEntries.reduce((s, e) => s + (Number(e.excelCommission) || 0), 0);
+        const postCommission = postEntries.reduce((s, e) => s + (Number(e.excelCommission) || 0), 0);
 
         const preWithdrawals = relevantWithdrawals.filter(w => {
           if (w.id && boundary.resetWithdrawalIds.has(String(w.id))) return false;
@@ -7550,7 +7561,6 @@ ${r.optPlan}
         const resetAmount = resetWithdrawal
           ? (typeof resetWithdrawal.amount === 'number' ? resetWithdrawal.amount : (parseFloat(resetWithdrawal.amount) || 0))
           : 0;
-        const postWithdrawnAudit = postResetWithdrawn;
 
         console.log('[AUDIT][settlement-excel-2026-08-12]', {
           resetAtIso: new Date(ledgerResetAt).toISOString(),
@@ -7563,14 +7573,16 @@ ${r.optPlan}
           postSubmissionCount: postEntries.length,
           postCommission,
           postWithdrawalCount: postWithdrawals.length,
-          postWithdrawn: postWithdrawnAudit,
+          postWithdrawn: postResetWithdrawn,
           availableAfterReset: availableAmount
         });
       }
 
       const result = {
-        totalCommission,
-        totalWithdrawn,
+        totalCommission: postResetCommission,
+        totalCommissionAllTime: totalCommission,
+        totalWithdrawn: postResetWithdrawn,
+        totalWithdrawnAllTime: totalWithdrawn,
         availableAmount,
         rawAvailable,
         openingAdjustment,
@@ -7579,7 +7591,9 @@ ${r.optPlan}
         ledgerResetAt,
         ledgerNormalized,
         postResetCommission,
+        postResetCommissionLocked,
         postResetWithdrawn,
+        excelResetBoundary: boundary,
         subsCount: subs.length
       };
       console.log('[DEBUG][settlement]', {
@@ -8085,7 +8099,25 @@ ${r.optPlan}
         
         // settlement 계산 최적화
         const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
-        const { totalCommission, totalWithdrawn, availableAmount, ledgerNormalized, ledgerResetAt, rawAvailable, openingAdjustment, manualCreditTotal } = settlement;
+        const {
+          totalCommission,
+          totalWithdrawn,
+          availableAmount,
+          ledgerNormalized,
+          ledgerResetAt,
+          rawAvailable,
+          openingAdjustment,
+          manualCreditTotal,
+          excelResetBoundary
+        } = settlement;
+
+        const boundary = excelResetBoundary || resolveExcelResetBoundary(
+          (withdrawals || []).filter(w => w && w.status === 'completed')
+        );
+        const { current: currentWithdrawals, previous: previousWithdrawals } =
+          splitWithdrawalsByExcelReset(withdrawals, boundary);
+        const { current: currentTopUps, previous: previousTopUps } =
+          splitTopUpsByExcelReset(topUps, boundary);
 
         if (ledgerNormalized) {
           console.log('[INFO][settlement-normalized] 출금가능액 원장 정상화 적용', {
@@ -8097,6 +8129,8 @@ ${r.optPlan}
             ledgerResetAtIso: ledgerResetAt ? new Date(ledgerResetAt).toISOString() : null,
             totalCommission,
             totalWithdrawn,
+            currentWithdrawals: currentWithdrawals.length,
+            previousWithdrawals: previousWithdrawals.length,
             ledgerSyncReport
           });
         }
@@ -8107,6 +8141,7 @@ ${r.optPlan}
             <h2 style="margin:0;color:var(--brand)" class="text-[clamp(12px,1.2vw,18px)] font-bold">출금신청</h2>
             <button type="button" id="refreshAvailableBalanceBtn" class="btn ghost" style="white-space:nowrap;">출금 가능액 업데이트</button>
           </div>
+          <p class="muted" style="margin:0 0 12px;font-size:12px;color:#6a7a89;">기준일 ${new Date(boundary.boundaryMs).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} 이후 · 엑셀식(진행건×1,500). 9/14 목표 856,500원.</p>
         </div>`;
         
         // 상단 KPI 카드 (모바일에서 2열)
@@ -8116,10 +8151,17 @@ ${r.optPlan}
             <div class="stat-value" id="availableAmount">${availableAmount.toLocaleString()}원</div>
           </div>
           <div class="stat-box">
-            <div class="stat-title">총 출금액</div>
+            <div class="stat-title">총 출금액 (기준일 이후)</div>
             <div class="stat-value" id="totalWithdrawn">${totalWithdrawn.toLocaleString()}원</div>
           </div>
         </div>`;
+
+        html += `<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+          <button type="button" class="btn" id="withdrawalTabCurrent" data-wd-tab="current" style="background:var(--brand);color:#fff;">현재</button>
+          <button type="button" class="btn ghost" id="withdrawalTabPrevious" data-wd-tab="previous">이전 이력</button>
+        </div>`;
+
+        html += `<div id="withdrawalPanelCurrent">`;
         
         // 출금신청 입력 폼 + 증액 신청 버튼
         html += `<div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
@@ -8143,7 +8185,7 @@ ${r.optPlan}
                 <button type="button" id="submitTopUpBtn" class="btn w-full" style="background:var(--brand);color:#fff;">증액</button>
               </div>
             </div>
-            <p class="muted" style="margin:8px 0 0;font-size:12px;color:#6a7a89;">현재 가능액 ${availableAmount.toLocaleString()}원 기준으로 증액됩니다. (누적 수동 증액: ${(manualCreditTotal || 0).toLocaleString()}원)</p>
+            <p class="muted" style="margin:8px 0 0;font-size:12px;color:#6a7a89;">현재 가능액 ${availableAmount.toLocaleString()}원 기준으로 증액됩니다. (기준일 이후 수동 증액: ${(manualCreditTotal || 0).toLocaleString()}원)</p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-3">
@@ -8163,7 +8205,7 @@ ${r.optPlan}
           <button id="submitWithdrawalBtn" class="btn w-full md:w-auto" style="margin-top:16px;background:var(--brand);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer;">출금 신청</button>
         </div>`;
 
-        // 증액 리스트
+        // 현재 증액 리스트
         html += `<div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
           <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">증액 리스트</h3>
           <div class="scroll-x" style="max-height:320px;overflow-y:auto;">
@@ -8177,17 +8219,16 @@ ${r.optPlan}
                 </tr>
               </thead>
               <tbody id="topUpTableBody">
-                ${renderTopUpRowsHtml(topUps)}
+                ${renderTopUpRowsHtml(currentTopUps)}
               </tbody>
             </table>
           </div>
         </div>`;
         
-        // 출금신청 리스트
+        // 현재 출금신청 리스트
         html += `<div style="background:var(--panel);padding:16px;border-radius:8px;border:1px solid var(--border);">
           <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">출금 신청 리스트</h3>`;
         
-        // Desktop Table
         html += `<div class="withdrawal-desktop-table" style="display:none;">
           <style>
             @media (min-width: 768px) {
@@ -8211,14 +8252,91 @@ ${r.optPlan}
           </div>
         </div>`;
         
-        // Mobile List
         html += `<div id="withdrawalMobileList" class="block md:hidden space-y-3"></div>
+        </div>`;
+
+        html += `</div>`; // withdrawalPanelCurrent
+
+        // 이전 이력 패널
+        html += `<div id="withdrawalPanelPrevious" style="display:none;">
+          <p class="muted" style="margin:0 0 16px;font-size:13px;color:#6a7a89;">기준일(${new Date(boundary.boundaryMs).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}) 이전 증액·출금 내역입니다. 출금가능액 계산에는 포함되지 않습니다.</p>
+          <div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);">
+            <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">이전 증액 리스트</h3>
+            <div class="scroll-x" style="max-height:320px;overflow-y:auto;">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>일시</th>
+                    <th>증액 금액</th>
+                    <th>기존 가능액</th>
+                    <th>증액 후 가능액</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${renderTopUpRowsHtml(previousTopUps, '이전 증액 내역이 없습니다.')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style="background:var(--panel);padding:16px;border-radius:8px;border:1px solid var(--border);">
+            <h3 style="margin:0 0 16px;color:var(--brand);font-size:16px;">이전 출금 신청 리스트</h3>
+            <div class="withdrawal-desktop-table" style="display:none;">
+              <div class="scroll-x" style="max-height:600px;overflow-y:auto;">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>신청일</th>
+                      <th>입금정보</th>
+                      <th>금액</th>
+                      <th>상태</th>
+                      <th>처리일</th>
+                    </tr>
+                  </thead>
+                  <tbody id="withdrawalPrevTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div id="withdrawalPrevMobileList" class="block md:hidden space-y-3"></div>
+          </div>
         </div>`;
         
         main.innerHTML = html;
         
-        // 출금신청 리스트 렌더링
-        await renderWithdrawalList();
+        await renderWithdrawalList({
+          withdrawals: currentWithdrawals,
+          tbodyId: 'withdrawalTableBody',
+          mobileId: 'withdrawalMobileList',
+          emptyText: '기준일 이후 출금신청 내역이 없습니다.'
+        });
+        await renderWithdrawalList({
+          withdrawals: previousWithdrawals,
+          tbodyId: 'withdrawalPrevTableBody',
+          mobileId: 'withdrawalPrevMobileList',
+          emptyText: '이전 출금신청 내역이 없습니다.',
+          allowToggle: false
+        });
+
+        const tabCurrent = document.getElementById('withdrawalTabCurrent');
+        const tabPrevious = document.getElementById('withdrawalTabPrevious');
+        const panelCurrent = document.getElementById('withdrawalPanelCurrent');
+        const panelPrevious = document.getElementById('withdrawalPanelPrevious');
+        const activateWdTab = (which) => {
+          const isCurrent = which === 'current';
+          if (panelCurrent) panelCurrent.style.display = isCurrent ? '' : 'none';
+          if (panelPrevious) panelPrevious.style.display = isCurrent ? 'none' : '';
+          if (tabCurrent) {
+            tabCurrent.className = isCurrent ? 'btn' : 'btn ghost';
+            tabCurrent.style.background = isCurrent ? 'var(--brand)' : '';
+            tabCurrent.style.color = isCurrent ? '#fff' : '';
+          }
+          if (tabPrevious) {
+            tabPrevious.className = isCurrent ? 'btn ghost' : 'btn';
+            tabPrevious.style.background = isCurrent ? '' : 'var(--brand)';
+            tabPrevious.style.color = isCurrent ? '' : '#fff';
+          }
+        };
+        if (tabCurrent) tabCurrent.addEventListener('click', () => activateWdTab('current'));
+        if (tabPrevious) tabPrevious.addEventListener('click', () => activateWdTab('previous'));
 
         const toggleTopUpBtn = document.getElementById('toggleTopUpPanelBtn');
         const topUpPanel = document.getElementById('availableTopUpPanel');
@@ -8305,11 +8423,38 @@ ${r.optPlan}
       }
     }
 
+    function isWithdrawalAfterExcelReset(w, boundary) {
+      if (!w) return false;
+      if (w.id && boundary.resetWithdrawalIds && boundary.resetWithdrawalIds.has(String(w.id))) return false;
+      const t = w.requestedAt || w.processedAt || w.createdAt || 0;
+      return isAfterExcelResetBoundary(t, boundary);
+    }
+
+    function splitWithdrawalsByExcelReset(withdrawals = [], boundary) {
+      const current = [];
+      const previous = [];
+      for (const w of withdrawals || []) {
+        if (isWithdrawalAfterExcelReset(w, boundary)) current.push(w);
+        else previous.push(w);
+      }
+      return { current, previous };
+    }
+
+    function splitTopUpsByExcelReset(topUps = [], boundary) {
+      const current = [];
+      const previous = [];
+      for (const t of topUps || []) {
+        if (isAfterExcelResetBoundary(t?.createdAt || 0, boundary)) current.push(t);
+        else previous.push(t);
+      }
+      return { current, previous };
+    }
+
     const AVAILABLE_TOPUPS_STORAGE_KEY = 'wp_available_topups';
 
-    function renderTopUpRowsHtml(topUps = []) {
+    function renderTopUpRowsHtml(topUps = [], emptyText = '증액 내역이 없습니다.') {
       if (!topUps || topUps.length === 0) {
-        return '<tr><td colspan="4" style="text-align:center;color:#6a7a89">증액 내역이 없습니다.</td></tr>';
+        return `<tr><td colspan="4" style="text-align:center;color:#6a7a89">${escapeHtml(emptyText)}</td></tr>`;
       }
       return topUps.map(t => {
         const when = t.createdAt ? formatDateTime(new Date(t.createdAt)) : '-';
@@ -8361,17 +8506,18 @@ ${r.optPlan}
         const settlement = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes);
         const previousAvailable = Math.max(0, settlement.availableAmount || 0);
         const meta = settlement.balanceMeta || (await loadSettlementBalanceMeta()) || {};
-        const prevCredit = sumManualCreditFromTopUps(await loadAvailableTopUps());
+        const prevCredit = Number(settlement.manualCreditTotal) || 0;
         const nextCredit = prevCredit + amt;
         const newAvailable = previousAvailable + amt;
 
         await saveSettlementBalanceMeta({
           ...meta,
-          openingAdjustment: Number(meta.openingAdjustment) || 0,
+          openingAdjustment: 0,
           manualCreditTotal: nextCredit,
           lastTopUpAt: Date.now(),
           lastTopUpAmount: amt,
-          balance: newAvailable
+          balance: newAvailable,
+          useLedger: false
         });
 
         const record = {
@@ -8380,7 +8526,7 @@ ${r.optPlan}
           newAvailable,
           previousManualCreditTotal: prevCredit,
           newManualCreditTotal: nextCredit,
-          openingAdjustment: Number(meta.openingAdjustment) || 0,
+          openingAdjustment: 0,
           createdAt: Date.now()
         };
 
@@ -8531,30 +8677,39 @@ ${r.optPlan}
     }
     
     // 출금신청 리스트 렌더링
-    async function renderWithdrawalList() {
-      const withdrawals = await loadWithdrawals();
-      const tbody = document.getElementById('withdrawalTableBody');
-      const mobileList = document.getElementById('withdrawalMobileList');
+    async function renderWithdrawalList(options = {}) {
+      const {
+        withdrawals: listIn = null,
+        tbodyId = 'withdrawalTableBody',
+        mobileId = 'withdrawalMobileList',
+        emptyText = '출금신청 내역이 없습니다.',
+        allowToggle = true
+      } = options;
+      const withdrawals = listIn || await loadWithdrawals();
+      const tbody = document.getElementById(tbodyId);
+      const mobileList = document.getElementById(mobileId);
       
       // Desktop Table
       if (tbody) {
         if (withdrawals.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6a7a89">출금신청 내역이 없습니다.</td></tr>';
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#6a7a89">${escapeHtml(emptyText)}</td></tr>`;
         } else {
           let html = '';
           withdrawals.forEach(w => {
             const requestedDate = new Date(w.requestedAt);
             const processedDate = w.processedAt ? new Date(w.processedAt) : null;
+            const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+            const statusCell = allowToggle
+              ? `<input type="checkbox" ${w.status === 'completed' ? 'checked' : ''} 
+                       onchange="toggleWithdrawalStatus('${w.id}', this.checked)" 
+                       style="cursor:pointer;">`
+              : `<span style="color:${w.status === 'completed' ? '#2f6b3c' : '#8a5a00'};">${w.status === 'completed' ? '처리완료' : '대기중'}</span>`;
             
             html += `<tr data-id="${w.id}">
               <td>${formatDateTime(requestedDate)}</td>
               <td>${escapeHtml(w.bank)} / ${escapeHtml(w.account)}</td>
-              <td>${w.amount.toLocaleString()}원</td>
-              <td>
-                <input type="checkbox" ${w.status === 'completed' ? 'checked' : ''} 
-                       onchange="toggleWithdrawalStatus('${w.id}', this.checked)" 
-                       style="cursor:pointer;">
-              </td>
+              <td>${amount.toLocaleString()}원</td>
+              <td>${statusCell}</td>
               <td>${processedDate ? formatDateTime(processedDate) : '-'}</td>
             </tr>`;
           });
@@ -8566,23 +8721,27 @@ ${r.optPlan}
       // Mobile List
       if (mobileList) {
         if (withdrawals.length === 0) {
-          mobileList.innerHTML = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">출금신청 내역이 없습니다.</div>';
+          mobileList.innerHTML = `<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">${escapeHtml(emptyText)}</div>`;
         } else {
           let mobileHtml = '';
           withdrawals.forEach(w => {
             const requestedDate = new Date(w.requestedAt);
             const processedDate = w.processedAt ? new Date(w.processedAt) : null;
-            
-            mobileHtml += `
-              <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden p-3">
-                <div class="flex items-center justify-between mb-2">
-                  <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${w.amount.toLocaleString()}원</span>
-                  <label class="flex items-center gap-2 cursor-pointer">
+            const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
+            const statusBlock = allowToggle
+              ? `<label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" ${w.status === 'completed' ? 'checked' : ''} 
                            onchange="toggleWithdrawalStatus('${w.id}', this.checked)" 
                            class="cursor-pointer">
                     <span class="text-xs ${w.status === 'completed' ? 'text-green-600' : 'text-yellow-600'}">${w.status === 'completed' ? '처리완료' : '대기중'}</span>
-                  </label>
+                  </label>`
+              : `<span class="text-xs ${w.status === 'completed' ? 'text-green-600' : 'text-yellow-600'}">${w.status === 'completed' ? '처리완료' : '대기중'}</span>`;
+            
+            mobileHtml += `
+              <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden p-3">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${amount.toLocaleString()}원</span>
+                  ${statusBlock}
                 </div>
                 <div class="space-y-1 text-[clamp(11px,1.1vw,13px)] text-neutral-500">
                   <div>신청일: ${formatDateTime(requestedDate)}</div>
