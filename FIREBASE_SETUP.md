@@ -102,7 +102,9 @@ firebase deploy --only functions,firestore:rules,firestore:indexes
 클라와 Functions는 동일 idempotent 키(`type_refId`)를 쓰므로 이중 기록이 안전합니다.
 
 ### Phase 3 조회
-- 신규/접수 리스트: 최근 6개월 + 50건 페이지네이션 (`loadSubsPage`)
-- VENDOR LIST: `vendorSummary` 우선 (없으면 전체 재집계 폴백)
-- 주별/월별/일별 정산·관리자 홈: `loadSubsByDateRange` / `loadSubsForYearMonth` (전체 스캔 후 JS filter 제거)
+- 신규/접수/전체요청건 리스트: 최근 6개월 + 50건 페이지네이션 (`loadSubsPage`)
+- VENDOR LIST / VENDOR 관리 대시보드: `vendorSummary` 우선 (없으면 전체 재집계 폴백)
+- 작업요청서 대시보드: 최근 4개월 범위 쿼리 + 누적은 `vendorSummary` 합산
+- 주별/월별/일별 정산·관리자 홈: `loadSubsByDateRange` / `loadSubsForYearMonth`
+- `vendorSummary.firstSubmittedAt`: 신규 유입 차트용 (요약 재구축 시 채워짐)
 - 복합 인덱스: `accepted + submittedAt` (배포: `firebase deploy --only firestore:indexes`)
