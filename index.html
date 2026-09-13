@@ -227,17 +227,65 @@
     .table-like header div, .table-like .row div{padding:var(--space-3);border-bottom:1px solid var(--border)}
     .table-like .row:last-child div{border-bottom:none}
     .right{display:flex;justify-content:flex-end;gap:var(--space-3)}
-    .admin-table{width:100%;border-collapse:collapse;font-size:var(--text-sm);table-layout:auto}
-    .admin-table th,.admin-table td{border:1px solid var(--border);padding:var(--space-3);vertical-align:middle;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;line-height:1.55}
-    .admin-table th{background:#f3f7fb;color:#2f3e4d;position:sticky;top:0;z-index:1;font-weight:800}
+    .admin-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:var(--text-sm);table-layout:auto}
+    /* 기본: 숫자/짧은 헤더가 한 글자씩 세로로 쪼개지지 않도록 nowrap */
+    .admin-table th,.admin-table td{
+      border:1px solid var(--border);
+      padding:var(--space-2) var(--space-3);
+      vertical-align:middle;
+      white-space:nowrap;
+      word-break:keep-all;
+      overflow-wrap:normal;
+      line-height:1.45;
+    }
+    .admin-table th{background:#f3f7fb;color:#2f3e4d;position:sticky;top:0;z-index:2;font-weight:800}
     .admin-table tbody tr:nth-child(even) td{background:#fafcfe}
     .admin-table tbody tr:hover td{background:#f0f6fb}
     .admin-table .num,.admin-table td.num{text-align:right;font-variant-numeric:tabular-nums}
     .admin-table td a{word-break:break-all}
+
+    /* 컬럼 최소 폭 (헤더·셀 공통) */
+    .admin-table .col-no,.admin-table th.col-no,.admin-table td.col-no{min-width:60px;max-width:80px;text-align:center;font-variant-numeric:tabular-nums}
+    .admin-table .col-datetime,.admin-table th.col-datetime,.admin-table td.col-datetime{min-width:90px}
+    .admin-table .col-code,.admin-table th.col-code,.admin-table td.col-code{min-width:80px}
+    .admin-table .col-company,.admin-table th.col-company,.admin-table td.col-company{min-width:120px}
+    .admin-table .col-contact,.admin-table th.col-contact,.admin-table td.col-contact{min-width:140px;font-variant-numeric:tabular-nums}
+    .admin-table .col-count,.admin-table th.col-count,.admin-table td.col-count{min-width:72px;text-align:center;font-variant-numeric:tabular-nums}
+    .admin-table .col-money,.admin-table th.col-money,.admin-table td.col-money{min-width:88px;text-align:right;font-variant-numeric:tabular-nums}
+    .admin-table .col-type,.admin-table th.col-type,.admin-table td.col-type{min-width:72px;text-align:center}
+    .admin-table .col-status,.admin-table th.col-status,.admin-table td.col-status{min-width:72px;text-align:center}
     .admin-table .nowrap,.nowrap{white-space:nowrap !important;word-break:keep-all;overflow-wrap:normal}
-    .admin-table .col-contact,.admin-table td.col-contact{min-width:8.5rem;white-space:nowrap !important;word-break:keep-all;overflow-wrap:normal;font-variant-numeric:tabular-nums}
-    .admin-table .col-keyword,.admin-table td.col-keyword{min-width:7.5rem;white-space:nowrap !important;word-break:keep-all}
-    .admin-table .col-company,.admin-table td.col-company{min-width:6.5rem}
+
+    /* 긴 텍스트만 줄바꿈 허용 (한 단어/전화번호 중간 절단 최소화) */
+    .admin-table .col-text,.admin-table th.col-text,.admin-table td.col-text,
+    .admin-table .col-keyword,.admin-table th.col-keyword,.admin-table td.col-keyword{
+      white-space:normal;
+      word-break:keep-all;
+      overflow-wrap:break-word;
+      min-width:150px;
+      max-width:280px;
+    }
+    .admin-table .col-company.col-text,.admin-table td.col-company.col-text{
+      min-width:120px;max-width:220px;
+    }
+
+    /* 첫 열 sticky (가로 스크롤 시 행 식별) */
+    .admin-table th.col-no,.admin-table td.col-no,
+    .admin-table thead th:first-child,.admin-table tbody td:first-child{
+      position:sticky;left:0;z-index:3;
+      background:#f3f7fb;
+      box-shadow:6px 0 8px -6px rgba(31,42,51,.18);
+    }
+    .admin-table tbody td.col-no,
+    .admin-table tbody td:first-child{background:#fff;z-index:1}
+    .admin-table tbody tr:nth-child(even) td.col-no,
+    .admin-table tbody tr:nth-child(even) td:first-child{background:#fafcfe}
+    .admin-table tbody tr:hover td.col-no,
+    .admin-table tbody tr:hover td:first-child{background:#f0f6fb}
+    .admin-table thead th.col-no,
+    .admin-table thead th:first-child{z-index:4;background:#f3f7fb}
+
+    /* 우측 액션 sticky */
     .admin-table .col-action,.admin-table th.col-action,.admin-table td.col-action{
       position:sticky;right:0;z-index:2;min-width:7.5rem;white-space:nowrap !important;
       background:#f3f7fb;box-shadow:-6px 0 8px -6px rgba(31,42,51,.18);
@@ -246,8 +294,33 @@
     .admin-table tbody tr:nth-child(even) td.col-action{background:#fafcfe}
     .admin-table tbody tr:hover td.col-action{background:#f0f6fb}
     .admin-table th.col-action{z-index:3}
-    .req-list-table{min-width:720px}
-    .scroll-x{overflow:auto}
+
+    .req-list-table{min-width:900px}
+
+    /* 가로 스크롤 컨테이너 + 우측 fade 힌트 */
+    .scroll-x,.table-scroll,.vendor-list-table-scroll{
+      overflow:auto;
+      position:relative;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-gutter:stable;
+    }
+    .scroll-x::-webkit-scrollbar,.table-scroll::-webkit-scrollbar,.vendor-list-table-scroll::-webkit-scrollbar{height:10px;width:10px}
+    .scroll-x::-webkit-scrollbar-thumb,.table-scroll::-webkit-scrollbar-thumb,.vendor-list-table-scroll::-webkit-scrollbar-thumb{
+      background:#c5d0db;border-radius:999px;border:2px solid #f5f7fb;
+    }
+    .scroll-x::-webkit-scrollbar-track,.table-scroll::-webkit-scrollbar-track,.vendor-list-table-scroll::-webkit-scrollbar-track{background:#eef2f7}
+    .table-scroll-wrap{position:relative}
+    .table-scroll-wrap::after{
+      content:"";
+      position:absolute;top:0;right:0;bottom:10px;width:28px;
+      pointer-events:none;z-index:5;
+      background:linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,.92));
+      border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+    }
+    .table-scroll-wrap.is-scrolled-end::after{opacity:0}
+    @media (max-width:767px){
+      .table-scroll-wrap::after{display:none}
+    }
 
 .admin-table pre.opt {
   white-space: pre-wrap; margin: 0; max-height: 7.5em; overflow: auto;
@@ -409,7 +482,7 @@
 .vendor-chart-container { height: 300px; position: relative; background: #f8fafc; border-radius: var(--radius-sm); padding: var(--space-4); border: 1px solid var(--border); }
 
 /* Vendor list page */
-.vendor-list-table-scroll { max-height: 600px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.vendor-list-table-scroll { max-height: 600px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
 
 @media (max-width: 960px){
   .admin-table th, .admin-table td { font-size: 13px; }
@@ -2122,6 +2195,15 @@
       publicLanding.classList.add("hidden");
       adminWrap.style.display = "block";
       await showAdminHome();
+      if (typeof window.bindTableScrollHints === 'function') {
+        window.bindTableScrollHints();
+        const adminMainEl = document.getElementById('adminMain');
+        if (adminMainEl && !adminMainEl.dataset.scrollHintObserver) {
+          adminMainEl.dataset.scrollHintObserver = '1';
+          const mo = new MutationObserver(() => window.bindTableScrollHints(adminMainEl));
+          mo.observe(adminMainEl, { childList: true, subtree: true });
+        }
+      }
       
       // 관리자 전환 탭을 상태 뱃지로 변경
       const adminTrigger = document.getElementById('adminTrigger');
@@ -3492,6 +3574,25 @@
       return `<div class="compact-datetime"><div class="date">${year}${month}${day}</div><div class="time">${hour}:${minute}</div></div>`;
     }
     function escapeHtml(s){ return (s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+    /** 관리자 테이블 가로 스크롤 fade 힌트 */
+    function bindTableScrollHints(root = document) {
+      root.querySelectorAll('.table-scroll-wrap .scroll-x, .table-scroll-wrap .table-scroll, .table-scroll-wrap.vendor-list-table-scroll, .table-scroll-wrap .vendor-list-table-scroll').forEach((el) => {
+        if (el.dataset.scrollHintBound === '1') return;
+        el.dataset.scrollHintBound = '1';
+        const wrap = el.classList.contains('table-scroll-wrap') ? el : el.closest('.table-scroll-wrap');
+        if (!wrap) return;
+        const sync = () => {
+          const noOverflow = el.scrollWidth <= el.clientWidth + 2;
+          const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
+          wrap.classList.toggle('is-scrolled-end', noOverflow || atEnd);
+        };
+        el.addEventListener('scroll', sync, { passive: true });
+        window.addEventListener('resize', sync);
+        requestAnimationFrame(sync);
+      });
+    }
+    window.bindTableScrollHints = bindTableScrollHints;
     function escapeAttr(s){ return escapeHtml(s); }
     
     // 모바일 상세 시트 열기/닫기 함수
@@ -3755,23 +3856,25 @@ ${r.optPlan}
             .req-desktop-table { display: block !important; }
           }
         </style>
-        <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <div class="table-scroll-wrap">
+        <div class="scroll-x table-scroll" style="max-height:600px;border:1px solid var(--border);border-radius:8px;">
           <table class="admin-table req-list-table">
             <thead><tr>
-              <th>no.</th>
-              <th>제출시간</th>
-              <th class="company-info">업체코드</th>
-              <th class="company-info col-company">업체명</th>
+              <th class="col-no">no.</th>
+              <th class="col-datetime">제출시간</th>
+              <th class="company-info col-code">업체코드</th>
+              <th class="company-info col-company col-text">업체명</th>
               <th class="col-contact">카톡/번호</th>
               <th class="col-keyword">구매키워드</th>
-              <th>총/일</th>
-              <th>건당 제휴 수수료</th>
-              ${isAccepted ? '<th>접수 시간</th>' : '<th>접수 여부</th>'}
+              <th class="col-count">총/일</th>
+              <th class="col-money">건당 제휴 수수료</th>
+              ${isAccepted ? '<th class="col-datetime">접수 시간</th>' : '<th class="col-status">접수 여부</th>'}
               <th class="col-action">전문</th>
             </tr></thead>
             <tbody id="reqDesktopTableBody">
             </tbody>
           </table>
+        </div>
         </div>
       </div>`;
       
@@ -3815,17 +3918,17 @@ ${r.optPlan}
               const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               desktopHtml += `<tr data-no="${r.no}">`+
-            `<td>${r.no}</td>`+
-            `<td class="nowrap">${formatCompactDateTime(r.submittedAt)}</td>`+
-            `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td class="col-company">${escapeHtml(r.companyName)}</td>`+
+            `<td class="col-no">${r.no}</td>`+
+            `<td class="col-datetime">${formatCompactDateTime(r.submittedAt)}</td>`+
+            `<td class="col-code">${escapeHtml(r.companyCode)}</td>`+
+            `<td class="col-company col-text">${escapeHtml(r.companyName)}</td>`+
             `<td class="col-contact">${escapeHtml(r.contact)}</td>`+
             `<td class="col-keyword">${escapeHtml(r.keywords)}</td>`+
-            `<td class="nowrap">${r.totalCnt} / ${r.dailyCnt}</td>`+
-                `<td class="nowrap">${commissionPerUnit}</td>`+
+            `<td class="col-count">${r.totalCnt} / ${r.dailyCnt}</td>`+
+                `<td class="col-money">${commissionPerUnit}</td>`+
             (isAccepted
-              ? `<td class="nowrap">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
-              : `<td style="text-align:center"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""}></td>`
+              ? `<td class="col-datetime">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`
+              : `<td class="col-status" style="text-align:center"><input type="checkbox" class="accept-toggle" data-no="${r.no}" ${r.accepted?"checked":""}></td>`
             )+
             `<td class="col-action"><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
           `</tr>`;
@@ -4083,23 +4186,25 @@ ${r.optPlan}
             .req-desktop-table { display: block !important; }
           }
         </style>
-        <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <div class="table-scroll-wrap">
+        <div class="scroll-x table-scroll" style="max-height:600px;border:1px solid var(--border);border-radius:8px;">
           <table class="admin-table req-list-table">
             <thead><tr>
-              <th>no.</th>
-              <th>제출시간</th>
-              <th class="company-info">업체코드</th>
-              <th class="company-info col-company">업체명</th>
+              <th class="col-no">no.</th>
+              <th class="col-datetime">제출시간</th>
+              <th class="company-info col-code">업체코드</th>
+              <th class="company-info col-company col-text">업체명</th>
               <th class="col-contact">카톡/번호</th>
               <th class="col-keyword">구매키워드</th>
-              <th>총/일</th>
-              <th>건당 제휴 수수료</th>
-              <th>접수시간</th>
+              <th class="col-count">총/일</th>
+              <th class="col-money">건당 제휴 수수료</th>
+              <th class="col-datetime">접수시간</th>
               <th class="col-action">전문</th>
             </tr></thead>
             <tbody id="reqAllDesktopTableBody">
             </tbody>
           </table>
+        </div>
         </div>
       </div>`;
       
@@ -4135,15 +4240,15 @@ ${r.optPlan}
               const vendorType = vendorTypeMap.get(r.no) || '일반';
               const commissionPerUnit = vendorType === '우수' ? '1,000원' : '1,500원';
               desktopHtml += `<tr data-no="${r.no}">`+
-            `<td>${r.no}</td>`+
-            `<td class="nowrap">${formatCompactDateTime(r.submittedAt)}</td>`+
-            `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td class="col-company">${escapeHtml(r.companyName)}</td>`+
+            `<td class="col-no">${r.no}</td>`+
+            `<td class="col-datetime">${formatCompactDateTime(r.submittedAt)}</td>`+
+            `<td class="col-code">${escapeHtml(r.companyCode)}</td>`+
+            `<td class="col-company col-text">${escapeHtml(r.companyName)}</td>`+
             `<td class="col-contact">${escapeHtml(r.contact)}</td>`+
             `<td class="col-keyword">${escapeHtml(r.keywords)}</td>`+
-            `<td class="nowrap">${r.totalCnt} / ${r.dailyCnt}</td>`+
-                `<td class="nowrap">${commissionPerUnit}</td>`+
-            `<td class="nowrap">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
+            `<td class="col-count">${r.totalCnt} / ${r.dailyCnt}</td>`+
+                `<td class="col-money">${commissionPerUnit}</td>`+
+            `<td class="col-datetime">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
             `<td class="col-action"><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
           `</tr>`;
         }
@@ -4590,15 +4695,15 @@ ${r.optPlan}
             .vendor-desktop-table { display: block !important; }
           }
         </style>
-        <div class="vendor-list-table-scroll"><table class="admin-table" id="vendorDesktopTable">
+        <div class="table-scroll-wrap vendor-list-table-scroll"><table class="admin-table" id="vendorDesktopTable">
           <thead><tr>
-            <th>NO</th>
-            <th>업체코드</th>
-            <th>업체명</th>
-            <th>VENDOR 유형</th>
-            <th>당월 진행건수</th>
-            <th>누적 진행건수</th>
-            <th>상세보기</th>
+            <th class="col-no">NO</th>
+            <th class="col-code">업체코드</th>
+            <th class="col-company col-text">업체명</th>
+            <th class="col-type">VENDOR 유형</th>
+            <th class="col-count">당월 진행건수</th>
+            <th class="col-count">누적 진행건수</th>
+            <th class="col-action">상세보기</th>
           </tr></thead>
           <tbody id="vendorDesktopTableBody">
           </tbody>
@@ -4711,13 +4816,13 @@ ${r.optPlan}
             vendorCodes.forEach((code, idx) => {
           const stats = vendorStats[code];
               desktopHtml += `<tr>`+
-            `<td>${idx+1}</td>`+
-            `<td>${escapeHtml(code)}</td>`+
-            `<td>${escapeHtml(stats.companyName)}</td>`+
-            `<td>${stats.vendorType}</td>`+
-            `<td>${stats.monthlyCount}</td>`+
-            `<td>${stats.totalCount}</td>`+
-            `<td><button class="btn ghost view-vendor-detail" data-code="${code}" type="button">상세보기</button></td>`+
+            `<td class="col-no">${idx+1}</td>`+
+            `<td class="col-code">${escapeHtml(code)}</td>`+
+            `<td class="col-company col-text">${escapeHtml(stats.companyName)}</td>`+
+            `<td class="col-type">${stats.vendorType}</td>`+
+            `<td class="col-count">${stats.monthlyCount}</td>`+
+            `<td class="col-count">${stats.totalCount}</td>`+
+            `<td class="col-action"><button class="btn ghost view-vendor-detail" data-code="${code}" type="button">상세보기</button></td>`+
           `</tr>`;
         });
             desktopTbody.innerHTML = desktopHtml;
@@ -4953,23 +5058,23 @@ ${r.optPlan}
         requestsList.innerHTML = '<div style="text-align:center;color:#6a7a89;padding:20px;">의뢰 내역이 없습니다.</div>';
       } else {
         // Desktop Table
-        let listHtml = '<div class="vendor-requests-desktop" style="display:none;"><style>@media (min-width: 768px) { .vendor-requests-desktop { display: block !important; } }</style><div class="scroll-x" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"><table class="admin-table req-list-table"><thead><tr><th>no.</th><th>제출시간</th><th class="company-info">업체코드</th><th class="company-info col-company">업체명</th><th class="col-contact">카톡/번호</th><th class="col-keyword">구매키워드</th><th>총/일</th><th>접수시간</th><th class="col-action">전문</th></tr></thead><tbody>';
+        let listHtml = '<div class="vendor-requests-desktop" style="display:none;"><style>@media (min-width: 768px) { .vendor-requests-desktop { display: block !important; } }</style><div class="table-scroll-wrap"><div class="scroll-x table-scroll" style="max-height:400px;border:1px solid var(--border);border-radius:8px;"><table class="admin-table req-list-table"><thead><tr><th class="col-no">no.</th><th class="col-datetime">제출시간</th><th class="company-info col-code">업체코드</th><th class="company-info col-company col-text">업체명</th><th class="col-contact">카톡/번호</th><th class="col-keyword">구매키워드</th><th class="col-count">총/일</th><th class="col-datetime">접수시간</th><th class="col-action">전문</th></tr></thead><tbody>';
         
         vendorRows.forEach(r => {
           listHtml += `<tr data-no="${r.no}">`+
-            `<td>${r.no}</td>`+
-            `<td class="nowrap">${formatCompactDateTime(r.submittedAt)}</td>`+
-            `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td class="col-company">${escapeHtml(r.companyName)}</td>`+
+            `<td class="col-no">${r.no}</td>`+
+            `<td class="col-datetime">${formatCompactDateTime(r.submittedAt)}</td>`+
+            `<td class="col-code">${escapeHtml(r.companyCode)}</td>`+
+            `<td class="col-company col-text">${escapeHtml(r.companyName)}</td>`+
             `<td class="col-contact">${escapeHtml(r.contact)}</td>`+
             `<td class="col-keyword">${escapeHtml(r.keywords)}</td>`+
-            `<td class="nowrap">${r.totalCnt} / ${r.dailyCnt}</td>`+
-            `<td class="nowrap">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
+            `<td class="col-count">${r.totalCnt} / ${r.dailyCnt}</td>`+
+            `<td class="col-datetime">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):""}</td>`+
             `<td class="col-action"><button class="btn ghost view-detail" data-no="${r.no}" type="button">전문 보기</button></td>`+
           `</tr>`;
         });
         
-        listHtml += '</tbody></table></div></div>';
+        listHtml += '</tbody></table></div></div></div>';
         
         // Mobile List
         listHtml += '<div id="vendorRequestsMobileList" class="block md:hidden space-y-3 max-h-[400px] overflow-y-auto">';
@@ -7981,34 +8086,35 @@ ${r.optPlan}
       </div>`;
       
       // Desktop Table - 데스크탑에서만 표시 (모바일에서 숨김)
-      html += `<div class="scroll-x" style="display:block;max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+      html += `<div class="monthly-desktop-table" style="display:none;">
         <style>
-          @media (max-width: 768px) {
-            #monthlyTable { display: none !important; }
-            #monthlyTableWrapper { display: none !important; }
+          @media (min-width: 768px) {
+            .monthly-desktop-table { display: block !important; }
           }
         </style>
+        <div class="table-scroll-wrap">
+        <div class="scroll-x table-scroll" style="max-height:600px;border:1px solid var(--border);border-radius:8px;">
         <div id="monthlyTableWrapper">
         <table class="admin-table" id="monthlyTable">
           <thead>
             <tr>
-              <th>NO</th>
-              <th>제출시간</th>
-              <th>업체코드</th>
-              <th>VENDOR 유형</th>
-              <th>업체명</th>
-              <th>사업자번호</th>
-              <th>카톡/번호</th>
-              <th>구매 키워드</th>
-              <th>총 진행건수</th>
-              <th>접수 시간</th>
-              <th>정산여부</th>
-              <th>입금일자</th>
-              <th>입금명</th>
-              <th>건당 이용 단가</th>
-              <th>건당 제휴 수수료</th>
-              <th>총 이용 단가</th>
-              <th>총 제휴 수수료</th>
+              <th class="col-no">NO</th>
+              <th class="col-datetime">제출시간</th>
+              <th class="col-code">업체코드</th>
+              <th class="col-type">VENDOR 유형</th>
+              <th class="col-company col-text">업체명</th>
+              <th class="col-code">사업자번호</th>
+              <th class="col-contact">카톡/번호</th>
+              <th class="col-keyword">구매 키워드</th>
+              <th class="col-count">총 진행건수</th>
+              <th class="col-datetime">접수 시간</th>
+              <th class="col-status">정산여부</th>
+              <th class="col-datetime">입금일자</th>
+              <th class="col-text">입금명</th>
+              <th class="col-money">건당 이용 단가</th>
+              <th class="col-money">건당 제휴 수수료</th>
+              <th class="col-money">총 이용 단가</th>
+              <th class="col-money">총 제휴 수수료</th>
             </tr>
           </thead>
           <tbody id="monthlyTableBody">
@@ -8016,6 +8122,8 @@ ${r.optPlan}
           <tfoot id="monthlyTableFooter">
           </tfoot>
         </table>
+        </div>
+        </div>
         </div>
       </div>`;
       
@@ -9023,24 +9131,27 @@ ${r.optPlan}
       </div>`;
       
       // Desktop Table - 데스크탑에서만 표시 (모바일에서 숨김)
-      html += `<div class="scroll-x" style="display:block;max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+      html += `<div class="weekly-desktop-table" style="display:none;">
         <style>
-          @media (max-width: 768px) {
-            #wTable { display: none !important; }
-            #wTableWrapper { display: none !important; }
+          @media (min-width: 768px) {
+            .weekly-desktop-table { display: block !important; }
           }
         </style>
+        <div class="table-scroll-wrap">
+        <div class="scroll-x table-scroll" style="max-height:600px;border:1px solid var(--border);border-radius:8px;">
         <div id="wTableWrapper">
         <table class="admin-table" id="wTable">
           <thead><tr>
-            <th>NO</th><th>제출시간</th><th>업체코드</th><th>VENDOR 유형</th><th>업체명</th><th>사업자번호</th>
-            <th>카톡/번호</th><th>구매 키워드</th><th>총 진행건수</th><th>접수 시간</th>
-            <th>정산여부</th><th>입금일자</th><th>입금명</th>
-            <th>건당 이용 단가</th><th>건당 제휴 수수료</th><th>총 이용 단가</th><th>총 제휴 수수료</th>
+            <th class="col-no">NO</th><th class="col-datetime">제출시간</th><th class="col-code">업체코드</th><th class="col-type">VENDOR 유형</th><th class="col-company col-text">업체명</th><th class="col-code">사업자번호</th>
+            <th class="col-contact">카톡/번호</th><th class="col-keyword">구매 키워드</th><th class="col-count">총 진행건수</th><th class="col-datetime">접수 시간</th>
+            <th class="col-status">정산여부</th><th class="col-datetime">입금일자</th><th class="col-text">입금명</th>
+            <th class="col-money">건당 이용 단가</th><th class="col-money">건당 제휴 수수료</th><th class="col-money">총 이용 단가</th><th class="col-money">총 제휴 수수료</th>
           </tr></thead>
           <tbody id="wBody"></tbody>
           <tfoot id="wFoot"></tfoot>
         </table>
+        </div>
+        </div>
         </div>
       </div>`;
       
@@ -9276,13 +9387,13 @@ ${r.optPlan}
             // Desktop Table HTML 생성
             tableResults.forEach(({r, vt, u, c}) => {
               htmlRows += `<tr>`+
-                `<td>${r.no}</td><td>${formatCompactDateTime(r.submittedAt)}</td><td>${escapeHtml(r.companyCode)}</td>`+
-                `<td>${vt}</td><td>${escapeHtml(r.companyName)}</td><td>${escapeHtml(r.bizNo)}</td>`+
-                `<td>${escapeHtml(r.contact)}</td><td>${escapeHtml(r.keywords)}</td>`+
-                `<td>${r.totalCnt}</td><td>${r.acceptedAt?formatCompactDateTime(r.acceptedAt):''}</td>`+
-                `<td>${escapeHtml(r.settlementStatus || '')}</td><td>${r.depositMatchedAt?formatCompactDateTime(r.depositMatchedAt):''}</td><td>${escapeHtml(r.depositName || '')}</td>`+
-                `<td>${vt==='우수'?'2,500원':'3,000원'}</td><td>${vt==='우수'?'1,000원':'1,500원'}</td>`+
-                `<td>${u.toLocaleString()}원</td><td>${c.toLocaleString()}원</td>`+
+                `<td class="col-no">${r.no}</td><td class="col-datetime">${formatCompactDateTime(r.submittedAt)}</td><td class="col-code">${escapeHtml(r.companyCode)}</td>`+
+                `<td class="col-type">${vt}</td><td class="col-company col-text">${escapeHtml(r.companyName)}</td><td class="col-code">${escapeHtml(r.bizNo)}</td>`+
+                `<td class="col-contact">${escapeHtml(r.contact)}</td><td class="col-keyword">${escapeHtml(r.keywords)}</td>`+
+                `<td class="col-count">${r.totalCnt}</td><td class="col-datetime">${r.acceptedAt?formatCompactDateTime(r.acceptedAt):''}</td>`+
+                `<td class="col-status">${escapeHtml(r.settlementStatus || '')}</td><td class="col-datetime">${r.depositMatchedAt?formatCompactDateTime(r.depositMatchedAt):''}</td><td class="col-text">${escapeHtml(r.depositName || '')}</td>`+
+                `<td class="col-money">${vt==='우수'?'2,500원':'3,000원'}</td><td class="col-money">${vt==='우수'?'1,000원':'1,500원'}</td>`+
+                `<td class="col-money">${u.toLocaleString()}원</td><td class="col-money">${c.toLocaleString()}원</td>`+
               `</tr>`;
             });
             
@@ -9693,23 +9804,23 @@ ${r.optPlan}
           
           // Desktop Table HTML
           tableHtml += `<tr>`+
-            `<td>${r.no}</td>`+
-            `<td>${formatCompactDateTime(r.submittedAt)}</td>`+
-            `<td>${escapeHtml(r.companyCode)}</td>`+
-            `<td>${vendorType}</td>`+
-            `<td>${escapeHtml(r.companyName)}</td>`+
-            `<td>${escapeHtml(r.bizNo)}</td>`+
-            `<td>${escapeHtml(r.contact)}</td>`+
-            `<td>${escapeHtml(r.keywords)}</td>`+
-            `<td>${r.totalCnt}</td>`+
-            `<td>${r.acceptedAt ? formatCompactDateTime(r.acceptedAt) : ''}</td>`+
-            `<td>${escapeHtml(r.settlementStatus || '')}</td>`+
-            `<td>${r.depositMatchedAt ? formatCompactDateTime(r.depositMatchedAt) : ''}</td>`+
-            `<td>${escapeHtml(r.depositName || '')}</td>`+
-            `<td>${vendorType === '우수' ? '2,500원' : '3,000원'}</td>`+
-            `<td>${vendorType === '우수' ? '1,000원' : '1,500원'}</td>`+
-            `<td>${usageFee.toLocaleString()}원</td>`+
-            `<td>${commissionFee.toLocaleString()}원</td>`+
+            `<td class="col-no">${r.no}</td>`+
+            `<td class="col-datetime">${formatCompactDateTime(r.submittedAt)}</td>`+
+            `<td class="col-code">${escapeHtml(r.companyCode)}</td>`+
+            `<td class="col-type">${vendorType}</td>`+
+            `<td class="col-company col-text">${escapeHtml(r.companyName)}</td>`+
+            `<td class="col-code">${escapeHtml(r.bizNo)}</td>`+
+            `<td class="col-contact">${escapeHtml(r.contact)}</td>`+
+            `<td class="col-keyword">${escapeHtml(r.keywords)}</td>`+
+            `<td class="col-count">${r.totalCnt}</td>`+
+            `<td class="col-datetime">${r.acceptedAt ? formatCompactDateTime(r.acceptedAt) : ''}</td>`+
+            `<td class="col-status">${escapeHtml(r.settlementStatus || '')}</td>`+
+            `<td class="col-datetime">${r.depositMatchedAt ? formatCompactDateTime(r.depositMatchedAt) : ''}</td>`+
+            `<td class="col-text">${escapeHtml(r.depositName || '')}</td>`+
+            `<td class="col-money">${vendorType === '우수' ? '2,500원' : '3,000원'}</td>`+
+            `<td class="col-money">${vendorType === '우수' ? '1,000원' : '1,500원'}</td>`+
+            `<td class="col-money">${usageFee.toLocaleString()}원</td>`+
+            `<td class="col-money">${commissionFee.toLocaleString()}원</td>`+
           `</tr>`;
           
           // Mobile Card HTML
@@ -10244,27 +10355,34 @@ ${r.optPlan}
       
       // Recent data table
       html += `<div style="border:2px solid var(--border);border-radius:12px;padding:20px;background:#fff;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
           <h3 style="margin:0;color:var(--brand);font-size:16px;">전체 데이터</h3>
-          <div style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;" class="hidden md:flex">
             <input type="text" id="dataManagementSearch" placeholder="업체명 검색..." 
                    style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;min-width:200px;"
                    oninput="filterDataManagementTable(this.value)">
             <button onclick="clearDataManagementSearch()" class="btn ghost" style="padding:8px 12px;font-size:14px;">초기화</button>
           </div>
         </div>
-        <div class="scroll-x" style="max-height:600px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <div class="data-mgmt-desktop-table" style="display:none;">
+          <style>
+            @media (min-width: 768px) {
+              .data-mgmt-desktop-table { display: block !important; }
+            }
+          </style>
+        <div class="table-scroll-wrap">
+        <div class="scroll-x table-scroll" style="max-height:600px;border:1px solid var(--border);border-radius:8px;">
           <table class="admin-table" id="dataManagementTable">
             <thead>
               <tr>
-                <th>NO</th>
-                <th>제출시간</th>
-                <th>업체코드</th>
-                <th>업체명</th>
-                <th>VENDOR 유형</th>
-                <th>진행건수</th>
-                <th>접수상태</th>
-                <th>관리</th>
+                <th class="col-no">NO</th>
+                <th class="col-datetime">제출시간</th>
+                <th class="col-code">업체코드</th>
+                <th class="col-company col-text">업체명</th>
+                <th class="col-type">VENDOR 유형</th>
+                <th class="col-count">진행건수</th>
+                <th class="col-status">접수상태</th>
+                <th class="col-action">관리</th>
               </tr>
             </thead>
             <tbody id="dataManagementTableBody">`;
@@ -10280,8 +10398,10 @@ ${r.optPlan}
       
       // 모든 데이터를 data attribute로 저장 (필터링용)
       const recentData = rows;
+      let dataMgmtMobileHtml = '';
       if(recentData.length === 0){
         html += '<tr><td colspan="8" style="text-align:center;color:#6a7a89">데이터가 없습니다.</td></tr>';
+        dataMgmtMobileHtml = '<div class="text-center text-neutral-500 py-8 text-[clamp(12px,1.2vw,14px)]">데이터가 없습니다.</div>';
       } else {
         recentData.forEach(r => {
           // 각 데이터의 submittedAt 기준으로 계산된 vendorType 사용
@@ -10289,8 +10409,8 @@ ${r.optPlan}
           const companyName = escapeHtml(r.companyName || '');
           const companyCode = escapeHtml(r.companyCode || '');
           html += `<tr data-company-name="${companyName.toLowerCase()}" data-company-code="${companyCode.toLowerCase()}">`+
-            `<td>${r.no}</td>`+
-            `<td>
+            `<td class="col-no">${r.no}</td>`+
+            `<td class="col-datetime">
               <div style="display:flex;flex-direction:column;gap:2px;">
                 <input type="date" value="${new Date(r.submittedAt).toISOString().slice(0,10)}" 
                        onchange="queueSubmittedAtDate(${r.no}, this.value, '${new Date(r.submittedAt).toTimeString().slice(0,5)}')" 
@@ -10300,35 +10420,58 @@ ${r.optPlan}
                        style="width:120px;padding:4px;border:1px solid var(--border);border-radius:4px;">
               </div>
             </td>`+
-            `<td>${companyCode}</td>`+
-            `<td>${companyName}</td>`+
-            `<td>
+            `<td class="col-code">${companyCode}</td>`+
+            `<td class="col-company col-text">${companyName}</td>`+
+            `<td class="col-type">
               <select onchange="queueVendorType(${r.no}, this.value)" style="padding:4px;border:1px solid var(--border);border-radius:4px;">
                 <option value="일반" ${currentVendorType === '일반' ? 'selected' : ''}>일반</option>
                 <option value="우수" ${currentVendorType === '우수' ? 'selected' : ''}>우수</option>
               </select>
             </td>`+
-            `<td>
+            `<td class="col-count">
               <input type="number" value="${r.totalCnt}" min="1" 
                      onchange="updateProgressCount(${r.no}, this.value)" 
                      style="width:60px;padding:4px;border:1px solid var(--border);border-radius:4px;text-align:center;">
             </td>`+
-            `<td>${r.accepted ? '<span class="yn y">Y</span>' : '<span class="yn n">N</span>'}</td>`+
-            `<td>
+            `<td class="col-status">${r.accepted ? '<span class="yn y">Y</span>' : '<span class="yn n">N</span>'}</td>`+
+            `<td class="col-action">
               <button class="btn ghost" onclick="viewDetail(${r.no})" type="button" style="margin-right:8px;">보기</button>
               <button class="btn ghost" onclick="confirmDeleteSingle(${r.no})" type="button" style="background:#8a2b2b;color:#fff;">삭제</button>
             </td>`+
           `</tr>`;
+
+          dataMgmtMobileHtml += `
+            <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden" data-company-name="${companyName.toLowerCase()}" data-company-code="${companyCode.toLowerCase()}">
+              <div class="w-full px-3 py-3 text-left">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-[clamp(12px,1.2vw,14px)] font-semibold text-neutral-900">${companyName}</span>
+                      <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">NO.${r.no}</span>
+                    </div>
+                    <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500 mb-1">${companyCode} · ${currentVendorType}</div>
+                    <div class="text-[clamp(11px,1.1vw,13px)] text-neutral-500">${r.totalCnt}건 · 접수 ${r.accepted ? 'Y' : 'N'}</div>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <button class="btn ghost flex-1" onclick="viewDetail(${r.no})" type="button">보기</button>
+                  <button class="btn ghost flex-1" onclick="confirmDeleteSingle(${r.no})" type="button" style="background:#8a2b2b;color:#fff;">삭제</button>
+                </div>
+              </div>
+            </div>`;
         });
       }
       
-      html += `</tbody></table></div></div>`;
+      html += `</tbody></table></div></div></div>
+        <div id="dataManagementMobileList" class="block md:hidden space-y-3 px-1 pb-4">${dataMgmtMobileHtml}</div>
+      </div>`;
       
       main.innerHTML = html + `
         <button class="btn floating-save-btn" id="dmSaveBtn" type="button" disabled>수정하기</button>
       `;
       const saveBtn = document.getElementById('dmSaveBtn');
       saveBtn?.addEventListener('click', ()=>{ applyPendingEdits(); });
+      if (typeof window.bindTableScrollHints === 'function') window.bindTableScrollHints();
       const applyCompanyRenameBtn = document.getElementById('applyCompanyRename');
       applyCompanyRenameBtn?.addEventListener('click', ()=>{ handleCompanyRename(); });
       const debugVendorCsvBtn = document.getElementById('debugVendorCsvBtn');
@@ -10625,38 +10768,31 @@ ${r.optPlan}
     // 데이터 관리 테이블 필터링 함수
     function filterDataManagementTable(searchTerm) {
       const tbody = document.getElementById('dataManagementTableBody');
-      if (!tbody) return;
+      const mobileList = document.getElementById('dataManagementMobileList');
+      if (!tbody && !mobileList) return;
       
-      const rows = tbody.querySelectorAll('tr');
+      const rows = tbody ? tbody.querySelectorAll('tr') : [];
+      const cards = mobileList ? mobileList.querySelectorAll('[data-company-name]') : [];
       const searchLower = (searchTerm || '').toLowerCase().trim();
       
       if (!searchLower) {
-        // 검색어가 없으면 모든 행 표시
         rows.forEach(row => {
-          if (row.id !== 'noResultsRow') {
-            row.style.display = '';
-          }
+          if (row.id !== 'noResultsRow') row.style.display = '';
         });
-        // 검색 결과 없음 메시지 제거
+        cards.forEach(card => { card.style.display = ''; });
         const noResultsRow = document.getElementById('noResultsRow');
-        if (noResultsRow) {
-          noResultsRow.remove();
-        }
+        if (noResultsRow) noResultsRow.remove();
         return;
       }
       
-      // 검색어가 있으면 필터링
       let visibleCount = 0;
       rows.forEach(row => {
-        // 검색 결과 없음 메시지 행은 건너뛰기
         if (row.id === 'noResultsRow') {
           row.remove();
           return;
         }
-        
         const companyName = row.getAttribute('data-company-name') || '';
         const companyCode = row.getAttribute('data-company-code') || '';
-        
         if (companyName.includes(searchLower) || companyCode.includes(searchLower)) {
           row.style.display = '';
           visibleCount++;
@@ -10664,9 +10800,18 @@ ${r.optPlan}
           row.style.display = 'none';
         }
       });
+      cards.forEach(card => {
+        const companyName = card.getAttribute('data-company-name') || '';
+        const companyCode = card.getAttribute('data-company-code') || '';
+        if (companyName.includes(searchLower) || companyCode.includes(searchLower)) {
+          card.style.display = '';
+        } else {
+          card.style.display = 'none';
+        }
+      });
       
       // 검색 결과가 없으면 메시지 표시
-      if (visibleCount === 0 && rows.length > 0) {
+      if (visibleCount === 0 && rows.length > 0 && tbody) {
         const noResultsRow = document.createElement('tr');
         noResultsRow.id = 'noResultsRow';
         noResultsRow.innerHTML = `<td colspan="8" style="text-align:center;color:#6a7a89;padding:20px;">검색 결과가 없습니다.</td>`;
