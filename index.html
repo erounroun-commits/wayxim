@@ -1530,21 +1530,20 @@
       // 핵심: 제출 시점에 vendorType을 계산하여 확정 저장
       // 이렇게 하면 이후 벤더 등급이 변경되어도 과거 submission의 단가는 변경되지 않음
       const submittedAt = Date.now();
-      let vendorTypeAtSubmission = '일반'; // 기본값
+      let vendorTypeAtSubmission = null;
       
       try {
-        // 제출 시점 이전의 모든 submission 조회
         const existingSubmissions = await loadSubs();
-        
-        // 제출 시점 기준 vendorType 계산
         vendorTypeAtSubmission = await getVendorTypeAtSubmissionTime(
           companyCode,
           submittedAt,
           existingSubmissions,
-          uniqueId // 현재 submission ID 전달하여 제외
+          uniqueId
         );
+        if (vendorTypeAtSubmission !== '우수' && vendorTypeAtSubmission !== '일반') {
+          throw new Error(`등급 판정 결과 무효: ${vendorTypeAtSubmission}`);
+        }
         
-        // 주식회사 천호(AD91) 특별 로깅
         if (companyCode === 'AD91' || productData.companyName?.includes('천호')) {
           const submissionsBeforeThis = existingSubmissions.filter(s => {
             if (!s.submittedAt || !s.companyCode) return false;
@@ -1563,13 +1562,7 @@
             vendorTypeAtSubmission: vendorTypeAtSubmission,
             totalCnt: productData.totalCnt,
             expectedCommission: productData.totalCnt * (vendorTypeAtSubmission === '우수' ? 1000 : 1500),
-            submissionsBeforeThisCount: submissionsBeforeThis.length,
-            submissionsBeforeThis: submissionsBeforeThis.map(s => ({
-              no: s.no,
-              submittedAt: new Date(s.submittedAt).toISOString(),
-              totalCnt: s.totalCnt,
-              vendorTypeAtSubmission: s.vendorTypeAtSubmission || 'N/A'
-            }))
+            submissionsBeforeThisCount: submissionsBeforeThis.length
           });
         }
       } catch (error) {
@@ -1577,11 +1570,13 @@
           companyCode: companyCode,
           error: error.message
         });
-        // 오류 발생 시 기본값 '일반' 사용
-        vendorTypeAtSubmission = '일반';
+        throw new Error('제출 시점 수수료 등급을 확정할 수 없어 저장하지 않습니다: ' + (error?.message || error));
       }
 
       const commissionLock = buildCommissionLockFields(productData.totalCnt, vendorTypeAtSubmission);
+      if (!Number.isFinite(Number(commissionLock.commissionAtSubmission))) {
+        throw new Error('수수료 잠금 금액이 유효하지 않아 제출할 수 없습니다.');
+      }
 
       const rec = {
         id: uniqueId,
@@ -2141,6 +2136,17 @@
         if (notificationCount) notificationCount.style.display = 'none';
       }
       
+      // 관리자 진입 시 원장 정합성 조용히 점검 (불일치만 콘솔 경고)
+      setTimeout(() => {
+        if (typeof window.runLedgerIntegrityCheck === 'function') {
+          window.runLedgerIntegrityCheck({ silent: true }).then((r) => {
+            if (r && r.useLedger && !r.ok) {
+              console.warn('[원장] 캐시와 엔트리 합계 불일치 — 데이터 관리 → 「원장 정합성 검사」');
+            }
+          }).catch(() => {});
+        }
+      }, 900);
+
       // 실시간 리스너 재설정 (관리자 로그인 시)
       if (window.db && window.setupRealtimeListener) {
         console.log('🔄 관리자 로그인 - 실시간 리스너 재설정');
@@ -5706,7 +5712,8 @@ ${r.optPlan}
         alreadyPresent: 0,
         errors: [],
         balanceAfter: null,
-        useLedger: false
+        useLedger: false,
+        scope: null
       };
       if (!(await isLedgerModeEnabled())) {
         report.useLedger = false;
@@ -5714,6 +5721,7 @@ ${r.optPlan}
       }
       report.useLedger = true;
 
+      const meta = (await loadSettlementBalanceMeta({ allowLocalFallback: false }).catch(() => null)) || {};
       const [rows, withdrawals, topUps, existingIds] = await Promise.all([
         loadSubs({ includeDeleted: true }),
         typeof loadWithdrawals === 'function' ? loadWithdrawals({ allowCacheFallback: false }) : Promise.resolve([]),
@@ -5721,9 +5729,32 @@ ${r.optPlan}
         loadLedgerEntryIdSet()
       ]);
 
-      for (const sub of rows || []) {
-        if (!sub?.id) continue;
-        if (sub.isDeleted === true || sub.isTest === true) continue;
+      let creditSubs = (rows || []).filter(s => s && s.id && s.isDeleted !== true && s.isTest !== true);
+      let debitWds = (withdrawals || []).filter(w => w && w.id && w.status === 'completed');
+      let creditTopUps = topUps || [];
+
+      if (meta.ledgerScope === 'post_reset_2026_08_12') {
+        const completedWd = debitWds;
+        const boundary = {
+          boundaryMs: Number(meta.ledgerResetBoundaryMs) || resolveExcelResetBoundary(completedWd).boundaryMs,
+          resetWithdrawalIds: new Set(meta.ledgerResetWithdrawalIds || []),
+          source: 'meta'
+        };
+        // meta에 reset id가 없으면 엑셀 규칙으로 재해석
+        if (!boundary.resetWithdrawalIds.size) {
+          const resolved = resolveExcelResetBoundary(completedWd);
+          boundary.resetWithdrawalIds = resolved.resetWithdrawalIds;
+          boundary.boundaryMs = resolved.boundaryMs;
+          boundary.source = resolved.source;
+        }
+        report.scope = 'post_reset_2026_08_12';
+        creditSubs = getSubsForVendor(rows || [], null, false)
+          .filter(s => isAfterExcelResetBoundary(s.submittedAt || 0, boundary));
+        debitWds = filterWithdrawalsAfterExcelReset(completedWd, boundary);
+        creditTopUps = (topUps || []).filter(t => isAfterExcelResetBoundary(t.createdAt || 0, boundary));
+      }
+
+      for (const sub of creditSubs) {
         const commission = Number(sub.commissionAtSubmission);
         if (!Number.isFinite(commission) || commission === 0) continue;
         const entryId = `commission_credit_${sub.id}`;
@@ -5750,8 +5781,7 @@ ${r.optPlan}
         }
       }
 
-      for (const w of withdrawals || []) {
-        if (!w?.id || w.status !== 'completed') continue;
+      for (const w of debitWds) {
         const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
         if (amount <= 0) continue;
         const entryId = `withdrawal_debit_${w.id}`;
@@ -5759,7 +5789,6 @@ ${r.optPlan}
           report.alreadyPresent++;
           continue;
         }
-        // 완료 후 취소(reversal)가 있으면 debit을 새로 넣지 않음
         if (existingIds.has(`withdrawal_reversal_${w.id}`)) {
           report.alreadyPresent++;
           continue;
@@ -5783,7 +5812,7 @@ ${r.optPlan}
         }
       }
 
-      for (const t of topUps || []) {
+      for (const t of creditTopUps) {
         if (!t?.id) continue;
         const amount = Number(t.amount) || 0;
         if (amount <= 0) continue;
@@ -5880,6 +5909,58 @@ ${r.optPlan}
     window.isLedgerModeEnabled = isLedgerModeEnabled;
     window.syncLedgerWithOperationalData = syncLedgerWithOperationalData;
     window.reconcileGlobalBalanceCache = reconcileGlobalBalanceCache;
+
+    /**
+     * 원장 정합성: globalBalance 캐시 vs sum(ledgerEntries).
+     * 값을 바꾸지 않고 보고만 한다 (silent면 alert 없음).
+     */
+    async function runLedgerIntegrityCheck(options = {}) {
+      const silent = options.silent === true;
+      const showAlert = !silent && options.alert !== false;
+      try {
+        if (!silent && typeof window.isFirebaseAdminAuth === 'function' && !window.isFirebaseAdminAuth()) {
+          alert('관리자 Firebase 로그인이 필요합니다.');
+          return null;
+        }
+        const meta = (await loadSettlementBalanceMeta({ allowLocalFallback: false }).catch(() => null)) || {};
+        const useLedger = meta.useLedger === true;
+        const cached = await getLedgerBalanceCached();
+        const summed = await sumLedgerEntries();
+        const diff = cached == null ? null : (Number(cached) - Number(summed));
+        const report = {
+          useLedger,
+          ledgerScope: meta.ledgerScope || null,
+          cached,
+          summed,
+          diff,
+          ok: cached != null && Number(cached) === Number(summed),
+          checkedAt: Date.now()
+        };
+        console.log('[INFO][ledger-integrity]', report);
+        if (!report.ok) {
+          console.warn('[WARN][ledger-integrity] 캐시≠원장합', report);
+        }
+        if (showAlert) {
+          alert(
+            `원장 정합성 검사\n\n` +
+            `useLedger: ${useLedger ? 'ON' : 'OFF'}\n` +
+            `scope: ${report.ledgerScope || '—'}\n` +
+            `캐시(globalBalance): ${cached == null ? '없음' : Number(cached).toLocaleString() + '원'}\n` +
+            `엔트리 합계: ${Number(summed).toLocaleString()}원\n` +
+            `차이: ${diff == null ? 'N/A' : Number(diff).toLocaleString() + '원'}\n` +
+            (report.ok
+              ? '\n✅ 일치'
+              : '\n⚠️ 불일치 — 출금신청 탭 「출금 가능액 업데이트」또는 콘솔 reconcileGlobalBalanceCache()')
+          );
+        }
+        return report;
+      } catch (e) {
+        console.error('[ledger-integrity]', e);
+        if (showAlert) alert('정합성 검사 실패: ' + (e?.message || e));
+        return null;
+      }
+    }
+    window.runLedgerIntegrityCheck = runLedgerIntegrityCheck;
 
     /** 출금가능액 불일치 진단 전용 — 값을 보정하지 않고 읽기/집계만 수행 */
     function _dedupeSubsByNoLatest(subs = []) {
@@ -6657,45 +6738,104 @@ ${r.optPlan}
     window.countInvalidCommissionLocks = countInvalidCommissionLocks;
     window.runCommissionLockBackfillAndVerify = runCommissionLockBackfillAndVerify;
 
-    async function bootstrapGlobalLedger({ enable = false } = {}) {
+    async function clearAllLedgerEntries() {
+      if (!window.db || !window.getDocs || !window.writeBatch) {
+        throw new Error('Firebase 배치 삭제 불가');
+      }
+      const snap = await window.getDocs(window.collection(window.db, 'ledgerEntries'));
+      let batch = window.writeBatch(window.db);
+      let ops = 0;
+      let deleted = 0;
+      for (const d of snap.docs) {
+        batch.delete(d.ref);
+        ops += 1;
+        deleted += 1;
+        if (ops >= 400) {
+          await batch.commit();
+          batch = window.writeBatch(window.db);
+          ops = 0;
+        }
+      }
+      if (ops > 0) await batch.commit();
+      await window.setDoc(window.doc(window.db, 'globalBalance', LEDGER_BALANCE_DOC), {
+        balance: 0,
+        updatedAt: Date.now(),
+        clearedAt: Date.now()
+      });
+      return { deleted };
+    }
+
+    function pickPostResetLedgerScope(rows, withdrawals, topUps) {
+      const completedWd = (withdrawals || []).filter(w => w && w.status === 'completed');
+      const boundary = resolveExcelResetBoundary(completedWd);
+      const settlementRows = getSubsForVendor(rows || [], null, false);
+      const creditSubs = settlementRows.filter(s => isAfterExcelResetBoundary(s.submittedAt || 0, boundary));
+      const debitWds = filterWithdrawalsAfterExcelReset(completedWd, boundary);
+      const creditTopUps = (topUps || []).filter(t => isAfterExcelResetBoundary(t.createdAt || 0, boundary));
+
+      let commissionSum = 0;
+      const missingLocks = [];
+      for (const s of creditSubs) {
+        const c = Number(s.commissionAtSubmission);
+        if (!Number.isFinite(c)) {
+          missingLocks.push({ id: s.id, no: s.no });
+          continue;
+        }
+        commissionSum += c;
+      }
+      const withdrawnSum = _sumWithdrawalAmount(debitWds);
+      const topUpSum = (creditTopUps || []).reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const expectedAvailable = commissionSum + topUpSum - withdrawnSum;
+
+      return {
+        boundary,
+        creditSubs,
+        debitWds,
+        creditTopUps,
+        commissionSum,
+        withdrawnSum,
+        topUpSum,
+        expectedAvailable,
+        missingLocks
+      };
+    }
+
+    /**
+     * B안: 8/12 리셋 경계를 0점으로 원장 재구축.
+     * - 리셋 출금(648,000) 및 그 이전 이력은 원장에 넣지 않음
+     * - openingAdjustment로 맞추지 않음 (opening_balance=0 기준점만 기록)
+     * - enable 시 expectedAvailable 과 ledger 합이 일치할 때만 useLedger ON
+     */
+    async function bootstrapGlobalLedger({ enable = false, wipe = true } = {}) {
       const [rows, withdrawals, topUps] = await Promise.all([
         loadSubs({ includeDeleted: true }),
         loadWithdrawals({ allowCacheFallback: false }),
         loadAvailableTopUps()
       ]);
-      const vendorTypes = await getAllVendorTypes(rows, false);
-      const legacy = await calcSettlementForVendor(rows, withdrawals, null, vendorTypes, { forceLegacy: true });
-      const legacyAvailable = Math.max(0, Number(legacy.availableAmount) || 0);
 
-      // 재구축용 항목 (idempotent doc ids)
-      const opening = Number(legacy.openingAdjustment) || 0;
-      if (opening > 0) {
-        await appendLedgerEntry({
-          type: 'opening_balance',
-          amount: opening,
-          refType: 'migration',
-          refId: 'opening',
-          note: 'openingAdjustment',
-          allowNegative: true
-        });
-      } else if (opening < 0) {
-        await appendLedgerEntry({
-          type: 'opening_balance_debit',
-          amount: Math.abs(opening),
-          refType: 'migration',
-          refId: 'opening',
-          note: 'negative openingAdjustment',
-          allowNegative: true
-        });
+      const scope = pickPostResetLedgerScope(rows, withdrawals, topUps);
+      if (scope.missingLocks.length) {
+        throw new Error(`수수료 잠금 누락 ${scope.missingLocks.length}건 — 먼저 1단계 백필 필요 (예: no=${scope.missingLocks[0]?.no})`);
       }
 
-      for (const sub of rows) {
-        if (!sub || sub.isDeleted === true || !sub.id) continue;
+      let wipeReport = { deleted: 0 };
+      if (wipe) {
+        wipeReport = await clearAllLedgerEntries();
+      }
+
+      // 기준점 마커 (금액 0) — 보정값이 아님
+      await appendLedgerEntry({
+        type: 'opening_balance',
+        amount: 0,
+        refType: 'migration',
+        refId: 'reset_2026_08_12',
+        note: `post-reset zero boundary @ ${scope.boundary.boundaryIso} (${scope.boundary.source})`,
+        allowNegative: true
+      });
+
+      for (const sub of scope.creditSubs) {
         const commission = Number(sub.commissionAtSubmission);
-        if (!Number.isFinite(commission)) {
-          throw new Error(`수수료 잠금 없는 submission: no=${sub.no} id=${sub.id}`);
-        }
-        if (commission === 0) continue;
+        if (!Number.isFinite(commission) || commission === 0) continue;
         await appendLedgerEntry({
           type: 'commission_credit',
           amount: commission,
@@ -6706,90 +6846,117 @@ ${r.optPlan}
         });
       }
 
-      for (const w of withdrawals) {
-        if (!w || w.status !== 'completed' || !w.id) continue;
+      for (const w of scope.debitWds) {
         const amount = typeof w.amount === 'number' ? w.amount : (parseFloat(w.amount) || 0);
-        if (amount <= 0) continue;
+        if (amount <= 0 || !w.id) continue;
         await appendLedgerEntry({
           type: 'withdrawal_debit',
           amount,
           refType: 'withdrawal',
           refId: w.id,
-          note: 'bootstrap',
+          note: 'bootstrap post-reset',
           allowNegative: true
         });
       }
 
-      for (const t of topUps) {
-        if (!t || !t.id) continue;
+      for (const t of scope.creditTopUps) {
         const amount = Number(t.amount) || 0;
-        if (amount <= 0) continue;
+        if (amount <= 0 || !t.id) continue;
         await appendLedgerEntry({
           type: 'manual_credit',
           amount,
           refType: 'topup',
           refId: t.id,
-          note: 'bootstrap',
+          note: 'bootstrap post-reset',
           allowNegative: true
         });
       }
 
-      // 잔액 캐시를 합계로 재동기화
-      const summed = await sumLedgerEntries();
-      await window.setDoc(window.doc(window.db, 'globalBalance', LEDGER_BALANCE_DOC), {
-        balance: summed,
-        updatedAt: Date.now(),
-        bootstrappedAt: Date.now()
-      }, { merge: true });
-
-      const diff = Math.round(summed) - Math.round(legacyAvailable);
+      const ledgerSum = await reconcileGlobalBalanceCache();
+      const expected = Math.round(scope.expectedAvailable);
+      const summed = Math.round(ledgerSum);
+      const diff = summed - expected;
       const report = {
-        legacyAvailable,
+        mode: 'post_reset_2026_08_12',
+        wipeDeleted: wipeReport.deleted,
+        boundaryIso: scope.boundary.boundaryIso,
+        boundarySource: scope.boundary.source,
+        creditSubs: scope.creditSubs.length,
+        debitWds: scope.debitWds.length,
+        creditTopUps: scope.creditTopUps.length,
+        commissionSum: scope.commissionSum,
+        withdrawnSum: scope.withdrawnSum,
+        topUpSum: scope.topUpSum,
+        expectedAvailable: expected,
         ledgerSum: summed,
         diff,
-        match: diff === 0
+        match: diff === 0,
+        // 레거시 필드명 호환 (구 위저드/로그)
+        legacyAvailable: expected
       };
 
       if (enable) {
         if (!report.match) {
-          throw new Error(`잔액 불일치 — ledger ${summed} vs legacy ${legacyAvailable} (diff ${diff}). useLedger 활성화 중단`);
+          throw new Error(`잔액 불일치 — ledger ${summed} vs expected(post-reset) ${expected} (diff ${diff}). useLedger 활성화 중단`);
         }
-        const meta = (await loadSettlementBalanceMeta()) || {};
+        const meta = (await loadSettlementBalanceMeta({ allowLocalFallback: false }).catch(() => ({}))) || {};
         await saveSettlementBalanceMeta({
           ...meta,
           useLedger: true,
+          ledgerScope: 'post_reset_2026_08_12',
+          ledgerResetBoundaryMs: scope.boundary.boundaryMs,
+          ledgerResetWithdrawalIds: Array.from(scope.boundary.resetWithdrawalIds),
           ledgerBootstrappedAt: Date.now(),
-          ledgerBootstrapReport: report
+          ledgerBootstrapReport: report,
+          // 레거시 보정 필드는 더 이상 잔액에 쓰지 않음 (기록만 정리)
+          openingAdjustment: 0
         });
       }
+      console.log('[INFO][bootstrapGlobalLedger]', report);
       return report;
     }
     window.migrateCommissionLocks = migrateCommissionLocks;
     window.bootstrapGlobalLedger = bootstrapGlobalLedger;
+    window.clearAllLedgerEntries = clearAllLedgerEntries;
 
     async function runLedgerMigrationWizard() {
       if (typeof window.isFirebaseAdminAuth === 'function' && !window.isFirebaseAdminAuth()) {
         alert('관리자 Firebase 로그인이 필요합니다.');
         return;
       }
-      if (!confirm('1) 수수료 잠금 백필 → 2) 원장 부트스트랩 → 3) 잔액 일치 시 useLedger 활성화를 진행할까요?\n\n먼저 baseline 내보내기를 완료했는지 확인하세요.')) {
+      if (!confirm(
+        'B안 원장 재구축을 진행할까요?\n\n' +
+        '1) 수수료 잠금 백필\n' +
+        '2) 기존 ledgerEntries 삭제\n' +
+        '3) 2026-08-12 리셋 경계 이후만 원장 재기록 (리셋출금 648,000 제외)\n' +
+        '4) 합계 일치 시에만 useLedger=ON\n\n' +
+        'openingAdjustment로 숫자를 맞추지 않습니다.'
+      )) {
         return;
       }
       showLoading();
       try {
         const lockResult = await migrateCommissionLocks();
-        const report = await bootstrapGlobalLedger({ enable: true });
+        if (lockResult.afterInvalid > 0) {
+          throw new Error(`수수료 잠금 백필 후에도 무효 ${lockResult.afterInvalid}건 — 원장 구축 중단`);
+        }
+        const report = await bootstrapGlobalLedger({ enable: true, wipe: true });
         alert(
-          `원장 마이그레이션 완료\n\n` +
-          `수수료 잠금 보정: ${lockResult.fixed}건\n` +
-          `레거시 잔액: ${report.legacyAvailable.toLocaleString()}원\n` +
+          `B안 원장 재구축 완료\n\n` +
+          `수수료 잠금: 무효 ${lockResult.beforeInvalid}→${lockResult.afterInvalid} (수정 ${lockResult.fixed}건)\n` +
+          `삭제된 구 원장: ${report.wipeDeleted}건\n` +
+          `경계: ${report.boundaryIso}\n` +
+          `credit 신청 ${report.creditSubs} / debit 출금 ${report.debitWds} / 증액 ${report.creditTopUps}\n` +
+          `기대 잔액: ${report.expectedAvailable.toLocaleString()}원\n` +
           `원장 합계: ${report.ledgerSum.toLocaleString()}원\n` +
           `차이: ${report.diff}원\n` +
           `useLedger: ${report.match ? 'ON' : 'OFF'}`
         );
+        return report;
       } catch (e) {
         console.error(e);
-        alert('원장 마이그레이션 실패: ' + (e?.message || e));
+        alert('원장 재구축 실패: ' + (e?.message || e));
+        return null;
       } finally {
         hideLoading();
       }
@@ -8503,6 +8670,9 @@ ${r.optPlan}
         const ledgerOn = await isLedgerModeEnabled();
 
         if (ledgerOn && typeof window.runTransaction === 'function') {
+          // 완료 직전 캐시를 엔트리 합계와 맞춤 (트랜잭션은 캐시 문서를 읽음)
+          await reconcileGlobalBalanceCache();
+
           const wRef = window.doc(window.db, 'withdrawals', withdrawalId);
           const balRef = window.doc(window.db, 'globalBalance', LEDGER_BALANCE_DOC);
           const debitRef = window.doc(window.db, 'ledgerEntries', `withdrawal_debit_${withdrawalId}`);
@@ -9863,7 +10033,8 @@ ${r.optPlan}
             <button class="btn ghost" id="debugVendorCsvBtn" type="button" style="width:100%;">디버그: VENDOR CSV 다운로드</button>
             <button class="btn" id="exportBaselineBtn" type="button" onclick="exportSettlementBaseline()" style="width:100%;background:#2f5369;">정산 baseline 내보내기</button>
             <button class="btn" id="commissionLockBackfillBtn" type="button" onclick="runCommissionLockBackfillAndVerify()" style="width:100%;background:#8a5a00;">1단계: 수수료 잠금 백필</button>
-            <button class="btn" id="ledgerMigrateBtn" type="button" onclick="runLedgerMigrationWizard()" style="width:100%;background:#3c6f8b;">원장 마이그레이션 (useLedger)</button>
+            <button class="btn" id="ledgerMigrateBtn" type="button" onclick="runLedgerMigrationWizard()" style="width:100%;background:#3c6f8b;">원장 마이그레이션 (B안 재구축)</button>
+            <button class="btn" id="ledgerIntegrityBtn" type="button" onclick="runLedgerIntegrityCheck()" style="width:100%;background:#5a6b3c;">원장 정합성 검사</button>
             <button class="btn ghost" id="rebuildSummaryBtn" type="button" onclick="(async()=>{try{showLoading();const r=await rebuildVendorSummariesFromSubs();alert('vendorSummary 재구축: '+r.vendors+'개 업체');}catch(e){alert(e.message||e);}finally{hideLoading();}})()" style="width:100%;">VENDOR 요약 재구축</button>
             <button class="btn" type="button" onclick="runAvailableBalanceDiagnosis()" style="width:100%;background:#8a5a00;">출금가능액 진단 (읽기전용)</button>
             <button class="btn ghost" type="button" onclick="copyDiagnoseBalanceConsoleCommand()" style="width:100%;">진단 콘솔 명령 복사 (await diagBal())</button>
@@ -10687,21 +10858,26 @@ ${r.optPlan}
       let commissionLockedAt = rec ? rec.commissionLockedAt : null;
       if (!rec || !vendorTypeAtSubmission) {
         const submittedAt = parseTs(obj['제출시간']) || (rec ? rec.submittedAt : Date.now());
-        if (companyCode && submittedAt) {
-          try {
-            vendorTypeAtSubmission = await getVendorTypeAtSubmissionTime(companyCode, submittedAt, rows, rec ? rec.id : null);
-          } catch (_) {
-            vendorTypeAtSubmission = '일반';
-          }
-        } else {
-          vendorTypeAtSubmission = '일반';
+        if (!companyCode || !submittedAt) {
+          throw new Error(`업로드 행 수수료 잠금 불가: 업체코드/제출시간 없음 (번호=${obj['번호'] || ''})`);
+        }
+        try {
+          vendorTypeAtSubmission = await getVendorTypeAtSubmissionTime(companyCode, submittedAt, rows, rec ? rec.id : null);
+        } catch (e) {
+          throw new Error(`업로드 행 등급 판정 실패 (번호=${obj['번호'] || ''}): ${e?.message || e}`);
+        }
+        if (vendorTypeAtSubmission !== '우수' && vendorTypeAtSubmission !== '일반') {
+          throw new Error(`업로드 행 등급 무효 (번호=${obj['번호'] || ''}): ${vendorTypeAtSubmission}`);
         }
       }
-      if (commissionAtSubmission == null) {
-        const lock = buildCommissionLockFields(mappedTotalCnt, vendorTypeAtSubmission || '일반');
+      if (commissionAtSubmission == null || commissionAtSubmission === '' || !Number.isFinite(Number(commissionAtSubmission))) {
+        const lock = buildCommissionLockFields(mappedTotalCnt, vendorTypeAtSubmission);
         vendorTypeAtSubmission = lock.vendorTypeAtSubmission;
         commissionAtSubmission = lock.commissionAtSubmission;
         commissionLockedAt = lock.commissionLockedAt;
+      }
+      if (!Number.isFinite(Number(commissionAtSubmission))) {
+        throw new Error(`업로드 행 수수료 잠금 금액 무효 (번호=${obj['번호'] || ''})`);
       }
 
       const uploadExternalId = (obj['업로드ID'] || '').trim() || (rec ? rec.uploadExternalId : '') || null;
